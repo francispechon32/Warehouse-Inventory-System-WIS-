@@ -8,6 +8,8 @@ import EndingInventoryPage from "./EndingInventoryPage";
 import BackloadInventoryPage from "./BackloadInventoryPage";
 import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
 import ReturnPage from "./ReturnPage";
+import PurchasingOrderPage from "./PurchasingOrderPage";
+import StockSheetsPage from "./StockSheetsPage";
 
 
 const inventoryDataByRange = {
@@ -344,9 +346,10 @@ export default function Dashboard() {
           {/* Nav */}
           <nav style={{ flex: 1, paddingTop: 6, overflowY: "auto" }}>
             {navItems.map(({ label, Icon, hasChildren }) => {
-              const isActive = activeNav === label;
               const isStockParent = label === "Stock Management";
-              const isStockActive = isStockParent && activeNav === "Stock Management";
+              const isStockChildActive = isStockParent && stockSubItems.some(({ label: sub }) => sub === activeNav);
+              const isActive = activeNav === label;
+              const parentLooksActive = isActive || isStockChildActive;
 
               return (
                 <div key={label}>
@@ -355,8 +358,7 @@ export default function Dashboard() {
                     className="nav-item-btn"
                     onClick={() => {
                       if (hasChildren) {
-                        setStockExpanded(v => !v);
-                        setActiveNav(label);
+                        setStockExpanded((v) => !v);
                       } else {
                         setActiveNav(label);
                       }
@@ -364,11 +366,11 @@ export default function Dashboard() {
                     style={{
                       display: "flex", alignItems: "center", gap: 14,
                       width: "100%", padding: "13px 28px",
-                      background: (isActive && !hasChildren) || isStockActive ? "#e87c27" : "transparent",
+                      background: (isActive && !hasChildren) || isStockChildActive ? "#e87c27" : "transparent",
                       border: "none", cursor: "pointer",
-                      color: (isActive || isStockActive) ? "#fff" : "#8b95a9",
+                      color: parentLooksActive ? "#fff" : "#8b95a9",
                       fontSize: 15,
-                      fontWeight: (isActive || isStockActive) ? 700 : 400,
+                      fontWeight: parentLooksActive ? 700 : 400,
                       textAlign: "left",
                       transition: "background .15s",
                     }}
@@ -380,7 +382,7 @@ export default function Dashboard() {
                         display: "flex", flexShrink: 0,
                         transform: stockExpanded ? "rotate(180deg)" : "rotate(0deg)",
                         transition: "transform .22s ease",
-                        color: isStockActive ? "#fff" : "#8b95a9",
+                        color: isStockChildActive ? "#fff" : "#8b95a9",
                       }}>
                         <IconChevronDown size={15} />
                       </span>
@@ -396,7 +398,7 @@ export default function Dashboard() {
                           <button
                             key={subLabel}
                             className="sub-item-btn"
-                            onClick={() => setActiveNav(subLabel)}
+                            onClick={() => { setActiveNav(subLabel); setStockExpanded(true); }}
                             style={{
                               display: "flex", alignItems: "center", gap: 12,
                               width: "100%", padding: "11px 28px 11px 58px",
@@ -458,6 +460,8 @@ export default function Dashboard() {
                     : activeNav === "Backload Inventory" ? "Backload Inventory"
                     : activeNav === "Advance Customer PO" ? "Advance Customer PO"
                     : activeNav === "Return" ? "Return"
+                    : activeNav === "Purchasing Order" ? "List of Purchase Order"
+                    : activeNav === "Stock Sheets" ? "Stock Sheets / SKU"
                     : "Welcome Back, Chelsea!"}
                 </h1>
                 {activeNav === "Product" && (
@@ -476,6 +480,12 @@ export default function Dashboard() {
                 )}
                 {activeNav === "Return" && (
                   <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Returns and credit memos</p>
+                )}
+                {activeNav === "Purchasing Order" && (
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Track all incoming purchase orders</p>
+                )}
+                {activeNav === "Stock Sheets" && (
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Daily stock IN and OUT per product — Marilao Warehouse</p>
                 )}
               </div>
             </div>
@@ -530,6 +540,10 @@ export default function Dashboard() {
               <AdvanceCustomerPOPage />
             ) : activeNav === "Return" ? (
               <ReturnPage />
+            ) : activeNav === "Purchasing Order" ? (
+              <PurchasingOrderPage />
+            ) : activeNav === "Stock Sheets" ? (
+              <StockSheetsPage />
             ) : (
               <div style={{
                 padding: "28px 32px 40px",
@@ -596,6 +610,7 @@ export default function Dashboard() {
                 value="13"
                 badge={{ text: "3 High Priority", color: "#d97706", bg: "#fef3c7", icon: <IconWarning size={12} /> }}
                 badgeUp={null}
+                onClick={() => { setActiveNav("Advance Customer PO"); setStockExpanded(true); }}
               />
               {/* Card 3 - Inventory Value */}
               <MetricCard
@@ -606,6 +621,7 @@ export default function Dashboard() {
                 value="₱2.4M"
                 badge={{ text: "3.5% from last month", color: "#16a34a", bg: "transparent", iconEl: <IconTrendUp size={13} /> }}
                 badgeUp={true}
+                onClick={() => { setActiveNav("Ending Inventory"); setStockExpanded(true); }}
               />
               {/* Card 4 - Transactions */}
               <MetricCard
@@ -616,6 +632,7 @@ export default function Dashboard() {
                 value="48"
                 badge={{ text: "0.8% from last month", color: "#dc2626", bg: "transparent", iconEl: <IconTrendDown size={13} /> }}
                 badgeUp={false}
+                onClick={() => setActiveNav("Purchasing Order")}
               />
             </div>
 
