@@ -5,13 +5,9 @@ import {
 } from "recharts";
 import ProductPage from "./ProductPage";
 import EndingInventoryPage from "./EndingInventoryPage";
-import BackloadInventoryPage from "./BackloadInventoryPage";
-import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
-import ReturnPage from "./ReturnPage";
-import PurchasingOrderPage from "./PurchasingOrderPage";
-import StockSheetsPage from "./StockSheetsPage";
+import Logo from "./assets/Untitled_design.svg";
 
-
+/* ─── DATA ─────────────────────────────────────────────── */
 const inventoryDataByRange = {
   "Last 7 Days": [
     { day: "Mon",   stockIn: 320, stockOut: 180 },
@@ -23,10 +19,10 @@ const inventoryDataByRange = {
     { day: "Sun",   stockIn: 310, stockOut: 290 },
   ],
   "Last 30 Days": [
-    { day: "Week 1",   stockIn: 2240, stockOut: 1340 },
-    { day: "Week 2",   stockIn: 2680, stockOut: 1820 },
-    { day: "Week 3",   stockIn: 1950, stockOut: 1560 },
-    { day: "Week 4",   stockIn: 2120, stockOut: 1680 },
+    { day: "Week 1", stockIn: 2240, stockOut: 1340 },
+    { day: "Week 2", stockIn: 2680, stockOut: 1820 },
+    { day: "Week 3", stockIn: 1950, stockOut: 1560 },
+    { day: "Week 4", stockIn: 2120, stockOut: 1680 },
   ],
   "Last 6 Months": [
     { day: "Jan", stockIn: 8500, stockOut: 6200 },
@@ -51,7 +47,7 @@ const inventoryDataByRange = {
     { day: "Dec", stockIn: 9900, stockOut: 8000 },
   ],
   "Last 5 Years": [
-    { day: "2020", stockIn: 95000, stockOut: 75000 },
+    { day: "2020", stockIn: 95000,  stockOut: 75000 },
     { day: "2021", stockIn: 102000, stockOut: 81000 },
     { day: "2022", stockIn: 115000, stockOut: 92000 },
     { day: "2023", stockIn: 108000, stockOut: 86000 },
@@ -78,7 +74,7 @@ const recentActivity = [
 ];
 
 /* ─── ICONS ─────────────────────────────────────────────── */
-function IconHome({ size = 16 }) {
+function IconHome({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -87,7 +83,7 @@ function IconHome({ size = 16 }) {
     </svg>
   );
 }
-function IconCart({ size = 16 }) {
+function IconCart({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -96,7 +92,7 @@ function IconCart({ size = 16 }) {
     </svg>
   );
 }
-function IconStock({ size = 16 }) {
+function IconStock({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -104,7 +100,7 @@ function IconStock({ size = 16 }) {
     </svg>
   );
 }
-function IconPO({ size = 16 }) {
+function IconPO({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -112,7 +108,7 @@ function IconPO({ size = 16 }) {
     </svg>
   );
 }
-function IconSheets({ size = 16 }) {
+function IconSheets({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -121,7 +117,7 @@ function IconSheets({ size = 16 }) {
     </svg>
   );
 }
-function IconSettings({ size = 16 }) {
+function IconSettings({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -146,7 +142,15 @@ function IconChevronDown({ size = 14 }) {
     </svg>
   );
 }
-function IconChevronRight({ size = 12 }) {
+function IconChevronLeft({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
+function IconChevronRight({ size = 16 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
@@ -213,10 +217,62 @@ function IconTrendDown({ size = 14 }) {
 function IconWarning({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01"
+        stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
     </svg>
   );
 }
+function IconEndingInv({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+    </svg>
+  );
+}
+function IconBackload({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="15" height="13" rx="1" />
+      <path d="M16 8h4l3 3v5h-7V8z" />
+      <circle cx="5.5" cy="18.5" r="2.5" />
+      <circle cx="18.5" cy="18.5" r="2.5" />
+    </svg>
+  );
+}
+function IconAdvancePO({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+    </svg>
+  );
+}
+function IconReturn({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+    </svg>
+  );
+}
+function IconHelp({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
 
 /* ─── CUSTOM TOOLTIP ─────────────────────────────────────── */
 function CustomTooltip({ active, payload, label }) {
@@ -239,49 +295,6 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
-/* ─── SUB-NAV ICONS ─────────────────────────────────────── */
-function IconEndingInv({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
-    </svg>
-  );
-}
-function IconBackload({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="3" width="15" height="13" rx="1" />
-      <path d="M16 8h4l3 3v5h-7V8z" />
-      <circle cx="5.5" cy="18.5" r="2.5" />
-      <circle cx="18.5" cy="18.5" r="2.5" />
-    </svg>
-  );
-}
-function IconAdvancePO({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-    </svg>
-  );
-}
-function IconReturn({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-    </svg>
-  );
-}
-
 const stockSubItems = [
   { label: "Ending Inventory",    Icon: IconEndingInv  },
   { label: "Backload Inventory",  Icon: IconBackload   },
@@ -289,13 +302,54 @@ const stockSubItems = [
   { label: "Return",              Icon: IconReturn     },
 ];
 
+/* ─── TOOLTIP WRAPPER (for collapsed icon-only mode) ────── */
+function NavTooltip({ label, children, show }) {
+  const [visible, setVisible] = useState(false);
+  if (!show) return children;
+  return (
+    <div
+      style={{ position: "relative" }}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      {children}
+      {visible && (
+        <div style={{
+          position: "absolute", left: "calc(100% + 10px)", top: "50%",
+          transform: "translateY(-50%)",
+          background: "#1e2a38", color: "#fff",
+          fontSize: 12, fontWeight: 500,
+          padding: "6px 12px", borderRadius: 6,
+          whiteSpace: "nowrap", zIndex: 9999,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+          pointerEvents: "none",
+        }}>
+          {label}
+          {/* Arrow */}
+          <div style={{
+            position: "absolute", right: "100%", top: "50%",
+            transform: "translateY(-50%)",
+            border: "5px solid transparent",
+            borderRightColor: "#1e2a38",
+          }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── MAIN DASHBOARD ─────────────────────────────────────── */
 export default function Dashboard() {
-  const [activeNav, setActiveNav] = useState("Home");
+  const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(true);
-  const [dateRange, setDateRange] = useState("Last 30 Days");
+  const [dateRange, setDateRange]         = useState("Last 30 Days");
+  const [sidebarOpen, setSidebarOpen]     = useState(true);
 
-  const navItems = [
+  const SIDEBAR_FULL      = 250;
+  const SIDEBAR_COLLAPSED = 68;
+  const sidebarWidth      = sidebarOpen ? SIDEBAR_FULL : SIDEBAR_COLLAPSED;
+
+  const menuItems = [
     { label: "Home",             Icon: IconHome,   hasChildren: false },
     { label: "Product",          Icon: IconCart,   hasChildren: false },
     { label: "Stock Management", Icon: IconStock,  hasChildren: true  },
@@ -303,148 +357,252 @@ export default function Dashboard() {
     { label: "Stock Sheets",     Icon: IconSheets, hasChildren: false },
   ];
 
+  const isAnyStockSubActive = stockSubItems.some(s => s.label === activeNav);
+
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body, #root { width: 100%; height: 100%; overflow: hidden; }
-        body { font-family: 'Inter', sans-serif; background: #f5f6fa; }
+        body { font-family: 'Poppins', sans-serif; background: #f5f6fa; }
         #root { max-width: 100% !important; width: 100% !important; border: none !important; }
         #scroll-area::-webkit-scrollbar { width: 4px; }
         #scroll-area::-webkit-scrollbar-track { background: #f1f1f1; }
         #scroll-area::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
-        .sub-item-btn:hover { background: rgba(255,255,255,0.06) !important; }
-        .nav-item-btn:hover { background: rgba(255,255,255,0.05) !important; }
+
+        .nav-btn {
+          display: flex; align-items: center; gap: 12px;
+          width: 100%; padding: 11px 0;
+          background: transparent; border: none; border-left: 3px solid transparent;
+          cursor: pointer; text-align: left;
+          color: #8b95a9; font-size: 14px; font-weight: 400;
+          font-family: 'Poppins', sans-serif;
+          transition: all 0.15s ease;
+          border-radius: 0;
+          justify-content: center;
+        }
+        .nav-btn.expanded {
+          padding: 11px 20px;
+          justify-content: flex-start;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.05); color: #c8cdd6; }
+        .nav-btn.active {
+          border-left: 3px solid #e87c27;
+          background: rgba(232,124,39,0.08);
+          color: #fff; font-weight: 600;
+        }
+        .nav-btn.active svg { color: #e87c27; }
+
+        .sub-btn {
+          display: flex; align-items: center; gap: 10px;
+          width: 100%; padding: 9px 20px 9px 48px;
+          background: transparent; border: none; border-left: 3px solid transparent;
+          cursor: pointer; text-align: left;
+          color: #6b7585; font-size: 13px; font-weight: 400;
+          font-family: 'Poppins', sans-serif;
+          transition: all 0.15s ease;
+        }
+        .sub-btn:hover { background: rgba(255,255,255,0.04); color: #a0a8b4; }
+        .sub-btn.active {
+          border-left: 3px solid #e87c27;
+          background: rgba(232,124,39,0.08);
+          color: #e87c27; font-weight: 600;
+        }
+
+        .sidebar-transition {
+          transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          overflow: hidden;
+        }
+
+        .label-fade {
+          transition: opacity 0.15s ease, width 0.25s ease;
+          white-space: nowrap;
+          overflow: hidden;
+        }
+
+        .toggle-btn {
+          display: flex; align-items: center; justify-content: center;
+          width: 26px; height: 26px; border-radius: 50%;
+          background: #1e2a38; border: 2px solid #2d3e52;
+          color: #8b95a9; cursor: pointer;
+          transition: all 0.2s ease; flex-shrink: 0;
+        }
+        .toggle-btn:hover {
+          background: #e87c27; border-color: #e87c27; color: #fff;
+        }
+
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
-      <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden", background: "#f0f2f5" }}>
+      <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
 
-        {/* ── SIDEBAR ── */}
-        <aside style={{
-          width: 290, minWidth: 290, height: "100vh",
-          background: "#1c2235",
-          display: "flex", flexDirection: "column",
-          flexShrink: 0,
-        }}>
-          {/* Logo */}
-          <div style={{ padding: "28px 28px 24px" }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 1 }}>
-              <span style={{ fontSize: 13, fontWeight: 900, color: "#e87c27", letterSpacing: "0.04em" }}>TDT</span>
-              <span style={{ fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: "-0.5px" }}>POWER</span>
-              <span style={{ fontSize: 22, fontWeight: 900, color: "#e87c27", letterSpacing: "-0.5px" }}>STEEL</span>
-            </div>
-            <div style={{ fontSize: 9.5, color: "#4b5563", letterSpacing: "0.12em", marginTop: 3, textTransform: "uppercase" }}>
-              THE N°1 STEEL SUPPLIER
-            </div>
+        {/* ════════════════════════════════
+            SIDEBAR
+        ════════════════════════════════ */}
+        <aside
+          className="sidebar-transition"
+          style={{
+            width: sidebarWidth,
+            minWidth: sidebarWidth,
+            height: "100vh",
+            background: "#141C25",
+            display: "flex",
+            flexDirection: "column",
+            flexShrink: 0,
+            position: "relative",
+          }}
+        >
+
+          {/* ── Logo + Toggle ── */}
+          <div style={{
+            padding: "16px 14px 12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: sidebarOpen ? "space-between" : "center",
+            gap: 8,
+            minHeight: 64,
+          }}>
+            {sidebarOpen && (
+              <img
+                src={Logo}
+                alt="TDT PowerSteel Logo"
+                style={{ width: "170px", height: "auto", display: "block", flexShrink: 0 }}
+              />
+            )}
+            <button
+              className="toggle-btn"
+              onClick={() => setSidebarOpen(v => !v)}
+              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {sidebarOpen ? <IconChevronLeft size={14} /> : <IconChevronRight size={14} />}
+            </button>
           </div>
 
-          {/* Nav */}
-          <nav style={{ flex: 1, paddingTop: 6, overflowY: "auto" }}>
-            {navItems.map(({ label, Icon, hasChildren }) => {
+          {/* ── Divider ── */}
+          <div style={{ height: 2, background: "#1e2a38", margin: "0 14px 12px" }} />
+
+          {/* ── MENU section label ── */}
+          {sidebarOpen && (
+            <p style={{
+              fontSize: 12, fontWeight: 700, color: "#3d4f63",
+              letterSpacing: "0.12em", textTransform: "uppercase",
+              padding: "10px 20px 8px",
+            }}>
+              Menu
+            </p>
+          )}
+
+          {/* ── Nav items ── */}
+          <nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+            {menuItems.map(({ label, Icon, hasChildren }) => {
+              const isActive      = activeNav === label;
               const isStockParent = label === "Stock Management";
-              const isStockChildActive = isStockParent && stockSubItems.some(({ label: sub }) => sub === activeNav);
-              const isActive = activeNav === label;
-              const parentLooksActive = isActive || isStockChildActive;
+              const isStockActive = isStockParent && (activeNav === label || isAnyStockSubActive);
+              const isItemActive  = (isActive && !isStockParent) || isStockActive;
 
               return (
                 <div key={label}>
-                  {/* Parent nav item */}
-                  <button
-                    className="nav-item-btn"
-                    onClick={() => {
-                      if (hasChildren) {
-                        setStockExpanded((v) => !v);
-                      } else {
-                        setActiveNav(label);
-                      }
-                    }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 14,
-                      width: "100%", padding: "13px 28px",
-                      background: (isActive && !hasChildren) || isStockChildActive ? "#e87c27" : "transparent",
-                      border: "none", cursor: "pointer",
-                      color: parentLooksActive ? "#fff" : "#8b95a9",
-                      fontSize: 15,
-                      fontWeight: parentLooksActive ? 700 : 400,
-                      textAlign: "left",
-                      transition: "background .15s",
-                    }}
-                  >
-                    <span style={{ display: "flex", flexShrink: 0 }}><Icon size={18} /></span>
-                    <span style={{ flex: 1 }}>{label}</span>
-                    {hasChildren && (
-                      <span style={{
-                        display: "flex", flexShrink: 0,
-                        transform: stockExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                        transition: "transform .22s ease",
-                        color: isStockChildActive ? "#fff" : "#8b95a9",
-                      }}>
-                        <IconChevronDown size={15} />
-                      </span>
-                    )}
-                  </button>
+                  <NavTooltip label={label} show={!sidebarOpen}>
+                    <button
+                      className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${isItemActive ? "active" : ""}`}
+                      onClick={() => {
+                        if (hasChildren) {
+                          if (sidebarOpen) {
+                            setStockExpanded(v => !v);
+                          } else {
+                            setSidebarOpen(true);
+                            setStockExpanded(true);
+                          }
+                          setActiveNav(label);
+                        } else {
+                          setActiveNav(label);
+                        }
+                      }}
+                    >
+                      <Icon size={25} style={{ flexShrink: 0 }} />
+                      {sidebarOpen && (
+                        <>
+                          <span style={{ flex: 1 }}>{label}</span>
+                          {hasChildren && (
+                            <span style={{
+                              display: "flex",
+                              transform: stockExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                              transition: "transform .22s ease",
+                              opacity: 0.6,
+                            }}>
+                              <IconChevronDown size={13} />
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </NavTooltip>
 
-                  {/* Sub-items dropdown */}
-                  {hasChildren && stockExpanded && (
+                  {/* Sub-items — only when expanded */}
+                  {hasChildren && stockExpanded && sidebarOpen && (
                     <div style={{ animation: "slideDown .2s ease" }}>
-                      {stockSubItems.map(({ label: subLabel, Icon: SubIcon }) => {
-                        const isSubActive = activeNav === subLabel;
-                        return (
-                          <button
-                            key={subLabel}
-                            className="sub-item-btn"
-                            onClick={() => { setActiveNav(subLabel); setStockExpanded(true); }}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 12,
-                              width: "100%", padding: "11px 28px 11px 58px",
-                              background: isSubActive ? "rgba(232,124,39,0.12)" : "transparent",
-                              border: "none", cursor: "pointer",
-                              color: isSubActive ? "#e87c27" : "#6b7585",
-                              fontSize: 14,
-                              fontWeight: isSubActive ? 600 : 400,
-                              textAlign: "left",
-                              transition: "background .12s",
-                              borderLeft: isSubActive ? "3px solid #e87c27" : "3px solid transparent",
-                            }}
-                          >
-                            <span style={{ display: "flex", flexShrink: 0 }}><SubIcon size={15} /></span>
-                            {subLabel}
-                          </button>
-                        );
-                      })}
+                      {stockSubItems.map(({ label: subLabel, Icon: SubIcon }) => (
+                        <button
+                          key={subLabel}
+                          className={`sub-btn ${activeNav === subLabel ? "active" : ""}`}
+                          onClick={() => setActiveNav(subLabel)}
+                        >
+                          <SubIcon size={15} />
+                          {subLabel}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
               );
             })}
           </nav>
+        
 
-          {/* Settings */}
-          <div style={{ padding: "18px 28px 24px", borderTop: "1px solid #252d42" }}>
-            <button
-              className="nav-item-btn"
-              style={{
-                display: "flex", alignItems: "center", gap: 14,
-                background: "transparent", border: "none", cursor: "pointer",
-                color: "#8b95a9", fontSize: 15, fontWeight: 400, width: "100%",
-                padding: "10px 0", borderRadius: 6,
-              }}
-            >
-              <IconSettings size={18} />
-              Settings
-            </button>
+          {/* ── Divider ── */}
+          <div style={{ height: 1, background: "#1e2a38", margin: "0 14px" }} />
+
+          {/* ── SETTINGS section label ── */}
+          {sidebarOpen && (
+            <p style={{
+              fontSize: 12, fontWeight: 700, color: "#3d4f63",
+              letterSpacing: "0.12em", textTransform: "uppercase",
+              padding: "12px 20px 8px",
+            }}>
+              GENERAL
+            </p>
+          )}
+
+          {/* ── Settings + Help + Logout ── */}
+          <div style={{ paddingBottom: 20 }}>
+            <NavTooltip label="Settings" show={!sidebarOpen}>
+              <button className={`nav-btn ${sidebarOpen ? "expanded" : ""}`}>
+                <IconSettings size={22} />
+                {sidebarOpen && "Settings"}
+              </button>
+            </NavTooltip>
+
+            <NavTooltip label="Help" show={!sidebarOpen}>
+              <button className={`nav-btn ${sidebarOpen ? "expanded" : ""}`}>
+                <IconHelp size={22} />
+                {sidebarOpen && "Help"}
+              </button>
+            </NavTooltip>
+
+            
           </div>
         </aside>
 
-        {/* ── MAIN COLUMN ── */}
+        {/* ════════════════════════════════
+            MAIN COLUMN
+        ════════════════════════════════ */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100vh", overflow: "hidden" }}>
 
-          {/* Header */}
+          {/* ── Header ── */}
           <header style={{
             minHeight: 80, background: "#fff",
             borderBottom: "1px solid #e9ecef",
@@ -452,45 +610,21 @@ export default function Dashboard() {
             alignItems: "center", justifyContent: "space-between",
             flexShrink: 0,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div>
-                <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
-                  {activeNav === "Product" ? "List of SKU"
-                    : activeNav === "Ending Inventory" ? "Ending Inventory"
-                    : activeNav === "Backload Inventory" ? "Backload Inventory"
-                    : activeNav === "Advance Customer PO" ? "Advance Customer PO"
-                    : activeNav === "Return" ? "Return"
-                    : activeNav === "Purchasing Order" ? "List of Purchase Order"
-                    : activeNav === "Stock Sheets" ? "Stock Sheets / SKU"
-                    : "Welcome Back, Chelsea!"}
-                </h1>
-                {activeNav === "Product" && (
-                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Master list of all of Stock Keeping Units</p>
-                )}
-                {activeNav === "Ending Inventory" && (
-                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Monthly Warehouse Inventory</p>
-                )}
-                {activeNav === "Backload Inventory" && (
-                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Inbound transfers and pending warehouse releases</p>
-                )}
-                {activeNav === "Advance Customer PO" && (
-                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>
-                    Manila Warehouse as of {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                  </p>
-                )}
-                {activeNav === "Return" && (
-                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Returns and credit memos</p>
-                )}
-                {activeNav === "Purchasing Order" && (
-                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Track all incoming purchase orders</p>
-                )}
-                {activeNav === "Stock Sheets" && (
-                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Daily stock IN and OUT per product — Marilao Warehouse</p>
-                )}
-              </div>
+            <div>
+              <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
+                {activeNav === "Product" ? "List of SKU"
+                  : activeNav === "Ending Inventory" ? "Ending Inventory"
+                  : "Welcome Back, Chelsea!"}
+              </h1>
+              {activeNav === "Product" && (
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>
+              )}
+              {activeNav === "Ending Inventory" && (
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>
+              )}
             </div>
+
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              {/* Bell */}
               <div style={{ position: "relative", color: "#374151", cursor: "pointer" }}>
                 <IconBell size={26} />
                 <span style={{
@@ -500,14 +634,10 @@ export default function Dashboard() {
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>9+</span>
               </div>
-              {/* Avatar + name */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                 <div style={{
                   width: 42, height: 42, borderRadius: "50%",
-                  background: "#e5e7eb",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#fff", fontWeight: 800, fontSize: 14, flexShrink: 0,
-                  overflow: "hidden", border: "2px solid #e5e7eb",
+                  overflow: "hidden", border: "2px solid #e5e7eb", flexShrink: 0,
                 }}>
                   <img
                     src="https://ui-avatars.com/api/?name=Chelsea+Lopez&background=d1d5db&color=374151&size=42"
@@ -528,216 +658,160 @@ export default function Dashboard() {
             background: "#f0f2f5",
             display: "flex", flexDirection: "column",
           }}>
-            {/* Conditionally render different pages */}
             {activeNav === "Product" ? (
               <ProductPage />
             ) : activeNav === "Ending Inventory" ? (
               <EndingInventoryPage />
-            )
-            : activeNav === "Backload Inventory" ? (
-              <BackloadInventoryPage />
-            ) : activeNav === "Advance Customer PO" ? (
-              <AdvanceCustomerPOPage />
-            ) : activeNav === "Return" ? (
-              <ReturnPage />
-            ) : activeNav === "Purchasing Order" ? (
-              <PurchasingOrderPage />
-            ) : activeNav === "Stock Sheets" ? (
-              <StockSheetsPage />
             ) : (
-              <div style={{
-                padding: "28px 32px 40px",
-                display: "flex", flexDirection: "column", gap: 22,
-              }}>
-              {/* ── Date Range Filter ── */}
-              <div style={{
-                display: "flex",
-                gap: 10,
-              }}>
-                {["Last 7 Days", "Last 30 Days", "Last 6 Months", "Last 1 Year", "Last 5 Years"].map(range => (
-                  <button
-                    key={range}
-                    onClick={() => setDateRange(range)}
-                    style={{
-                      padding: "10px 16px",
-                      border: dateRange === range ? "2px solid #e87c27" : "1px solid #d1d5db",
-                      borderRadius: 8,
-                      background: dateRange === range ? "#e87c27" : "#fff",
-                      color: dateRange === range ? "#fff" : "#374151",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      fontFamily: "inherit",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (dateRange !== range) {
-                        e.target.style.borderColor = "#c4c7ce";
-                        e.target.style.background = "#f9fafb";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (dateRange !== range) {
-                        e.target.style.borderColor = "#d1d5db";
-                        e.target.style.background = "#fff";
-                      }
-                    }}
-                  >
-                    {range}
-                  </button>
-                ))}
-              </div>
+              <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
-              {/* ── Metric Cards Row ── */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
-                {/* Card 1 - Total SKU */}
-                <MetricCard
-                  icon={<IconBox size={30} />}
-                  iconBg="#f0f4ff"
-                  iconColor="#3b82f6"
-                  label="Total List of SKU"
-                  value="231"
-                  badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
-                  badgeUp={true}
-                  onClick={() => setActiveNav("Product")}
-                />
-              {/* Card 2 - Pending Deliveries */}
-              <MetricCard
-                icon={<IconTruck size={28} />}
-                iconBg="#fff7ed"
-                iconColor="#f97316"
-                label="Total Pending Deliveries"
-                value="13"
-                badge={{ text: "3 High Priority", color: "#d97706", bg: "#fef3c7", icon: <IconWarning size={12} /> }}
-                badgeUp={null}
-                onClick={() => { setActiveNav("Advance Customer PO"); setStockExpanded(true); }}
-              />
-              {/* Card 3 - Inventory Value */}
-              <MetricCard
-                icon={<IconBarChart size={28} />}
-                iconBg="#f0fdf4"
-                iconColor="#22c55e"
-                label="Total Inventory Value"
-                value="₱2.4M"
-                badge={{ text: "3.5% from last month", color: "#16a34a", bg: "transparent", iconEl: <IconTrendUp size={13} /> }}
-                badgeUp={true}
-                onClick={() => { setActiveNav("Ending Inventory"); setStockExpanded(true); }}
-              />
-              {/* Card 4 - Transactions */}
-              <MetricCard
-                icon={<IconBag size={28} />}
-                iconBg="#fdf4ff"
-                iconColor="#a855f7"
-                label="Transactions Today"
-                value="48"
-                badge={{ text: "0.8% from last month", color: "#dc2626", bg: "transparent", iconEl: <IconTrendDown size={13} /> }}
-                badgeUp={false}
-                onClick={() => setActiveNav("Purchasing Order")}
-              />
-            </div>
+                {/* Date Range Filter */}
+                <div style={{ display: "flex", gap: 10 }}>
+                  {["Last 7 Days", "Last 30 Days", "Last 6 Months", "Last 1 Year", "Last 5 Years"].map(range => (
+                    <button
+                      key={range}
+                      onClick={() => setDateRange(range)}
+                      style={{
+                        padding: "10px 16px",
+                        border: dateRange === range ? "2px solid #e87c27" : "1px solid #d1d5db",
+                        borderRadius: 8,
+                        background: dateRange === range ? "#e87c27" : "#fff",
+                        color: dateRange === range ? "#fff" : "#374151",
+                        fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        transition: "all 0.2s", fontFamily: "inherit",
+                      }}
+                      onMouseEnter={e => { if (dateRange !== range) { e.target.style.background = "#f9fafb"; } }}
+                      onMouseLeave={e => { if (dateRange !== range) { e.target.style.background = "#fff"; } }}
+                    >
+                      {range}
+                    </button>
+                  ))}
+                </div>
 
-            {/* ── Chart + Top Released Items ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 18 }}>
-              {/* Bar Chart */}
-              <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
-                  <div style={{ display: "flex", gap: 20 }}>
-                    {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
-                      <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
-                        <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
-                        {l}
+                {/* Metric Cards */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
+                  <MetricCard
+                    icon={<IconBox size={30} />} iconBg="#f0f4ff" iconColor="#000000"
+                    label="Total List of SKU" value="231"
+                    badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
+                    onClick={() => setActiveNav("Product")}
+                  />
+                  <MetricCard
+                    icon={<IconTruck size={28} />} iconBg="#fff7ed" iconColor="#000000"
+                    label="Total Pending Deliveries" value="13"
+                    badge={{ text: "3 High Priority", color: "#d97706", bg: "#fef3c7", icon: <IconWarning size={12} /> }}
+                  />
+                  <MetricCard
+                    icon={<IconBarChart size={28} />} iconBg="#f0fdf4" iconColor="#000000"
+                    label="Total Inventory Value" value="₱2.4M"
+                    badge={{ text: "3.5% from last month", color: "#16a34a", bg: "transparent", iconEl: <IconTrendUp size={13} /> }}
+                  />
+                  <MetricCard
+                    icon={<IconBag size={28} />} iconBg="#fdf4ff" iconColor="#000000"
+                    label="Transactions Today" value="48"
+                    badge={{ text: "0.8% from last month", color: "#dc2626", bg: "transparent", iconEl: <IconTrendDown size={13} /> }}
+                  />
+                </div>
+
+                {/* Chart + Top Items */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 18 }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px 18px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05) " }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
+                      <div style={{ display: "flex", gap: 20 }}>
+                        {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
+                          <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
+                            <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
+                            {l}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={inventoryDataByRange[dateRange]} barCategoryGap="35%" barGap={4}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                        <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
+                        <Bar dataKey="stockIn"  fill="#e87c27" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="stockOut" fill="#52c4b0" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05) " }}>
+                    <p style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 18 }}>Top Released Items</p>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {topItems.map((item, i) => (
+                        <div key={i} style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "12px 0",
+                          borderBottom: i < topItems.length - 1 ? "1px solid #f3f4f6" : "none",
+                        }}>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>{item.name}</p>
+                            <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
+                              <div style={{
+                                height: "100%", width: `${item.pct}%`,
+                                background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
+                                borderRadius: 3,
+                              }} />
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginLeft: 16, minWidth: 56, textAlign: "right" }}>
+                            {item.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Alerts + Activity */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", marginBottom: 16 }}>Stocks alerts</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {stockAlerts.map((a, i) => (
+                        <div key={i} style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "12px 16px", background: "#fafafa",
+                          borderRadius: 10, border: "1px solid #f3f4f6",
+                        }}>
+                          <div>
+                            <p style={{ fontSize: 13.5, fontWeight: 600, color: "#374151", marginBottom: 3 }}>{a.name}</p>
+                            <p style={{ fontSize: 11, color: "#9ca3af" }}>{a.sku}</p>
+                          </div>
+                          <span style={{
+                            fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
+                            background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
+                          }}>
+                            Low stock
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                    <div style={{ background: "#fff", borderRadius: 12, padding: 20,  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 14 }}>Recently activity</p>
+                    {recentActivity.map((a, i) => (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "11px 0",
+                        borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
+                      }}>
+                        <div style={{
+                          width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                          background: a.type === "in" ? "#22c55e" : "#ef4444",
+                        }} />
+                        <span style={{ fontSize: 12, color: "#374151", flex: 1 }}>{a.text}</span>
+                        <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={inventoryDataByRange[dateRange]} barCategoryGap="35%" barGap={4}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} />
-                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
-                    <Bar dataKey="stockIn"  fill="#e87c27" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="stockOut" fill="#52c4b0" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
 
-              {/* Top Released Items */}
-              <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-                <p style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 18 }}>Top Released Items</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  {topItems.map((item, i) => (
-                    <div key={i} style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "12px 0",
-                      borderBottom: i < topItems.length - 1 ? "1px solid #f3f4f6" : "none",
-                    }}>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>{item.name}</p>
-                        <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
-                          <div style={{
-                            height: "100%", width: `${item.pct}%`,
-                            background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
-                            borderRadius: 3,
-                          }} />
-                        </div>
-                      </div>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginLeft: 16, minWidth: 56, textAlign: "right" }}>
-                        {item.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Alerts + Activity ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-              {/* Stock Alerts */}
-              <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-                <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", marginBottom: 16 }}>Stocks alerts</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {stockAlerts.map((a, i) => (
-                    <div key={i} style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "12px 16px", background: "#fafafa",
-                      borderRadius: 10, border: "1px solid #f3f4f6",
-                    }}>
-                      <div>
-                        <p style={{ fontSize: 13.5, fontWeight: 600, color: "#374151", marginBottom: 3 }}>{a.name}</p>
-                        <p style={{ fontSize: 11, color: "#9ca3af" }}>{a.sku}</p>
-                      </div>
-                      <span style={{
-                        fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
-                        background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
-                      }}>
-                        Low stock
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Recent Activity */}
-              <div style={{ background: "#fff", borderRadius: 12, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 14 }}>Recently activity</p>
-                {recentActivity.map((a, i) => (
-                  <div key={i} style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "11px 0",
-                    borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
-                  }}>
-                    <div style={{
-                      width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-                      background: a.type === "in" ? "#22c55e" : "#ef4444",
-                    }} />
-                    <span style={{ fontSize: 12, color: "#374151", flex: 1 }}>{a.text}</span>
-                    <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
               </div>
             )}
           </main>
@@ -748,59 +822,73 @@ export default function Dashboard() {
 }
 
 /* ── METRIC CARD ─────────────────────────────────────────── */
-function MetricCard({ icon, iconBg, iconColor, label, value, badge, badgeUp, onClick }) {
+function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
+  const [hovered, setHovered] = useState(false);  // 👈 added
+
   return (
-    <div 
+    <div
       onClick={onClick}
       style={{
-        background: "#fff", borderRadius: 12, padding: "18px 18px 16px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-        display: "flex", flexDirection: "column", gap: 8,
+        position: "relative",
+        background: "#fff",
+        borderRadius: 18,
+        padding: "20px 20px 16px",
+        minHeight: 200,
+        overflow: "hidden",
+        boxShadow: "0px 39px 39px rgba(0,0,0,0.06), 0px 10px 21px rgba(0,0,0,0.08)",
+        display: "flex", flexDirection: "column", gap: 6,
         cursor: onClick ? "pointer" : "default",
-        transition: onClick ? "all 0.2s" : "none",
+        transition: "transform 0.4s cubic-bezier(0.15, 0.83, 0.66, 1)",
       }}
-      onMouseEnter={(e) => {
-        if (onClick) {
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.12)";
-          e.currentTarget.style.transform = "translateY(-2px)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (onClick) {
-          e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
-          e.currentTarget.style.transform = "translateY(0)";
-        }
-      }}
+      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.04)"; }}  // 👈 added setHovered
+      onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}     // 👈 added setHovered
     >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <p style={{ fontSize: 11.5, fontWeight: 600, color: "#6b7280", lineHeight: 1.4, maxWidth: 110 }}>{label}</p>
-        <div style={{
-          width: 40, height: 40, borderRadius: 10, background: iconBg,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: iconColor, flexShrink: 0,
-        }}>
-          {icon}
-        </div>
+      {/* Radial glow background */}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: 18,
+        background: `radial-gradient(ellipse at 80% 110%, ${iconBg} 0%, rgba(255,255,255,0) 65%)`,
+        opacity: 0.7, pointerEvents: "none",
+      }} />
+
+      {/* Large pulsing icon blob top-right */}
+      <div style={{
+        position: "absolute", right: -18, top: -22,
+        width: 100, height: 100, borderRadius: "50%",
+        background: iconColor,
+        opacity: hovered ? 0.12 : 0,                                           // 👈 changed
+        animation: hovered ? "metricPulse 3s ease-in-out infinite" : "none",  // 👈 changed
+        transition: "opacity 0.3s ease",
+        pointerEvents: "none",
+      }} />
+
+      {/* Floating icon badge */}
+      <div style={{
+        position: "absolute", right: 14, top: 14,
+        width: 44, height: 44, borderRadius: 12,
+        background: iconBg,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: iconColor, flexShrink: 0,
+      }}>
+        {icon}
       </div>
-      <p style={{ fontSize: 30, fontWeight: 900, color: "#111827", letterSpacing: "-1px", lineHeight: 1 }}>
+
+      {/* Content */}
+      <p style={{ fontSize: 15, fontWeight: 700, color: "#6b7280", lineHeight: 1.4, maxWidth: 120, position: "relative", zIndex: 2 }}>
+        {label}
+      </p>
+      <p style={{ fontSize: 30, fontWeight: 700, color: "#111827", letterSpacing: "-1px", lineHeight: 1, position: "relative", zIndex: 2, marginTop: 4 }}>
         {value}
       </p>
       {badge && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative", zIndex: 2, marginTop: 4 }}>
           {badge.icon && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              width: 16, height: 16, borderRadius: "50%", background: "#f59e0b",
-            }}>
+            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: "#f59e0b" }}>
               {badge.icon}
             </span>
           )}
-          {badge.iconEl && (
-            <span style={{ color: badge.color, display: "flex" }}>{badge.iconEl}</span>
-          )}
+          {badge.iconEl && <span style={{ color: badge.color, display: "flex" }}>{badge.iconEl}</span>}
           <span style={{
-            fontSize: 11, fontWeight: 600,
-            color: badge.color,
+            fontSize: 11, fontWeight: 600, color: badge.color,
             background: badge.bg !== "transparent" ? badge.bg : "transparent",
             padding: badge.bg !== "transparent" ? "2px 8px" : "0",
             borderRadius: 20,
