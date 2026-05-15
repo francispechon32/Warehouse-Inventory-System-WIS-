@@ -5,9 +5,11 @@ import {
 } from "recharts";
 import ProductPage from "./ProductPage";
 import EndingInventoryPage from "./EndingInventoryPage";
+import BackloadInventoryPage from "./BackloadInventoryPage";
+import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
+import ReturnPage from "./ReturnPage";
 
-/* ─── DATA ─────────────────────────────────────────────── */
-// Different data sets for different time ranges
+
 const inventoryDataByRange = {
   "Last 7 Days": [
     { day: "Mon",   stockIn: 320, stockOut: 180 },
@@ -451,13 +453,29 @@ export default function Dashboard() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div>
                 <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
-                  {activeNav === "Product" ? "List of SKU" : activeNav === "Ending Inventory" ? "Ending Inventory" : "Welcome Back, Chelsea!"}
+                  {activeNav === "Product" ? "List of SKU"
+                    : activeNav === "Ending Inventory" ? "Ending Inventory"
+                    : activeNav === "Backload Inventory" ? "Backload Inventory"
+                    : activeNav === "Advance Customer PO" ? "Advance Customer PO"
+                    : activeNav === "Return" ? "Return"
+                    : "Welcome Back, Chelsea!"}
                 </h1>
                 {activeNav === "Product" && (
                   <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Master list of all of Stock Keeping Units</p>
                 )}
                 {activeNav === "Ending Inventory" && (
                   <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Monthly Warehouse Inventory</p>
+                )}
+                {activeNav === "Backload Inventory" && (
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Inbound transfers and pending warehouse releases</p>
+                )}
+                {activeNav === "Advance Customer PO" && (
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>
+                    Manila Warehouse as of {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                  </p>
+                )}
+                {activeNav === "Return" && (
+                  <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2, margin: "2px 0 0 0" }}>Returns and credit memos</p>
                 )}
               </div>
             </div>
@@ -505,6 +523,13 @@ export default function Dashboard() {
               <ProductPage />
             ) : activeNav === "Ending Inventory" ? (
               <EndingInventoryPage />
+            )
+            : activeNav === "Backload Inventory" ? (
+              <BackloadInventoryPage />
+            ) : activeNav === "Advance Customer PO" ? (
+              <AdvanceCustomerPOPage />
+            ) : activeNav === "Return" ? (
+              <ReturnPage />
             ) : (
               <div style={{
                 padding: "28px 32px 40px",

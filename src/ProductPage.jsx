@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { productSearchInputStyle, productSearchWrapStyle, productSearchIconLeftStyle } from "./searchFieldStyles";
 
 /* ─── SAMPLE DATA ─────────────────────────────────────────── */
 const sampleProducts = [
@@ -121,37 +122,20 @@ export default function ProductPage() {
         }}>
           {/* Search */}
           <div style={{
-            flex: 1,
-            position: "relative",
-            maxWidth: 320,
+            ...productSearchWrapStyle,
+            maxWidth: 420,
           }}>
             <input
               type="text"
-              placeholder="Search SKU or product des..."
+              placeholder="Search SKU or product name..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              style={{
-                width: "100%",
-                padding: "11px 14px 11px 36px",
-                fontSize: 14,
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                fontFamily: "inherit",
-                color: "#111827",
-                background: "#ffffff",
-                fontWeight: 500,
-              }}
+              style={productSearchInputStyle}
             />
-            <span style={{
-              position: "absolute",
-              left: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "#9ca3af",
-            }}>
+            <span style={productSearchIconLeftStyle}>
               <IconSearch size={16} />
             </span>
           </div>
@@ -167,7 +151,7 @@ export default function ProductPage() {
               style={{
                 padding: "11px 14px",
                 fontSize: 14,
-                border: "1px solid #d1d5db",
+                border: "1px solid #b8bec9",
                 borderRadius: 8,
                 background: "#ffffff",
                 color: "#111827",
@@ -206,7 +190,7 @@ export default function ProductPage() {
               style={{
                 padding: "11px 14px",
                 fontSize: 14,
-                border: "1px solid #d1d5db",
+                border: "1px solid #b8bec9",
                 borderRadius: 8,
                 background: "#ffffff",
                 color: "#111827",
