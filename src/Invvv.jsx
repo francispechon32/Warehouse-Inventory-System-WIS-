@@ -5,6 +5,11 @@ import {
 } from "recharts";
 import ProductPage from "./ProductPage";
 import EndingInventoryPage from "./EndingInventoryPage";
+import BackloadInventoryPage from "./BackloadInventoryPage";
+import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
+import ReturnPage from "./ReturnPage";
+import PurchasingOrderPage from "./PurchasingOrderPage";
+import StockSheetsPage from "./StockSheetsPage";
 import Logo from "./assets/Untitled_design.svg";
 
 /* ─── DATA ─────────────────────────────────────────────── */
@@ -273,7 +278,6 @@ function IconHelp({ size = 22 }) {
   );
 }
 
-
 /* ─── CUSTOM TOOLTIP ─────────────────────────────────────── */
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -325,7 +329,6 @@ function NavTooltip({ label, children, show }) {
           pointerEvents: "none",
         }}>
           {label}
-          {/* Arrow */}
           <div style={{
             position: "absolute", right: "100%", top: "50%",
             transform: "translateY(-50%)",
@@ -436,6 +439,11 @@ export default function Dashboard() {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+
+        @keyframes metricPulse {
+          0%, 100% { transform: scale(1); opacity: 0.12; }
+          50% { transform: scale(1.15); opacity: 0.18; }
+        }
       `}</style>
 
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
@@ -456,7 +464,6 @@ export default function Dashboard() {
             position: "relative",
           }}
         >
-
           {/* ── Logo + Toggle ── */}
           <div style={{
             padding: "16px 14px 12px",
@@ -561,12 +568,11 @@ export default function Dashboard() {
               );
             })}
           </nav>
-        
 
           {/* ── Divider ── */}
           <div style={{ height: 1, background: "#1e2a38", margin: "0 14px" }} />
 
-          {/* ── SETTINGS section label ── */}
+          {/* ── GENERAL section label ── */}
           {sidebarOpen && (
             <p style={{
               fontSize: 12, fontWeight: 700, color: "#3d4f63",
@@ -577,7 +583,7 @@ export default function Dashboard() {
             </p>
           )}
 
-          {/* ── Settings + Help + Logout ── */}
+          {/* ── Settings + Help ── */}
           <div style={{ paddingBottom: 20 }}>
             <NavTooltip label="Settings" show={!sidebarOpen}>
               <button className={`nav-btn ${sidebarOpen ? "expanded" : ""}`}>
@@ -592,8 +598,6 @@ export default function Dashboard() {
                 {sidebarOpen && "Help"}
               </button>
             </NavTooltip>
-
-            
           </div>
         </aside>
 
@@ -612,15 +616,37 @@ export default function Dashboard() {
           }}>
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
-                {activeNav === "Product" ? "List of SKU"
-                  : activeNav === "Ending Inventory" ? "Ending Inventory"
+                {activeNav === "Product"             ? "List of SKU"
+                  : activeNav === "Ending Inventory"    ? "Ending Inventory"
+                  : activeNav === "Backload Inventory"  ? "Backload Inventory"
+                  : activeNav === "Advance Customer PO" ? "Advance Customer PO"
+                  : activeNav === "Return"               ? "Return"
+                  : activeNav === "Purchasing Order"     ? "List of Purchase Order"
+                  : activeNav === "Stock Sheets"         ? "Stock Sheets / SKU"
                   : "Welcome Back, Chelsea!"}
               </h1>
               {activeNav === "Product" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>
+                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Master list of all Stock Keeping Units</p>
               )}
               {activeNav === "Ending Inventory" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>
+                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Monthly Warehouse Inventory</p>
+              )}
+              {activeNav === "Backload Inventory" && (
+                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Inbound transfers and pending warehouse releases</p>
+              )}
+              {activeNav === "Advance Customer PO" && (
+                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                  Manila Warehouse as of {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                </p>
+              )}
+              {activeNav === "Return" && (
+                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Returns and credit memos</p>
+              )}
+              {activeNav === "Purchasing Order" && (
+                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Track all incoming purchase orders</p>
+              )}
+              {activeNav === "Stock Sheets" && (
+                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Daily stock IN and OUT per product — Marilao Warehouse</p>
               )}
             </div>
 
@@ -662,6 +688,16 @@ export default function Dashboard() {
               <ProductPage />
             ) : activeNav === "Ending Inventory" ? (
               <EndingInventoryPage />
+            ) : activeNav === "Backload Inventory" ? (
+              <BackloadInventoryPage />
+            ) : activeNav === "Advance Customer PO" ? (
+              <AdvanceCustomerPOPage />
+            ) : activeNav === "Return" ? (
+              <ReturnPage />
+            ) : activeNav === "Purchasing Order" ? (
+              <PurchasingOrderPage />
+            ) : activeNav === "Stock Sheets" ? (
+              <StockSheetsPage />
             ) : (
               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
@@ -680,8 +716,8 @@ export default function Dashboard() {
                         fontSize: 13, fontWeight: 600, cursor: "pointer",
                         transition: "all 0.2s", fontFamily: "inherit",
                       }}
-                      onMouseEnter={e => { if (dateRange !== range) { e.target.style.background = "#f9fafb"; } }}
-                      onMouseLeave={e => { if (dateRange !== range) { e.target.style.background = "#fff"; } }}
+                      onMouseEnter={e => { if (dateRange !== range) e.target.style.background = "#f9fafb"; }}
+                      onMouseLeave={e => { if (dateRange !== range) e.target.style.background = "#fff"; }}
                     >
                       {range}
                     </button>
@@ -691,31 +727,34 @@ export default function Dashboard() {
                 {/* Metric Cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
                   <MetricCard
-                    icon={<IconBox size={30} />} iconBg="#f0f4ff" iconColor="#000000"
+                    icon={<IconBox size={30} />} iconBg="#f0f4ff" iconColor="#3b82f6"
                     label="Total List of SKU" value="231"
                     badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
                     onClick={() => setActiveNav("Product")}
                   />
                   <MetricCard
-                    icon={<IconTruck size={28} />} iconBg="#fff7ed" iconColor="#000000"
+                    icon={<IconTruck size={28} />} iconBg="#fff7ed" iconColor="#f97316"
                     label="Total Pending Deliveries" value="13"
                     badge={{ text: "3 High Priority", color: "#d97706", bg: "#fef3c7", icon: <IconWarning size={12} /> }}
+                    onClick={() => { setActiveNav("Advance Customer PO"); setStockExpanded(true); }}
                   />
                   <MetricCard
-                    icon={<IconBarChart size={28} />} iconBg="#f0fdf4" iconColor="#000000"
+                    icon={<IconBarChart size={28} />} iconBg="#f0fdf4" iconColor="#22c55e"
                     label="Total Inventory Value" value="₱2.4M"
                     badge={{ text: "3.5% from last month", color: "#16a34a", bg: "transparent", iconEl: <IconTrendUp size={13} /> }}
+                    onClick={() => { setActiveNav("Ending Inventory"); setStockExpanded(true); }}
                   />
                   <MetricCard
-                    icon={<IconBag size={28} />} iconBg="#fdf4ff" iconColor="#000000"
+                    icon={<IconBag size={28} />} iconBg="#fdf4ff" iconColor="#a855f7"
                     label="Transactions Today" value="48"
                     badge={{ text: "0.8% from last month", color: "#dc2626", bg: "transparent", iconEl: <IconTrendDown size={13} /> }}
+                    onClick={() => setActiveNav("Purchasing Order")}
                   />
                 </div>
 
                 {/* Chart + Top Items */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 18 }}>
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px 18px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05) " }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px 18px", boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
                       <div style={{ display: "flex", gap: 20 }}>
@@ -739,7 +778,7 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                   </div>
 
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05) " }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px", boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
                     <p style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 18 }}>Top Released Items</p>
                     <div style={{ display: "flex", flexDirection: "column" }}>
                       {topItems.map((item, i) => (
@@ -769,7 +808,7 @@ export default function Dashboard() {
 
                 {/* Alerts + Activity */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px", boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
                     <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", marginBottom: 16 }}>Stocks alerts</p>
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       {stockAlerts.map((a, i) => (
@@ -793,7 +832,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                    <div style={{ background: "#fff", borderRadius: 12, padding: 20,  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
+                  <div style={{ background: "#fff", borderRadius: 12, padding: 20, boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
                     <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 14 }}>Recently activity</p>
                     {recentActivity.map((a, i) => (
                       <div key={i} style={{
@@ -823,7 +862,7 @@ export default function Dashboard() {
 
 /* ── METRIC CARD ─────────────────────────────────────────── */
 function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
-  const [hovered, setHovered] = useState(false);  // 👈 added
+  const [hovered, setHovered] = useState(false);
 
   return (
     <div
@@ -840,8 +879,8 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
         cursor: onClick ? "pointer" : "default",
         transition: "transform 0.4s cubic-bezier(0.15, 0.83, 0.66, 1)",
       }}
-      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.04)"; }}  // 👈 added setHovered
-      onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}     // 👈 added setHovered
+      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.04)"; }}
+      onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}
     >
       {/* Radial glow background */}
       <div style={{
@@ -855,8 +894,8 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
         position: "absolute", right: -18, top: -22,
         width: 100, height: 100, borderRadius: "50%",
         background: iconColor,
-        opacity: hovered ? 0.12 : 0,                                           // 👈 changed
-        animation: hovered ? "metricPulse 3s ease-in-out infinite" : "none",  // 👈 changed
+        opacity: hovered ? 0.12 : 0,
+        animation: hovered ? "metricPulse 3s ease-in-out infinite" : "none",
         transition: "opacity 0.3s ease",
         pointerEvents: "none",
       }} />
