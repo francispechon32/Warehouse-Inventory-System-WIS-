@@ -5,6 +5,11 @@ import {
 } from "recharts";
 import ProductPage from "./ProductPage";
 import EndingInventoryPage from "./EndingInventoryPage";
+import StockSheetsPage from "./StockSheetsPage";
+import PurchasingOrderPage from "./PurchasingOrderPage";
+import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
+import BackloadInventoryPage from "./BackloadInventoryPage";
+import ReturnPage from "./ReturnPage";
 import Logo from "./assets/Untitled_design.svg";
 
 /* ─── DATA ─────────────────────────────────────────────── */
@@ -357,6 +362,15 @@ export default function Dashboard() {
     { label: "Stock Sheets",     Icon: IconSheets, hasChildren: false },
   ];
 
+  const additionalPages = [
+    "Purchasing Order",
+    "Stock Sheets",
+    "Ending Inventory",
+    "Backload Inventory",
+    "Advance Customer PO",
+    "Return",
+  ];
+
   const isAnyStockSubActive = stockSubItems.some(s => s.label === activeNav);
 
   return (
@@ -614,6 +628,11 @@ export default function Dashboard() {
               <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
                 {activeNav === "Product" ? "List of SKU"
                   : activeNav === "Ending Inventory" ? "Ending Inventory"
+                  : activeNav === "Stock Sheets" ? "Stock Sheets"
+                  : activeNav === "Purchasing Order" ? "Purchasing Orders"
+                  : activeNav === "Backload Inventory" ? "Backload Inventory"
+                  : activeNav === "Advance Customer PO" ? "Advance Customer PO"
+                  : activeNav === "Return" ? "Returns"
                   : "Welcome Back, Chelsea!"}
               </h1>
               {activeNav === "Product" && (
@@ -621,6 +640,21 @@ export default function Dashboard() {
               )}
               {activeNav === "Ending Inventory" && (
                 <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>
+              )}
+              {activeNav === "Stock Sheets" && (
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>
+              )}
+              {activeNav === "Purchasing Order" && (
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>
+              )}
+              {activeNav === "Backload Inventory" && (
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Track backloaded inventory</p>
+              )}
+              {activeNav === "Advance Customer PO" && (
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Advance customer purchase orders</p>
+              )}
+              {activeNav === "Return" && (
+                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>
               )}
             </div>
 
@@ -652,18 +686,28 @@ export default function Dashboard() {
             </div>
           </header>
 
-          {/* ── Scrollable Content ── */}
-          <main id="scroll-area" style={{
-            flex: 1, overflowY: "auto",
-            background: "#f0f2f5",
-            display: "flex", flexDirection: "column",
-          }}>
-            {activeNav === "Product" ? (
-              <ProductPage />
-            ) : activeNav === "Ending Inventory" ? (
-              <EndingInventoryPage />
-            ) : (
-              <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
+           {/* ── Scrollable Content ── */}
+           <main id="scroll-area" style={{
+             flex: 1, overflowY: "auto",
+             background: "#f0f2f5",
+             display: "flex", flexDirection: "column",
+           }}>
+             {activeNav === "Product" ? (
+               <ProductPage />
+             ) : activeNav === "Ending Inventory" ? (
+               <EndingInventoryPage />
+             ) : activeNav === "Stock Sheets" ? (
+               <StockSheetsPage />
+             ) : activeNav === "Purchasing Order" ? (
+               <PurchasingOrderPage />
+             ) : activeNav === "Backload Inventory" ? (
+               <BackloadInventoryPage />
+             ) : activeNav === "Advance Customer PO" ? (
+               <AdvanceCustomerPOPage />
+             ) : activeNav === "Return" ? (
+               <ReturnPage />
+             ) : (
+               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
                 {/* Date Range Filter */}
                 <div style={{ display: "flex", gap: 10 }}>
