@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { productSearchInputStyle, productSearchWrapStyle, productSearchIconLeftStyle } from "./searchFieldStyles";
+import { useState, useMemo, useEffect, useRef } from "react";
+import PageToolbar from "./PageToolbar";
 
 const PAGE_SIZE = 5;
 
@@ -81,32 +81,15 @@ const BADGE = {
   Pending: "#f59e0b",
 };
 
-function IconSearch({ size = 16 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>;
-}
-function IconChevronDown({ size = 14 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 9l-7 7-7-7" /></svg>;
-}
 function IconChevronLeft({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15 19l-7-7 7-7" /></svg>;
 }
 function IconChevronRight({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5l7 7-7 7" /></svg>;
 }
-function IconPlus({ size = 16 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
-}
-function IconDownload({ size = 16 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
-}
-function IconCalendar({ size = 16 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
-}
 function IconX({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 }
-
-const selectSt = { padding: "11px 32px 11px 14px", fontSize: 14, border: "1px solid #b8bec9", borderRadius: 8, background: "#ffffff", color: "#111827", cursor: "pointer", fontFamily: "inherit", width: "100%", appearance: "none", fontWeight: 500, outline: "none", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" };
 
 function lineQtySum(lines) {
   return lines.reduce((s, L) => s + L.qty, 0);
@@ -115,7 +98,75 @@ function lineValSum(lines) {
   return lines.reduce((s, L) => s + L.val, 0);
 }
 
+
+function useSheetJS() {
+  const [ready, setReady] = useState(!!window.XLSX);
+  useEffect(() => {
+    if (window.XLSX) { setReady(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => setReady(true);
+    document.head.appendChild(s);
+  }, []);
+  return ready;
+}
+
+function exportReturns(rows) {
+  if (!window.XLSX) { alert("SheetJS not loaded."); return; }
+  const XLSX = window.XLSX;
+  const wb = XLSX.utils.book_new();
+  const headers = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Return Inventory"],
+    ["LOCATION:", "MARILAO WAREHOUSE"],
+    ["AS OF:", new Date().toLocaleString()],
+    [],
+    ["TRANS #", "RETURN DATE", "DR#", "SKU", "ITEM", "QTY RETURNED", "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "TOTAL QTY OUT", "QTY BALANCE", "AMOUNT BALANCE", "DISPOSITION", "STATUS", "RETURN NO.", "WAREHOUSE"],
+  ];
+  const dataRows = rows.map(r => [r.transNo, r.returnDate, r.drNo, r.sku, r.item, r.qtyReturned, r.unitCost, r.totalCost, r.customer, r.reason, r.totalQtyOut, r.qtyBalance, r.amountBalance, r.disposition, r.status, r.returnNo, r.warehouse]);
+  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
+  ws["!cols"] = [{wch:8},{wch:12},{wch:12},{wch:12},{wch:35},{wch:12},{wch:12},{wch:14},{wch:25},{wch:25},{wch:12},{wch:12},{wch:16},{wch:14},{wch:10},{wch:12},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws, "RETURN INVENTORY");
+  XLSX.writeFile(wb, "TDT_WIS_Return_Inventory.xlsx");
+}
+
+function importReturns(file, onDone, onError) {
+  if (!window.XLSX) { onError("SheetJS not loaded."); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const ws = wb.Sheets["RETURN INVENTORY"] || wb.Sheets[wb.SheetNames[0]];
+      if (!ws) throw new Error("No valid sheet found.");
+      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+      let start = 0;
+      for (let i = 0; i < Math.min(raw.length, 10); i++) {
+        if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) { start = i + 1; break; }
+      }
+      const parsed = [];
+      for (let i = start; i < raw.length; i++) {
+        const r = raw[i]; if (!r || !r[0]) continue;
+        parsed.push({
+          id: i, transNo: String(r[0]||""), returnDate: String(r[1]||""), drNo: String(r[2]||""),
+          sku: String(r[3]||""), item: String(r[4]||""), qtyReturned: parseFloat(r[5])||0,
+          unitCost: parseFloat(r[6])||0, totalCost: parseFloat(r[7])||0,
+          customer: String(r[8]||""), reason: String(r[9]||""),
+          totalQtyOut: parseFloat(r[10])||0, qtyBalance: parseFloat(r[11])||0,
+          amountBalance: parseFloat(r[12])||0, disposition: String(r[13]||"Restock"),
+          status: String(r[14]||"Pending"), returnNo: String(r[15]||""), warehouse: String(r[16]||""),
+          lineItems: [],
+        });
+      }
+      if (!parsed.length) throw new Error("No data rows found.");
+      onDone(parsed);
+    } catch(err) { onError(err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 export default function ReturnPage() {
+  const xlsxReady = useSheetJS();
+  const [returns, setReturns] = useState(SEED_RETURNS);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [dispFilter, setDispFilter] = useState("All Dispositions");
@@ -123,9 +174,26 @@ export default function ReturnPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+
+  const handleImport = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setImporting(true);
+    importReturns(file, (parsed) => {
+      setImporting(false); setReturns(parsed); setCurrentPage(1);
+      showToast("Imported " + parsed.length + " return entries.");
+      e.target.value = "";
+    }, (err) => {
+      setImporting(false); showToast("Import failed: " + err, "error"); e.target.value = "";
+    });
+  };
 
   const filtered = useMemo(() => {
-    let rows = SEED_RETURNS;
+    let rows = returns;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       rows = rows.filter(
@@ -153,59 +221,30 @@ export default function ReturnPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const selected = selectedId != null ? SEED_RETURNS.find((r) => r.id === selectedId) : null;
+  const selected = selectedId != null ? returns.find((r) => r.id === selectedId) : null;
 
   const COLS = ["TRANS #", "RETURN DATE", "DR#", "SKU", "ITEM", "QTY RETURNED", "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "DISPOSITION", "STATUS"];
 
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
-      <div style={{ background: "#fff", borderRadius: 14, padding: "16px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ ...productSearchWrapStyle, flex: "1 1 280px", maxWidth: 520 }}>
-            <input
-              type="text"
-              placeholder="Search SKU or product name..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              style={productSearchInputStyle}
-            />
-            <span style={productSearchIconLeftStyle}><IconSearch size={16} /></span>
-          </div>
-          <div style={{ position: "relative", minWidth: 160, flex: "0 1 160px" }}>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }} style={selectSt}>
-              {STATUS_OPTS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-          </div>
-          <div style={{ position: "relative", minWidth: 170, flex: "0 1 170px" }}>
-            <select value={dispFilter} onChange={(e) => { setDispFilter(e.target.value); setCurrentPage(1); }} style={selectSt}>
-              {DISP_OPTS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-          </div>
-          <div style={{ position: "relative", minWidth: 180, flex: "0 1 200px" }}>
-            <select value={reasonFilter} onChange={(e) => { setReasonFilter(e.target.value); setCurrentPage(1); }} style={selectSt}>
-              {REASON_OPTS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-          </div>
-          <button type="button" style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-            <IconPlus size={16} />
-            Create New Return
-          </button>
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 14, flexWrap: "wrap" }}>
-          <button type="button" style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-            <IconCalendar size={16} />
-            April 5, 2026 – May 5, 2026
-          </button>
-          <button type="button" style={{ padding: "10px 16px", border: "1px solid #b8bec9", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" }}>
-            <IconDownload size={16} />
-            Export WIS
-          </button>
-        </div>
-      </div>
+      <PageToolbar
+        searchValue={searchQuery}
+        onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
+        filters={[
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: STATUS_OPTS, minWidth: 160 },
+          { key: "disp", value: dispFilter, onChange: (v) => { setDispFilter(v); setCurrentPage(1); }, options: DISP_OPTS, minWidth: 170 },
+          { key: "reason", value: reasonFilter, onChange: (v) => { setReasonFilter(v); setCurrentPage(1); }, options: REASON_OPTS, minWidth: 180 },
+        ]}
+        primaryAction={{ label: "Create New Return", onClick: () => {} }}
+        importExport={{
+          fileInputRef,
+          onFileChange: handleImport,
+          importing,
+          importDisabled: !xlsxReady,
+          onExport: () => exportReturns(returns),
+        }}
+      />
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
@@ -345,6 +384,12 @@ export default function ReturnPage() {
             </div>
           </aside>
         </>
+      )}
+
+      {toast && (
+        <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type==="error"?"#dc2626":"#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+          {toast.msg}
+        </div>
       )}
     </div>
   );

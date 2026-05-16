@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { productSearchInputStyle, productSearchWrapStyle, productSearchIconLeftStyle } from "./searchFieldStyles";
+import { useState, useMemo, useRef, useEffect } from "react";
+import PageToolbar from "./PageToolbar";
 
 const PAGE_SIZE = 8;
 
@@ -279,8 +279,94 @@ function lineTotals(lines) {
   return { qty, value };
 }
 
+
+/* ─── SheetJS loader ── */
+function useSheetJS() {
+  const [ready, setReady] = useState(!!window.XLSX);
+  useEffect(() => {
+    if (window.XLSX) { setReady(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => setReady(true);
+    document.head.appendChild(s);
+  }, []);
+  return ready;
+}
+
+function IconUpload({ size = 16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
+
+/* ─── EXPORT ── */
+function exportToWis(rows) {
+  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
+  const XLSX = window.XLSX;
+  const wb = XLSX.utils.book_new();
+  const headers = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Advance Customer Purchase Orders"],
+    ["LOCATION:", "MARILAO WAREHOUSE"],
+    ["AS OF", new Date().toLocaleString()],
+    [],
+    ["NO.", "TRANS #", "DATE", "SO/WO", "TDT DR", "CUSTOMER", "PLACE", "RESERVED QTY", "CURRENT STOCK", "EST. ENDING", "APPROVED BY", "STATUS"],
+  ];
+  const dataRows = rows.map((r, i) => [i+1, r.transNo, r.resDate, r.soWo, r.tdtDr, r.customer, r.place, r.reservedQty, r.currentStock, r.estEnding ?? "—", r.approvedBy, r.status]);
+  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
+  ws["!cols"] = [{wch:5},{wch:8},{wch:12},{wch:12},{wch:12},{wch:30},{wch:14},{wch:14},{wch:14},{wch:12},{wch:14},{wch:12}];
+  const numCols = ws["!cols"].length;
+  // Style header row 6
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(0, numCols).split("").forEach(c => {
+    const addr = `${c}6`;
+    if (ws[addr]) ws[addr].s = { font: { bold: true, sz: 9, color: { rgb: "FFFFFF" }, name: "Arial" }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center", wrapText: true } };
+  });
+  // Style title rows
+  ["A1","A2","A3","B3","A4","B4"].forEach(cell => {
+    if (ws[cell]) ws[cell].s = { font: { bold: true, sz: 13, name: "Arial" }, alignment: { horizontal: "left" } };
+  });
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, "ADVANCE CUSTOMER PO");
+  XLSX.writeFile(wb, "TDT_WIS_Advance_Customer_PO_Export.xlsx");
+}
+
+/* ─── IMPORT parser ── */
+function parseImportExcel(file, onDone, onError) {
+  if (!window.XLSX) { onError("SheetJS library not loaded yet."); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const uint8 = new Uint8Array(e.target.result);
+      const wb = window.XLSX.read(uint8, { type: "array", cellDates: true });
+      const wsName = wb.SheetNames.find(n => n.toUpperCase().includes("ADVANCE")) || wb.SheetNames[0];
+      const ws = wb.Sheets[wsName];
+      if (!ws) throw new Error("No matching sheet found.");
+      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+      let dataStart = 6;
+      for (let i = 0; i < Math.min(raw.length, 12); i++) {
+        if (raw[i] && raw[i].filter(Boolean).length >= 4) { dataStart = i + 1; break; }
+      }
+      const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/,/g, "")); return isNaN(n) ? 0 : n; };
+      const parsed = [];
+      for (let i = dataStart; i < raw.length; i++) {
+        const r = raw[i];
+        if (!r || r.filter(Boolean).length < 2) continue;
+        const row = {};
+        r.forEach((v, idx) => { row[`col${idx}`] = v; });
+        row.id = i - dataStart + 1;
+        parsed.push(row);
+      }
+      if (!parsed.length) throw new Error("No data rows found in the sheet.");
+      onDone(parsed);
+    } catch (err) { onError(err.message || "Unknown error"); }
+  };
+  reader.onerror = () => onError("Could not read the file.");
+  reader.readAsArrayBuffer(file);
+}
 export default function AdvanceCustomerPOPage() {
   const [searchSku, setSearchSku] = useState("");
+
+  const xlsxReady = useSheetJS();
+  const importRef = useRef(null);
   const [place, setPlace] = useState("All locations");
   const [currentPage, setCurrentPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -337,36 +423,27 @@ export default function AdvanceCustomerPOPage() {
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18, position: "relative" }}>
 
-      <div style={{ background: "#fff", borderRadius: 14, padding: "16px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ ...productSearchWrapStyle, flex: "1 1 260px", maxWidth: 520 }}>
-          <input
-            type="text"
-            placeholder="Search SKU or product name..."
-            value={searchSku}
-            onChange={(e) => { setSearchSku(e.target.value); setCurrentPage(1); }}
-            style={productSearchInputStyle}
-          />
-          <span style={productSearchIconLeftStyle}><IconSearch size={16} /></span>
-        </div>
-        <div style={{ position: "relative", minWidth: 170 }}>
-          <select
-            value={place}
-            onChange={(e) => { setPlace(e.target.value); setCurrentPage(1); }}
-            style={{ padding: "11px 32px 11px 14px", fontSize: 14, border: "1px solid #b8bec9", borderRadius: 8, background: "#fff", color: "#111827", cursor: "pointer", fontFamily: "inherit", width: "100%", appearance: "none", fontWeight: 500, outline: "none", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" }}
-          >
-            {PLACES.map((p) => <option key={p}>{p}</option>)}
-          </select>
-          <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-        </div>
-        <button type="button" style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-          <IconCalendar size={16} />
-          April 5, 2026 – May 5, 2026
-        </button>
-        <button type="button" style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-          <IconPlus size={16} />
-          Create New Reservation
-        </button>
-      </div>
+      <PageToolbar
+        searchValue={searchSku}
+        onSearchChange={(v) => { setSearchSku(v); setCurrentPage(1); }}
+        filters={[
+          { key: "place", value: place, onChange: (v) => { setPlace(v); setCurrentPage(1); }, options: PLACES, minWidth: 170 },
+        ]}
+        primaryAction={{ label: "Create New Reservation", onClick: () => {} }}
+        importExport={{
+          fileInputRef: importRef,
+          onFileChange: (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            parseImportExcel(file,
+              (parsed) => alert(`Imported ${parsed.length} rows from ${file.name}`),
+              (err) => alert(`Import failed: ${err}`)
+            );
+            e.target.value = "";
+          },
+          onExport: () => { if (!xlsxReady) { alert("SheetJS not ready yet."); return; } exportToWis(SEED_RESERVATIONS); },
+        }}
+      />
 
       <div
         style={{
@@ -395,28 +472,6 @@ export default function AdvanceCustomerPOPage() {
             <p style={{ margin: "8px 0 0", fontSize: 18, fontWeight: 800, color: "#374151", letterSpacing: "-0.3px" }}>{sumEst}</p>
           </div>
         </div>
-        <button
-          type="button"
-          style={{
-            flexShrink: 0,
-            alignSelf: "center",
-            padding: "10px 16px",
-            border: "1px solid #b8bec9",
-            borderRadius: 8,
-            background: "#fff",
-            cursor: "pointer",
-            color: "#374151",
-            fontSize: 13,
-            fontWeight: 600,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)",
-          }}
-        >
-          <IconDownload size={16} />
-          Export WIS
-        </button>
       </div>
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>

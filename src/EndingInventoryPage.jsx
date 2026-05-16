@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from "react";
-import { productSearchInputStyle, productSearchWrapStyle, productSearchIconLeftStyle } from "./searchFieldStyles";
+import PageToolbar from "./PageToolbar";
 
 function useSheetJS() {
   const [ready, setReady] = useState(!!window.XLSX);
@@ -151,12 +151,7 @@ function StartInventoryModal({ data, onClose, onSave }) {
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><IconX size={20} /></button>
         </div>
 
-        {/* Hint */}
-        <div style={{ padding: "10px 28px", background: "#fef6f2", borderBottom: "1px solid #fde8d0", flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: "#c2550a", fontWeight: 600 }}>
-            ✏️ Editable fields: Last Acceptance Date · Qty as per WIS · Avg Unit Cost · Qty as per Counting · Remarks
-          </span>
-        </div>
+
 
         {/* Table */}
         <div style={{ overflowY: "auto", flex: 1 }}>
@@ -377,15 +372,8 @@ export default function EndingInventoryPage() {
   const inStockCount = inventoryData.filter(r => r.qtyAsPerWis > 0).length;
   const varianceCount = inventoryData.filter(r => r.varianceQty !== 0).length;
 
-  const EDITABLE_HINT = "Click ✏️ Edit on any row to update: Last Acceptance Date · Qty as per WIS · Avg Unit Cost · Qty as per Counting · Remarks. Total Cost & Variance auto-calculate.";
-
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
-
-      {/* Editable hint banner */}
-      <div style={{ background: "#fef6f2", border: "1px solid #fde8d0", borderRadius: 10, padding: "10px 18px", fontSize: 12, color: "#c2550a", fontWeight: 500 }}>
-        ✏️ {EDITABLE_HINT}
-      </div>
 
       {/* Summary Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
@@ -402,31 +390,22 @@ export default function EndingInventoryPage() {
         ))}
       </div>
 
-      {/* Search / Filter / Buttons */}
-      <div style={{ background: "#fff", borderRadius: 14, padding: "16px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
-          <div style={{ ...productSearchWrapStyle, flex: "1 1 280px", maxWidth: 480 }}>
-            <input type="text" placeholder="Search SKU or product name..." value={searchQuery}
-              onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              style={productSearchInputStyle} />
-            <span style={productSearchIconLeftStyle}><IconSearch size={16} /></span>
-          </div>
-          <div style={{ position: "relative", minWidth: 150 }}>
-            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-              style={{ padding: "11px 32px 11px 14px", fontSize: 14, border: "1px solid #b8bec9", borderRadius: 8, background: "#ffffff", color: "#111827", cursor: "pointer", fontFamily: "inherit", width: "100%", appearance: "none", fontWeight: 500, outline: "none", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" }}>
-              {["All Status","In Stock","Out of Stock","Variance"].map(s => <option key={s}>{s}</option>)}
-            </select>
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-          </div>
-          <div style={{ background: "#e87c27", color: "#fff", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-            📅 April 2026 ▾
-          </div>
-          <button onClick={() => setShowStartModal(true)}
-            style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-            <IconPlus size={16} /> Start Ending Inventory
-          </button>
-        </div>
-      </div>
+      <PageToolbar
+        searchValue={searchQuery}
+        onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
+        filters={[
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "In Stock", "Out of Stock", "Variance"], minWidth: 150 },
+        ]}
+        primaryAction={{ label: "Start Ending Inventory", onClick: () => setShowStartModal(true) }}
+        importExport={{
+          fileInputRef,
+          onFileChange: handleImportWis,
+          importing,
+          importDisabled: !xlsxReady,
+          importLabel: importing ? "Importing…" : !xlsxReady ? "Loading…" : "Import WIS",
+          onExport: () => exportToWis(inventoryData),
+        }}
+      />
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: "0 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
@@ -442,10 +421,10 @@ export default function EndingInventoryPage() {
             <thead>
               <tr style={{ background: "#1c2235" }}>
                 {(activeTab === "wis"
-                  ? ["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE ✏️","QTY AS PER WIS ✏️","TOTAL COST (AUTO)","AVG UNIT COST ✏️","QTY AS PER COUNTING ✏️","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS ✏️",""]
+                  ? ["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS"]
                   : ["#","PRODUCT DESCRIPTION","SKU","QTY AS PER WIS","AVG UNIT COST","TOTAL COST OF GOODS SOLD"]
                 ).map((h,i) => (
-                  <th key={h+i} style={{ padding: "14px 16px", textAlign: ["QTY AS PER WIS ✏️","TOTAL COST (AUTO)","AVG UNIT COST ✏️","QTY AS PER COUNTING ✏️","VARIANCE (QTY)","VARIANCE (AMT)","QTY AS PER WIS","AVG UNIT COST","TOTAL COST OF GOODS SOLD"].includes(h)?"right":"left", color: h.includes("✏️")?"#fbbf24":"#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h+i} style={{ padding: "14px 16px", textAlign: ["QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","QTY AS PER WIS","AVG UNIT COST","TOTAL COST OF GOODS SOLD"].includes(h)?"right":"left", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -477,13 +456,7 @@ export default function EndingInventoryPage() {
                         <td style={{ padding: "12px 16px", textAlign: "right" }}>
                           <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceAmount===0?"#d1fae5":"#fee2e2", color: item.varianceAmount===0?"#065f46":"#991b1b" }}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
                         </td>
-                        <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150 }}>{item.remarks || "—"}</td>
-                        <td style={{ padding: "12px 10px" }}>
-                          <button onClick={() => { setEditingNo(item.no); setActiveTab("wis"); }}
-                            style={{ padding: "5px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                            <IconEdit size={12} /> Edit
-                          </button>
-                        </td>
+                         <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150 }}>{item.remarks || "—"}</td>
                       </>
                     ) : (
                       <>
@@ -522,17 +495,6 @@ export default function EndingInventoryPage() {
             <button onClick={() => setCurrentPage(p => Math.min(totalPages,p+1))} disabled={currentPage===totalPages}
               style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.4:1 }}>
               <IconChevronRight size={14} />
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleImportWis} style={{ display: "none" }} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={importing || !xlsxReady}
-              style={{ padding: "8px 14px", border: "1.5px solid #e87c27", borderRadius: 6, background: "#fff", cursor: (importing||!xlsxReady)?"not-allowed":"pointer", color: "#e87c27", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, opacity: (importing||!xlsxReady)?0.6:1 }}>
-              <IconUpload size={14} /> {importing ? "Importing…" : !xlsxReady ? "Loading…" : "Import WIS"}
-            </button>
-            <button onClick={() => exportToWis(inventoryData)}
-              style={{ padding: "8px 14px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-              <IconDownload size={14} /> Export WIS
             </button>
           </div>
         </div>

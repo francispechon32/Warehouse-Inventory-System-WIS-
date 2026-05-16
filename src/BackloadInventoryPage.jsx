@@ -1,5 +1,5 @@
-import { useState, useRef, useMemo } from "react";
-import { productSearchInputStyle, productSearchIconLeftStyle } from "./searchFieldStyles";
+import { useState, useRef, useMemo, useEffect } from "react";
+import PageToolbar from "./PageToolbar";
 
 /* ─── SEED DATA from Excel BACKLOAD INVENTORY sheet ── */
 const SEED_BACKLOAD = [
@@ -151,8 +151,79 @@ function EditableRow({ row, onSave, onCancel, idx }) {
   );
 }
 
+
+function useSheetJS() {
+  const [ready, setReady] = useState(!!window.XLSX);
+  useEffect(() => {
+    if (window.XLSX) { setReady(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => setReady(true);
+    document.head.appendChild(s);
+  }, []);
+  return ready;
+}
+
+function IconUpload2({ size = 16 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+}
+
+function exportBackload(rows) {
+  if (!window.XLSX) { alert("SheetJS not loaded."); return; }
+  const XLSX = window.XLSX;
+  const wb = XLSX.utils.book_new();
+  const headers = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Backload Inventory"],
+    ["LOCATION:", "MARILAO WAREHOUSE"],
+    ["AS OF:", new Date().toLocaleString()],
+    [],
+    ["TRANS NO.", "DATE", "DR #", "SKU", "ITEM", "QTY", "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "TOTAL QTY OUT", "QTY BALANCE", "AMOUNT BALANCE", "REMARKS", "STATUS"],
+  ];
+  const dataRows = rows.map(r => {
+    const qtyBal = r.qty - r.totalQtyOut;
+    const amtBal = r.unitCost * qtyBal;
+    return [r.id, r.date, r.drNo||"—", r.sku||"—", r.item, r.qty, r.unitCost, r.qty*r.unitCost, r.customerName, r.totalQtyOut, qtyBal, amtBal, r.remarks||"—", r.status];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
+  ws["!cols"] = [{wch:8},{wch:12},{wch:12},{wch:10},{wch:40},{wch:8},{wch:12},{wch:14},{wch:28},{wch:12},{wch:12},{wch:16},{wch:30},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws, "BACKLOAD INVENTORY");
+  XLSX.writeFile(wb, "TDT_WIS_Backload_Inventory.xlsx");
+}
+
+function importBackload(file, onDone, onError) {
+  if (!window.XLSX) { onError("SheetJS not loaded."); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const ws = wb.Sheets["BACKLOAD INVENTORY"] || wb.Sheets[wb.SheetNames[0]];
+      if (!ws) throw new Error("No valid sheet found.");
+      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+      let start = 0;
+      for (let i = 0; i < Math.min(raw.length, 10); i++) {
+        if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS NO"))) { start = i + 1; break; }
+      }
+      const parsed = [];
+      for (let i = start; i < raw.length; i++) {
+        const r = raw[i]; if (!r || !r[0]) continue;
+        parsed.push({
+          id: parseFloat(r[0])||i, date: String(r[1]||""), drNo: String(r[2]||""), sku: String(r[3]||""),
+          item: String(r[4]||""), qty: parseFloat(r[5])||0, unitCost: parseFloat(r[6])||0,
+          customerName: String(r[8]||""), totalQtyOut: parseFloat(r[9])||0,
+          remarks: String(r[12]||""), status: String(r[13]||"Pending"),
+        });
+      }
+      if (!parsed.length) throw new Error("No data rows found.");
+      onDone(parsed);
+    } catch(err) { onError(err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 /* ─── MAIN PAGE ── */
 export default function BackloadInventoryPage() {
+  const xlsxReady = useSheetJS();
   const [data, setData] = useState(SEED_BACKLOAD);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -160,7 +231,21 @@ export default function BackloadInventoryPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [importing, setImporting] = useState(false);
   const nextId = useRef(SEED_BACKLOAD.length + 1);
+  const importFileRef = useRef(null);
+
+  const handleImport = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setImporting(true);
+    importBackload(file, (parsed) => {
+      setImporting(false); setData(parsed); setCurrentPage(1);
+      showToast("Imported " + parsed.length + " entries successfully.");
+      e.target.value = "";
+    }, (err) => {
+      setImporting(false); showToast("Import failed: " + err, "error"); e.target.value = "";
+    });
+  };
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -218,32 +303,21 @@ export default function BackloadInventoryPage() {
         ))}
       </div>
 
-      {/* Search / Filter / Buttons Row */}
-      <div style={{ background: "#fff", borderRadius: 14, padding: "16px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ flex: 1, position: "relative", minWidth: 240, maxWidth: 480 }}>
-          <input
-            type="text"
-            placeholder="Search SKU or product name..."
-            value={searchQuery}
-            onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            style={productSearchInputStyle}
-          />
-          <span style={productSearchIconLeftStyle}><IconSearch size={16} /></span>
-        </div>
-        <div style={{ position: "relative", minWidth: 150 }}>
-          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-            style={{ padding: "11px 32px 11px 14px", fontSize: 14, border: "1px solid #b8bec9", borderRadius: 8, background: "#fff", color: "#111827", cursor: "pointer", fontFamily: "inherit", width: "100%", appearance: "none", fontWeight: 500, outline: "none", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" }}>
-            {["All Status", "Pending", "Partial", "Delivered"].map(s => <option key={s}>{s}</option>)}
-          </select>
-          <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-        </div>
-        <div style={{ background: "#e87c27", color: "#fff", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-          📅 {new Date().toLocaleDateString("en-PH", { month: "long", year: "numeric" })} ▾
-        </div>
-        <button onClick={() => setShowModal(true)} style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-          <IconPlus size={16} /> Start Backload Inventory
-        </button>
-      </div>
+      <PageToolbar
+        searchValue={searchQuery}
+        onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
+        filters={[
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "Pending", "Partial", "Delivered"], minWidth: 150 },
+        ]}
+        primaryAction={{ label: "Start Backload Inventory", onClick: () => setShowModal(true) }}
+        importExport={{
+          fileInputRef: importFileRef,
+          onFileChange: handleImport,
+          importing,
+          importDisabled: !xlsxReady,
+          onExport: () => exportBackload(data),
+        }}
+      />
 
       {/* Table */}
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
@@ -325,9 +399,6 @@ export default function BackloadInventoryPage() {
               <IconChevronRight size={14} />
             </button>
           </div>
-          <button style={{ padding: "8px 14px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-            <IconDownload size={14} /> Export WIS
-          </button>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { productSearchInputStyle } from "./searchFieldStyles";
+import { useState, useMemo, useEffect, useRef } from "react";
+import PageToolbar from "./PageToolbar";
 
 const RECENT_SKUS = ["DRB007", "DRB052", "SHPT2", "MSP010", "WF10833"];
 
@@ -100,7 +100,61 @@ function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination }) 
   );
 }
 
+
+function useSheetJS() {
+  const [ready, setReady] = useState(!!window.XLSX);
+  useEffect(() => {
+    if (window.XLSX) { setReady(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => setReady(true);
+    document.head.appendChild(s);
+  }, []);
+  return ready;
+}
+
+function IconUpload2({ size = 16 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+}
+
+function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows) {
+  if (!window.XLSX) { alert("SheetJS not loaded."); return; }
+  const XLSX = window.XLSX;
+  const wb = XLSX.utils.book_new();
+
+  // Stock IN sheet
+  const inHeaders = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Stock Sheet — Stock IN for SKU: " + sku],
+    ["PRODUCT:", skuInfo.desc, "", "WEIGHT:", skuInfo.weight],
+    ["AS OF:", new Date().toLocaleString()],
+    [],
+    ["TRANS #","DATE","TDT PO #","TDT PO DATE","VENDOR #","VENDOR NAME","CUSTOMER'S NAME AS PER DR","TDT WO #","ACCEPTANCE DATE","QTY","COST/KILO","COST/UNIT","TOTAL PURCHASE","RUNNING QTY","AVG UNIT COST","TOTAL VALUE","REMARK"],
+  ];
+  const inData = stockInRows.map(r => [r.transNo, r.date, r.tdtPo, r.tdtPoDate, r.vendorNo, r.vendorName, r.customerDr, r.tdtWo, r.acceptDate, r.qty, r.costKilo, r.costUnit, r.totalPurchase, r.runningQty, r.avgUnitCost, r.totalValue, r.remark||"—"]);
+  const wsIn = XLSX.utils.aoa_to_sheet([...inHeaders, ...inData]);
+  wsIn["!cols"] = [{wch:10},{wch:12},{wch:16},{wch:12},{wch:10},{wch:18},{wch:22},{wch:10},{wch:14},{wch:8},{wch:10},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsIn, sku + " STOCK IN");
+
+  // Stock OUT sheet
+  const outHeaders = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Stock Sheet — Stock OUT for SKU: " + sku],
+    ["PRODUCT:", skuInfo.desc],
+    ["AS OF:", new Date().toLocaleString()],
+    [],
+    ["TRANS #","DISPATCH DATE","TDT WO#","CUSTOMER NAME","TDT DR#","BRANCH","SUMMARY OF TDT BDR#","TDT SI#","QTY OUT","UNIT COST","TOTAL PRICE","SERIES 1 — QTY / DATE","SERIES 2 — QTY / DATE","SERIES 3 — QTY / DATE","RUNNING QTY","RUNNING VALUE","REMARKS"],
+  ];
+  const outData = stockOutRows.map(r => [r.transNo, r.dispatchDate, r.tdtWo, r.customer, r.tdtDr, r.branch, r.bdrSummary, r.tdtSi, r.qtyOut, r.unitCost, r.totalPrice, r.s1, r.s2, r.s3, r.runningQty, r.runningValue, r.remarks||"—"]);
+  const wsOut = XLSX.utils.aoa_to_sheet([...outHeaders, ...outData]);
+  wsOut["!cols"] = [{wch:10},{wch:14},{wch:12},{wch:20},{wch:14},{wch:10},{wch:14},{wch:12},{wch:8},{wch:12},{wch:14},{wch:18},{wch:18},{wch:18},{wch:12},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, wsOut, sku + " STOCK OUT");
+
+  XLSX.writeFile(wb, "TDT_WIS_Stock_Sheet_" + sku + ".xlsx");
+}
+
 export default function StockSheetsPage() {
+  const xlsxReady = useSheetJS();
   const [searchSku, setSearchSku] = useState("DRB007");
   const [activeTab, setActiveTab] = useState("all");
   const [inPage, setInPage] = useState(1);
@@ -136,18 +190,11 @@ export default function StockSheetsPage() {
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
-      <div style={{ background: "#fff", borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#374151", flexShrink: 0 }}>Search SKU:</span>
-          <div style={{ position: "relative", flex: "1 1 200px", maxWidth: 280 }}>
-            <input
-              type="text"
-              value={searchSku}
-              onChange={(e) => { setSearchSku(e.target.value); setInPage(1); setOutPage(1); }}
-              style={{ ...productSearchInputStyle, paddingLeft: 12 }}
-            />
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#374151", pointerEvents: "none" }}><IconSearch size={16} /></span>
-          </div>
+      <PageToolbar
+        searchValue={searchSku}
+        onSearchChange={(v) => { setSearchSku(v); setInPage(1); setOutPage(1); }}
+        primaryAction={{ label: "New Stock Sheet", onClick: () => {} }}
+        row1End={
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: "1 1 300px" }}>
             <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>Recent:</span>
             {RECENT_SKUS.map((sku) => {
@@ -173,8 +220,12 @@ export default function StockSheetsPage() {
               );
             })}
           </div>
-        </div>
-      </div>
+        }
+        importExport={{
+          showImport: false,
+          onExport: () => exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows),
+        }}
+      />
 
       <div style={{ background: "#fff", borderRadius: 14, padding: "20px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 20 }}>
         <div style={{ display: "flex", flex: "1 1 0", gap: 28, flexWrap: "wrap", minWidth: 0 }}>
@@ -190,16 +241,6 @@ export default function StockSheetsPage() {
             <p style={{ margin: 0, fontSize: 10, fontWeight: 800, color: "#9ca3af", letterSpacing: "0.12em", textTransform: "uppercase" }}>WEIGHT</p>
             <p style={{ margin: "8px 0 0", fontSize: 16, fontWeight: 800, color: "#111827" }}>{skuInfo.weight}</p>
           </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
-          <button type="button" style={{ padding: "10px 18px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
-            <IconPlus size={16} />
-            New Stock Sheet
-          </button>
-          <button type="button" style={{ padding: "10px 18px", border: "1px solid #b8bec9", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, justifyContent: "center", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" }}>
-            <IconDownload size={16} />
-            Export WIS
-          </button>
         </div>
       </div>
 
