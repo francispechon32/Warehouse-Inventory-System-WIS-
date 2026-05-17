@@ -1,5 +1,14 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import PageToolbar from "./PageToolbar";
+import {
+  cellStr,
+  cellNum,
+  formatExcelDate,
+  findHeaderRowIndex,
+  pickCol,
+  rowHasData,
+  readWorkbookSheet,
+} from "./excelImportUtils";
 
 const PAGE_SIZE = 5;
 
@@ -130,38 +139,64 @@ function exportReturns(rows) {
   XLSX.writeFile(wb, "TDT_WIS_Return_Inventory.xlsx");
 }
 
-function importReturns(file, onDone, onError) {
-  if (!window.XLSX) { onError("SheetJS not loaded."); return; }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
-      const ws = wb.Sheets["RETURN INVENTORY"] || wb.Sheets[wb.SheetNames[0]];
-      if (!ws) throw new Error("No valid sheet found.");
-      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      let start = 0;
-      for (let i = 0; i < Math.min(raw.length, 10); i++) {
-        if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) { start = i + 1; break; }
+async function importReturns(file, onDone, onError) {
+  try {
+    const { raw } = await readWorkbookSheet(file, ["RETURN"]);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    const parsed = [];
+
+    for (let i = dataStart; i < raw.length; i++) {
+      const r = raw[i];
+      if (!rowHasData(r)) continue;
+
+      let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 0));
+      let returnDate = formatExcelDate(pickCol(r, headers, ["RETURN DATE", "DATE"], 1));
+      const col0 = cellStr(r[0]);
+      const col1 = r[1];
+      if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
+        transNo = col0;
+        returnDate = formatExcelDate(col1);
       }
-      const parsed = [];
-      for (let i = start; i < raw.length; i++) {
-        const r = raw[i]; if (!r || !r[0]) continue;
-        parsed.push({
-          id: i, transNo: String(r[0]||""), returnDate: String(r[1]||""), drNo: String(r[2]||""),
-          sku: String(r[3]||""), item: String(r[4]||""), qtyReturned: parseFloat(r[5])||0,
-          unitCost: parseFloat(r[6])||0, totalCost: parseFloat(r[7])||0,
-          customer: String(r[8]||""), reason: String(r[9]||""),
-          totalQtyOut: parseFloat(r[10])||0, qtyBalance: parseFloat(r[11])||0,
-          amountBalance: parseFloat(r[12])||0, disposition: String(r[13]||"Restock"),
-          status: String(r[14]||"Pending"), returnNo: String(r[15]||""), warehouse: String(r[16]||""),
-          lineItems: [],
-        });
-      }
-      if (!parsed.length) throw new Error("No data rows found.");
-      onDone(parsed);
-    } catch(err) { onError(err.message); }
-  };
-  reader.readAsArrayBuffer(file);
+
+      const item = cellStr(pickCol(r, headers, ["ITEM"], 4));
+      const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 8));
+      const sku = cellStr(pickCol(r, headers, ["SKU"], 3));
+      if (!transNo && !item && !customer && !sku) continue;
+
+      const qtyReturned = cellNum(pickCol(r, headers, ["QTY RETURNED", "QTY"], 5));
+      const unitCost = cellNum(pickCol(r, headers, ["UNIT COST"], 6));
+      const totalCost = cellNum(pickCol(r, headers, ["TOTAL COST"], 7)) || qtyReturned * unitCost;
+
+      parsed.push({
+        id: parsed.length + 1,
+        transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
+        returnDate,
+        drNo: cellStr(pickCol(r, headers, ["DR"], 2)),
+        sku,
+        item,
+        qtyReturned,
+        unitCost,
+        totalCost,
+        customer,
+        reason: cellStr(pickCol(r, headers, ["REASON"], 9)),
+        totalQtyOut: cellNum(pickCol(r, headers, ["TOTAL QTY OUT", "QTY OUT"], 10)),
+        qtyBalance: cellNum(pickCol(r, headers, ["QTY BALANCE"], 11)),
+        amountBalance: cellNum(pickCol(r, headers, ["AMOUNT BALANCE"], 12)),
+        disposition: cellStr(pickCol(r, headers, ["DISPOSITION"], 13)) || "Restock",
+        status: cellStr(pickCol(r, headers, ["STATUS"], 14)) || "Pending",
+        returnNo: cellStr(pickCol(r, headers, ["RETURN NO"], 15)),
+        warehouse: cellStr(pickCol(r, headers, ["WAREHOUSE"], 16)),
+        lineItems: [],
+      });
+    }
+
+    if (!parsed.length) throw new Error("No data rows found. Fill TRANS #, ITEM, or CUSTOMER columns.");
+    onDone(parsed);
+  } catch (err) {
+    onError(err.message || "Import failed.");
+  }
 }
 
 export default function ReturnPage() {
@@ -184,11 +219,17 @@ export default function ReturnPage() {
     const file = e.target.files[0]; if (!file) return;
     setImporting(true);
     importReturns(file, (parsed) => {
-      setImporting(false); setReturns(parsed); setCurrentPage(1);
-      showToast("Imported " + parsed.length + " return entries.");
+      setImporting(false);
+      setReturns(parsed);
+      setCurrentPage(1);
+      setSelectedId(null);
+      setPanelOpen(false);
+      showToast(`Imported ${parsed.length} return entries successfully.`);
       e.target.value = "";
     }, (err) => {
-      setImporting(false); showToast("Import failed: " + err, "error"); e.target.value = "";
+      setImporting(false);
+      showToast(`Import failed: ${err}`, "error");
+      e.target.value = "";
     });
   };
 
@@ -210,7 +251,7 @@ export default function ReturnPage() {
     if (dispFilter !== "All Dispositions") rows = rows.filter((r) => r.disposition === dispFilter);
     if (reasonFilter !== "All Reasons") rows = rows.filter((r) => r.reason === reasonFilter);
     return rows;
-  }, [searchQuery, statusFilter, dispFilter, reasonFilter]);
+  }, [returns, searchQuery, statusFilter, dispFilter, reasonFilter]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -375,7 +416,7 @@ export default function ReturnPage() {
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 14, color: "#6b7280" }}>Total Returned Qty</span>
                   <span style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{lineQtySum(selected.lineItems)}</span>
-                </div>
+                </div>wo
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 14, color: "#6b7280" }}>Total Returned Value</span>
                   <span style={{ fontSize: 15, fontWeight: 800, color: "#e87c27" }}>{fmtPHP(lineValSum(selected.lineItems))}</span>

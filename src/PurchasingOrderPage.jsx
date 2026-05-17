@@ -1,5 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import PageToolbar from "./PageToolbar";
+import {
+  cellStr,
+  cellNum,
+  formatExcelDate,
+  findHeaderRowIndex,
+  pickCol,
+  rowHasData,
+  readWorkbookSheet,
+} from "./excelImportUtils";
 
 const PAGE_SIZE = 8;
 
@@ -356,43 +365,71 @@ function exportToWis(rows) {
 }
 
 /* ─── IMPORT parser ── */
-function parseImportExcel(file, onDone, onError) {
-  if (!window.XLSX) { onError("SheetJS library not loaded yet."); return; }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const uint8 = new Uint8Array(e.target.result);
-      const wb = window.XLSX.read(uint8, { type: "array", cellDates: true });
-      const wsName = wb.SheetNames.find(n => n.toUpperCase().includes("PURCHASING")) || wb.SheetNames[0];
-      const ws = wb.Sheets[wsName];
-      if (!ws) throw new Error("No matching sheet found.");
-      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
-      let dataStart = 6;
-      for (let i = 0; i < Math.min(raw.length, 12); i++) {
-        if (raw[i] && raw[i].filter(Boolean).length >= 4) { dataStart = i + 1; break; }
+async function importPurchaseOrders(file, onDone, onError) {
+  try {
+    const { raw } = await readWorkbookSheet(file, ["PURCHASING"]);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    const parsed = [];
+
+    for (let i = dataStart; i < raw.length; i++) {
+      const r = raw[i];
+      if (!rowHasData(r)) continue;
+
+      let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 1));
+      let poDate = formatExcelDate(pickCol(r, headers, ["PO DATE", "DATE"], 2));
+      const col0 = cellStr(r[0]);
+      const col1 = r[1];
+      if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
+        transNo = col0;
+        poDate = formatExcelDate(col1);
       }
-      const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/,/g, "")); return isNaN(n) ? 0 : n; };
-      const parsed = [];
-      for (let i = dataStart; i < raw.length; i++) {
-        const r = raw[i];
-        if (!r || r.filter(Boolean).length < 2) continue;
-        const row = {};
-        r.forEach((v, idx) => { row[`col${idx}`] = v; });
-        row.id = i - dataStart + 1;
-        parsed.push(row);
-      }
-      if (!parsed.length) throw new Error("No data rows found in the sheet.");
-      onDone(parsed);
-    } catch (err) { onError(err.message || "Unknown error"); }
-  };
-  reader.onerror = () => onError("Could not read the file.");
-  reader.readAsArrayBuffer(file);
+      const productDesc = cellStr(pickCol(r, headers, ["PRODUCT"], 7));
+      const vendor = cellStr(pickCol(r, headers, ["VENDOR", "SUPPLIER"], 6));
+      if (!transNo && !productDesc && !vendor) continue;
+
+      parsed.push({
+        id: parsed.length + 1,
+        transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
+        poDate,
+        eta: formatExcelDate(pickCol(r, headers, ["ETA"], 3)),
+        purchaser: cellStr(pickCol(r, headers, ["PURCHASER", "NAME OF PURCHASER"], 4)),
+        tdtPo: cellStr(pickCol(r, headers, ["TDT PO", "PURCHASE ORDER"], 5)),
+        vendor,
+        productDesc,
+        destination: cellStr(pickCol(r, headers, ["DESTINATION"], 8)),
+        tradingOrStocks: "Stocks",
+        warehouseType: "Stocks",
+        metricTons: cellNum(pickCol(r, headers, ["METRIC TONS", "METRIC"], 9)),
+        qtyPerPo: cellNum(pickCol(r, headers, ["QTY"], 10)),
+        weight: "—",
+        status: cellStr(pickCol(r, headers, ["STATUS"], 11)) || "Pending",
+        txnNo: "",
+        lineItems: [],
+      });
+    }
+
+    if (!parsed.length) throw new Error("No data rows found. Fill TRANS # or product/vendor columns.");
+    onDone(parsed);
+  } catch (err) {
+    onError(err.message || "Import failed.");
+  }
 }
+
 export default function PurchasingOrderPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [orders, setOrders] = useState(SEED_PURCHASE_ORDERS);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const xlsxReady = useSheetJS();
   const importRef = useRef(null);
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [supplierFilter, setSupplierFilter] = useState("All Suppliers");
   const [currentPage, setCurrentPage] = useState(1);
@@ -400,7 +437,7 @@ export default function PurchasingOrderPage() {
   const [selectedId, setSelectedId] = useState(null);
 
   const filtered = useMemo(() => {
-    let rows = SEED_PURCHASE_ORDERS;
+    let rows = orders;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       rows = rows.filter(
@@ -416,7 +453,7 @@ export default function PurchasingOrderPage() {
     if (statusFilter !== "All Status") rows = rows.filter((r) => r.status === statusFilter);
     if (supplierFilter !== "All Suppliers") rows = rows.filter((r) => r.vendor === supplierFilter);
     return rows;
-  }, [searchQuery, statusFilter, supplierFilter]);
+  }, [orders, searchQuery, statusFilter, supplierFilter]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -427,7 +464,7 @@ export default function PurchasingOrderPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const selected = selectedId != null ? SEED_PURCHASE_ORDERS.find((r) => r.id === selectedId) : null;
+  const selected = selectedId != null ? orders.find((r) => r.id === selectedId) : null;
   const panelBadge = selected ? (STATUS_BADGE[selected.status] || STATUS_BADGE.Pending) : STATUS_BADGE.Pending;
 
   const totalSeed = 218;
@@ -449,13 +486,31 @@ export default function PurchasingOrderPage() {
           onFileChange: (e) => {
             const file = e.target.files?.[0];
             if (!file) return;
-            parseImportExcel(file,
-              (parsed) => alert(`Imported ${parsed.length} rows from ${file.name}`),
-              (err) => alert(`Import failed: ${err}`)
+            setImporting(true);
+            importPurchaseOrders(
+              file,
+              (parsed) => {
+                setImporting(false);
+                setOrders(parsed);
+                setCurrentPage(1);
+                setSelectedId(null);
+                setPanelOpen(false);
+                showToast(`Imported ${parsed.length} purchase orders successfully.`);
+                e.target.value = "";
+              },
+              (err) => {
+                setImporting(false);
+                showToast(`Import failed: ${err}`, "error");
+                e.target.value = "";
+              }
             );
-            e.target.value = "";
           },
-          onExport: () => { if (!xlsxReady) { alert("SheetJS not ready yet."); return; } exportToWis(SEED_PURCHASE_ORDERS); },
+          importing,
+          importDisabled: !xlsxReady,
+          onExport: () => {
+            if (!xlsxReady) { showToast("SheetJS not ready yet.", "error"); return; }
+            exportToWis(orders);
+          },
         }}
       />
 
@@ -582,6 +637,12 @@ export default function PurchasingOrderPage() {
             </div>
           </aside>
         </>
+      )}
+
+      {toast && (
+        <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type === "error" ? "#dc2626" : "#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+          {toast.msg}
+        </div>
       )}
     </div>
   );

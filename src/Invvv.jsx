@@ -347,7 +347,7 @@ function NavTooltip({ label, children, show }) {
 export default function Dashboard() {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(true);
-  const [dateRange, setDateRange]         = useState("Last 30 Days");
+  const [dateRange, setDateRange]         = useState("Last 7 Days");
   const [sidebarOpen, setSidebarOpen]     = useState(true);
 
   const SIDEBAR_FULL      = 250;
@@ -706,33 +706,10 @@ export default function Dashboard() {
                <AdvanceCustomerPOPage />
              ) : activeNav === "Return" ? (
                <ReturnPage />
-             ) : (
-               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
+              ) : (
+                <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
-                {/* Date Range Filter */}
-                <div style={{ display: "flex", gap: 10 }}>
-                  {["Last 7 Days", "Last 30 Days", "Last 6 Months", "Last 1 Year", "Last 5 Years"].map(range => (
-                    <button
-                      key={range}
-                      onClick={() => setDateRange(range)}
-                      style={{
-                        padding: "10px 16px",
-                        border: dateRange === range ? "2px solid #e87c27" : "1px solid #d1d5db",
-                        borderRadius: 8,
-                        background: dateRange === range ? "#e87c27" : "#fff",
-                        color: dateRange === range ? "#fff" : "#374151",
-                        fontSize: 13, fontWeight: 600, cursor: "pointer",
-                        transition: "all 0.2s", fontFamily: "inherit",
-                      }}
-                      onMouseEnter={e => { if (dateRange !== range) { e.target.style.background = "#f9fafb"; } }}
-                      onMouseLeave={e => { if (dateRange !== range) { e.target.style.background = "#fff"; } }}
-                    >
-                      {range}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Metric Cards */}
+                 {/* Metric Cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
                   <MetricCard
                     icon={<IconBox size={30} />} iconBg="#f0f4ff" iconColor="#000000"

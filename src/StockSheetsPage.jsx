@@ -153,25 +153,85 @@ function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows) {
   XLSX.writeFile(wb, "TDT_WIS_Stock_Sheet_" + sku + ".xlsx");
 }
 
+function importStockSheets(file, onInDone, onOutDone, onError) {
+  if (!window.XLSX) { onError("SheetJS not loaded."); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/,/g, "")); return isNaN(n) ? 0 : n; };
+      const parseSheet = (ws, colMap) => {
+        if (!ws) return [];
+        const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+        let start = 0;
+        for (let i = 0; i < Math.min(raw.length, 15); i++) {
+          if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) { start = i + 1; break; }
+        }
+        const result = [];
+        for (let i = start; i < raw.length; i++) {
+          const r = raw[i]; if (!r || !r[0] || String(r[0]).trim() === "") continue;
+          const row = { id: i - start + 1 };
+          colMap.forEach(([field, idx, numeric]) => { row[field] = numeric ? toNum(r[idx]) : String(r[idx] ?? ""); });
+          result.push(row);
+        }
+        return result;
+      };
+
+      // Find IN and OUT sheets
+      const inSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("IN")) || wb.SheetNames[0];
+      const outSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("OUT")) || wb.SheetNames[1] || wb.SheetNames[0];
+
+      const inCols = [
+        ["transNo",0,false],["date",1,false],["tdtPo",2,false],["tdtPoDate",3,false],
+        ["vendorNo",4,false],["vendorName",5,false],["customerDr",6,false],["tdtWo",7,false],
+        ["acceptDate",8,false],["qty",9,true],["costKilo",10,true],["costUnit",11,true],
+        ["totalPurchase",12,true],["runningQty",13,true],["avgUnitCost",14,true],
+        ["totalValue",15,true],["remark",16,false],
+      ];
+      const outCols = [
+        ["transNo",0,false],["dispatchDate",1,false],["tdtWo",2,false],["customer",3,false],
+        ["tdtDr",4,false],["branch",5,false],["bdrSummary",6,false],["tdtSi",7,false],
+        ["qtyOut",8,true],["unitCost",9,true],["totalPrice",10,true],
+        ["s1",11,false],["s2",12,false],["s3",13,false],
+        ["runningQty",14,true],["runningValue",15,true],["remarks",16,false],
+      ];
+
+      const inRows = parseSheet(wb.Sheets[inSheetName], inCols);
+      const outRows = parseSheet(wb.Sheets[outSheetName], outCols);
+      if (!inRows.length && !outRows.length) throw new Error("No data rows found.");
+      onInDone(inRows);
+      onOutDone(outRows);
+    } catch(err) { onError(err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 export default function StockSheetsPage() {
   const xlsxReady = useSheetJS();
   const [searchSku, setSearchSku] = useState("DRB007");
   const [activeTab, setActiveTab] = useState("all");
   const [inPage, setInPage] = useState(1);
   const [outPage, setOutPage] = useState(1);
+  const [stockInData, setStockInData] = useState(SEED_STOCK_IN);
+  const [stockOutData, setStockOutData] = useState(SEED_STOCK_OUT);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState(null);
+  const importRef = useRef(null);
+
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   const skuKey = searchSku.trim().toUpperCase();
   const skuInfo = SKU_CATALOG[skuKey] || { desc: "—", weight: "—" };
 
   const stockInRows = useMemo(() => {
-    if (!skuKey || skuKey === "DRB007") return SEED_STOCK_IN;
-    return SEED_STOCK_IN.filter((_, i) => i < 1);
-  }, [skuKey]);
+    if (!skuKey || skuKey === "DRB007") return stockInData;
+    return stockInData.filter((_, i) => i < 1);
+  }, [skuKey, stockInData]);
 
   const stockOutRows = useMemo(() => {
-    if (!skuKey || skuKey === "DRB007") return SEED_STOCK_OUT;
-    return SEED_STOCK_OUT.filter((_, i) => i < 1);
-  }, [skuKey]);
+    if (!skuKey || skuKey === "DRB007") return stockOutData;
+    return stockOutData.filter((_, i) => i < 1);
+  }, [skuKey, stockOutData]);
 
   const inTotalPages = Math.max(1, Math.ceil(stockInRows.length / PAGE_SIZE));
   const outTotalPages = Math.max(1, Math.ceil(stockOutRows.length / PAGE_SIZE));
@@ -222,7 +282,21 @@ export default function StockSheetsPage() {
           </div>
         }
         importExport={{
-          showImport: false,
+          fileInputRef: importRef,
+          onFileChange: (e) => {
+            const file = e.target.files?.[0]; if (!file) return;
+            setImporting(true);
+            importStockSheets(
+              file,
+              (inRows) => { setStockInData(inRows); setInPage(1); },
+              (outRows) => { setStockOutData(outRows); setOutPage(1); setImporting(false); showToast(`Imported stock sheet from ${file.name}`); },
+              (err) => { setImporting(false); showToast(`Import failed: ${err}`, "error"); }
+            );
+            e.target.value = "";
+          },
+          importing,
+          importDisabled: !xlsxReady,
+          importLabel: "Import WIS",
           onExport: () => exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows),
         }}
       />
@@ -332,6 +406,12 @@ export default function StockSheetsPage() {
         <span style={{ fontSize: 12, color: "#6b7280" }}>All Transactions — March 2026</span>
         <Pagination currentPage={outPage} totalPages={outTotalPages} onPage={setOutPage} />
       </div>
+
+      {toast && (
+        <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type === "error" ? "#dc2626" : "#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+          {toast.msg}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,14 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import PageToolbar from "./PageToolbar";
+import {
+  cellStr,
+  cellNum,
+  formatExcelDate,
+  findHeaderRowIndex,
+  pickCol,
+  rowHasData,
+  readWorkbookSheet,
+} from "./excelImportUtils";
 
 function useSheetJS() {
   const [ready, setReady] = useState(!!window.XLSX);
@@ -53,35 +62,55 @@ function fmtPHP(n) {
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function parseWisExcel(file, onDone, onError) {
-  if (!window.XLSX) { onError("SheetJS library not loaded yet."); return; }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const uint8 = new Uint8Array(e.target.result);
-      const wb = window.XLSX.read(uint8, { type: "array", cellDates: true });
-      const ws = wb.Sheets["ENDING INVENTORY"];
-      if (!ws) throw new Error('Sheet "ENDING INVENTORY" not found.');
-      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
-      let dataStart = 6;
-      for (let i = 0; i < Math.min(raw.length, 12); i++) {
-        if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("PRODUCT DESCRIPTION"))) { dataStart = i + 1; break; }
+async function importEndingInventory(file, onDone, onError) {
+  try {
+    const { raw } = await readWorkbookSheet(file, ["ENDING"]);
+    const headerIdx = findHeaderRowIndex(raw, ["PRODUCT"], 20);
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    const parsed = [];
+
+    for (let i = dataStart; i < raw.length; i++) {
+      const r = raw[i];
+      if (!rowHasData(r)) continue;
+
+      const productDescription = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 1));
+      const sku = cellStr(pickCol(r, headers, ["SKU"], 2));
+      const noRaw = cellStr(pickCol(r, headers, ["NO."], 0));
+      let no = cellNum(noRaw);
+      if (!no && noRaw) {
+        const n = parseInt(noRaw, 10);
+        if (!Number.isNaN(n)) no = n;
       }
-      const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/,/g, "")); return isNaN(n) ? 0 : n; };
-      const parseDate = (v) => { if (!v) return ""; if (v instanceof Date) return v.toISOString().slice(0,10); const d = new Date(v); if (!isNaN(d.getTime())) return d.toISOString().slice(0,10); return String(v).slice(0,10); };
-      const parsed = [];
-      for (let i = dataStart; i < raw.length; i++) {
-        const r = raw[i]; if (!r) continue;
-        const noNum = parseFloat(String(r[0]||"").replace(/,/g,""));
-        if (isNaN(noNum) || noNum <= 0) continue;
-        parsed.push({ id: noNum, no: noNum, productDescription: String(r[1]||"").trim(), sku: String(r[2]||"").trim(), lastAcceptanceDate: parseDate(r[3]), qtyAsPerWis: toNum(r[4]), totalUnitCost: toNum(r[5]), avgUnitCost: toNum(r[6]), qtyAsPerCounting: toNum(r[7]), varianceQty: toNum(r[8]), varianceAmount: toNum(r[9]), remarks: String(r[10]||"").trim() });
-      }
-      if (!parsed.length) throw new Error("No data rows found.");
-      onDone(parsed);
-    } catch(err) { onError(err.message || "Unknown error"); }
-  };
-  reader.onerror = () => onError("Could not read the file.");
-  reader.readAsArrayBuffer(file);
+
+      if (!sku && !productDescription) continue;
+
+      const qtyAsPerWis = cellNum(pickCol(r, headers, ["QUANTITY AS PER WIS", "WIS"], 4));
+      const avgUnitCost = cellNum(pickCol(r, headers, ["AVERAGE UNIT COST", "AVG"], 6));
+      const totalUnitCost = cellNum(pickCol(r, headers, ["TOTAL UNIT COST", "TOTAL"], 5)) || qtyAsPerWis * avgUnitCost;
+      const qtyAsPerCounting = cellNum(pickCol(r, headers, ["QUANTITY AS PER COUNTING", "COUNTING"], 7));
+
+      parsed.push({
+        id: no || parsed.length + 1,
+        no: no || parsed.length + 1,
+        productDescription,
+        sku: sku || `SKU-${no || parsed.length + 1}`,
+        lastAcceptanceDate: formatExcelDate(pickCol(r, headers, ["LAST ACCEPTANCE", "DATE"], 3)),
+        qtyAsPerWis,
+        totalUnitCost,
+        avgUnitCost,
+        qtyAsPerCounting,
+        varianceQty: cellNum(pickCol(r, headers, ["VARIANCE (QUANTITY)", "VARIANCE"], 8)) || qtyAsPerCounting - qtyAsPerWis,
+        varianceAmount: cellNum(pickCol(r, headers, ["VARIANCE (AMOUNT)"], 9)),
+        remarks: cellStr(pickCol(r, headers, ["REMARKS"], 10)),
+      });
+    }
+
+    if (!parsed.length) throw new Error("No data rows found. Fill NO., SKU, or PRODUCT DESCRIPTION.");
+    onDone(parsed);
+  } catch (err) {
+    onError(err.message || "Import failed.");
+  }
 }
 
 function exportToWis(rows) {
@@ -323,15 +352,17 @@ export default function EndingInventoryPage() {
     const file = e.target.files[0];
     if (!file) return;
     setImporting(true);
-    parseWisExcel(file, (parsed) => {
+    importEndingInventory(file, (parsed) => {
       setImporting(false);
-      setInventoryData(prev => {
-        const map = new Map(prev.map(r => [r.sku, r]));
-        parsed.forEach(p => { if (p.sku) map.set(p.sku, p); });
-        return Array.from(map.values()).sort((a,b) => (a.no||0)-(b.no||0));
-      });
+      setInventoryData(
+        parsed.map((p) => ({
+          ...p,
+          totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost,
+        }))
+      );
       setCurrentPage(1);
-      showToast(`✓ Imported ${parsed.length} SKUs successfully.`);
+      setEditingNo(null);
+      showToast(`Imported ${parsed.length} SKUs successfully.`);
       e.target.value = "";
     }, (err) => {
       setImporting(false);

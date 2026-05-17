@@ -1,5 +1,15 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import PageToolbar from "./PageToolbar";
+import {
+  cellStr,
+  cellNum,
+  formatExcelDate,
+  findHeaderRowIndex,
+  pickCol,
+  rowHasData,
+  parseRowId,
+  readWorkbookSheet,
+} from "./excelImportUtils";
 
 /* ─── SEED DATA from Excel BACKLOAD INVENTORY sheet ── */
 const SEED_BACKLOAD = [
@@ -191,34 +201,43 @@ function exportBackload(rows) {
   XLSX.writeFile(wb, "TDT_WIS_Backload_Inventory.xlsx");
 }
 
-function importBackload(file, onDone, onError) {
-  if (!window.XLSX) { onError("SheetJS not loaded."); return; }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
-      const ws = wb.Sheets["BACKLOAD INVENTORY"] || wb.Sheets[wb.SheetNames[0]];
-      if (!ws) throw new Error("No valid sheet found.");
-      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      let start = 0;
-      for (let i = 0; i < Math.min(raw.length, 10); i++) {
-        if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS NO"))) { start = i + 1; break; }
-      }
-      const parsed = [];
-      for (let i = start; i < raw.length; i++) {
-        const r = raw[i]; if (!r || !r[0]) continue;
-        parsed.push({
-          id: parseFloat(r[0])||i, date: String(r[1]||""), drNo: String(r[2]||""), sku: String(r[3]||""),
-          item: String(r[4]||""), qty: parseFloat(r[5])||0, unitCost: parseFloat(r[6])||0,
-          customerName: String(r[8]||""), totalQtyOut: parseFloat(r[9])||0,
-          remarks: String(r[12]||""), status: String(r[13]||"Pending"),
-        });
-      }
-      if (!parsed.length) throw new Error("No data rows found.");
-      onDone(parsed);
-    } catch(err) { onError(err.message); }
-  };
-  reader.readAsArrayBuffer(file);
+async function importBackload(file, onDone, onError) {
+  try {
+    const { raw } = await readWorkbookSheet(file, ["BACKLOAD"]);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    const parsed = [];
+
+    for (let i = dataStart; i < raw.length; i++) {
+      const r = raw[i];
+      if (!rowHasData(r)) continue;
+
+      const transOrId = cellStr(pickCol(r, headers, ["TRANS NO", "TRANS", "NO."], 0));
+      const item = cellStr(pickCol(r, headers, ["ITEM"], 4));
+      const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 8));
+      if (!transOrId && !item && !customer) continue;
+
+      parsed.push({
+        id: parseRowId(transOrId, parsed.length + 1),
+        date: formatExcelDate(pickCol(r, headers, ["DATE"], 1)),
+        drNo: cellStr(pickCol(r, headers, ["DR"], 2)),
+        sku: cellStr(pickCol(r, headers, ["SKU"], 3)),
+        item,
+        qty: cellNum(pickCol(r, headers, ["QTY"], 5)),
+        unitCost: cellNum(pickCol(r, headers, ["UNIT COST"], 6)),
+        customerName: customer,
+        totalQtyOut: cellNum(pickCol(r, headers, ["TOTAL QTY OUT", "QTY OUT"], 9)),
+        remarks: cellStr(pickCol(r, headers, ["REMARKS"], 12)),
+        status: cellStr(pickCol(r, headers, ["STATUS"], 13)) || "Pending",
+      });
+    }
+
+    if (!parsed.length) throw new Error("No data rows found. Check that TRANS NO / ITEM columns are filled.");
+    onDone(parsed);
+  } catch (err) {
+    onError(err.message || "Import failed.");
+  }
 }
 
 /* ─── MAIN PAGE ── */
@@ -236,15 +255,25 @@ export default function BackloadInventoryPage() {
   const importFileRef = useRef(null);
 
   const handleImport = (e) => {
-    const file = e.target.files[0]; if (!file) return;
+    const file = e.target.files[0];
+    if (!file) return;
     setImporting(true);
-    importBackload(file, (parsed) => {
-      setImporting(false); setData(parsed); setCurrentPage(1);
-      showToast("Imported " + parsed.length + " entries successfully.");
-      e.target.value = "";
-    }, (err) => {
-      setImporting(false); showToast("Import failed: " + err, "error"); e.target.value = "";
-    });
+    importBackload(
+      file,
+      (parsed) => {
+        setImporting(false);
+        setData(parsed);
+        nextId.current = Math.max(...parsed.map((r) => r.id), 0) + 1;
+        setCurrentPage(1);
+        showToast(`Imported ${parsed.length} entries successfully.`);
+        e.target.value = "";
+      },
+      (err) => {
+        setImporting(false);
+        showToast(`Import failed: ${err}`, "error");
+        e.target.value = "";
+      }
+    );
   };
 
   const showToast = (msg, type = "success") => {

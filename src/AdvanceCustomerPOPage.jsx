@@ -1,5 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import PageToolbar from "./PageToolbar";
+import {
+  cellStr,
+  cellNum,
+  formatExcelDate,
+  findHeaderRowIndex,
+  pickCol,
+  rowHasData,
+  readWorkbookSheet,
+} from "./excelImportUtils";
 
 const PAGE_SIZE = 8;
 
@@ -330,40 +339,72 @@ function exportToWis(rows) {
 }
 
 /* ─── IMPORT parser ── */
-function parseImportExcel(file, onDone, onError) {
-  if (!window.XLSX) { onError("SheetJS library not loaded yet."); return; }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const uint8 = new Uint8Array(e.target.result);
-      const wb = window.XLSX.read(uint8, { type: "array", cellDates: true });
-      const wsName = wb.SheetNames.find(n => n.toUpperCase().includes("ADVANCE")) || wb.SheetNames[0];
-      const ws = wb.Sheets[wsName];
-      if (!ws) throw new Error("No matching sheet found.");
-      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
-      let dataStart = 6;
-      for (let i = 0; i < Math.min(raw.length, 12); i++) {
-        if (raw[i] && raw[i].filter(Boolean).length >= 4) { dataStart = i + 1; break; }
+async function importReservations(file, onDone, onError) {
+  try {
+    const { raw } = await readWorkbookSheet(file, ["ADVANCE"]);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    const parsed = [];
+
+    for (let i = dataStart; i < raw.length; i++) {
+      const r = raw[i];
+      if (!rowHasData(r)) continue;
+
+      let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 1));
+      let resDate = formatExcelDate(pickCol(r, headers, ["DATE", "RESERVATION"], 2));
+      const col0 = cellStr(r[0]);
+      const col1 = cellStr(r[1]);
+      const col2 = r[2];
+      if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
+        transNo = col0;
+        resDate = formatExcelDate(col1);
+      } else if (!transNo && col1 && !formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
+        transNo = col1;
+        if (formatExcelDate(col2).match(/^\d{4}-\d{2}-\d{2}/)) resDate = formatExcelDate(col2);
       }
-      const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/,/g, "")); return isNaN(n) ? 0 : n; };
-      const parsed = [];
-      for (let i = dataStart; i < raw.length; i++) {
-        const r = raw[i];
-        if (!r || r.filter(Boolean).length < 2) continue;
-        const row = {};
-        r.forEach((v, idx) => { row[`col${idx}`] = v; });
-        row.id = i - dataStart + 1;
-        parsed.push(row);
-      }
-      if (!parsed.length) throw new Error("No data rows found in the sheet.");
-      onDone(parsed);
-    } catch (err) { onError(err.message || "Unknown error"); }
-  };
-  reader.onerror = () => onError("Could not read the file.");
-  reader.readAsArrayBuffer(file);
+
+      const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 5));
+      const tdtDr = cellStr(pickCol(r, headers, ["TDT DR", "DR"], 4));
+      if (!transNo && !customer && !tdtDr) continue;
+
+      const estRaw = pickCol(r, headers, ["EST", "ENDING"], 9);
+      const estStr = cellStr(estRaw);
+
+      parsed.push({
+        id: parsed.length + 1,
+        transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
+        resDate,
+        soWo: cellStr(pickCol(r, headers, ["SO", "WO"], 3)) || "—",
+        tdtDr,
+        customer,
+        place: cellStr(pickCol(r, headers, ["PLACE"], 6)) || "Manila",
+        reservedQty: cellNum(pickCol(r, headers, ["RESERVED"], 7)),
+        currentStock: cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 8)),
+        estEnding: estStr && estStr !== "—" ? cellNum(estRaw) : null,
+        approvedBy: cellStr(pickCol(r, headers, ["APPROVED"], 10)),
+        status: cellStr(pickCol(r, headers, ["STATUS"], 11)) || "Pending",
+        drNo: tdtDr,
+        remarks: "",
+        lineItems: [],
+        summarySku: "",
+        summaryItem: "",
+      });
+    }
+
+    if (!parsed.length) throw new Error("No data rows found. Fill TRANS #, CUSTOMER, or TDT DR columns.");
+    onDone(parsed);
+  } catch (err) {
+    onError(err.message || "Import failed.");
+  }
 }
 export default function AdvanceCustomerPOPage() {
   const [searchSku, setSearchSku] = useState("");
+  const [reservations, setReservations] = useState(SEED_RESERVATIONS);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   const xlsxReady = useSheetJS();
   const importRef = useRef(null);
@@ -373,7 +414,7 @@ export default function AdvanceCustomerPOPage() {
   const [selectedId, setSelectedId] = useState(null);
 
   const filtered = useMemo(() => {
-    let rows = SEED_RESERVATIONS;
+    let rows = reservations;
     if (searchSku.trim()) {
       const q = searchSku.toLowerCase();
       rows = rows.filter(
@@ -390,7 +431,7 @@ export default function AdvanceCustomerPOPage() {
     }
     if (place !== "All locations") rows = rows.filter((r) => r.place === place);
     return rows;
-  }, [searchSku, place]);
+  }, [reservations, searchSku, place]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -402,7 +443,7 @@ export default function AdvanceCustomerPOPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const selected = selectedId != null ? SEED_RESERVATIONS.find((r) => r.id === selectedId) : null;
+  const selected = selectedId != null ? reservations.find((r) => r.id === selectedId) : null;
   const panelLines = selected
     ? [
         { label: "Trans #", value: selected.transNo },
@@ -417,7 +458,7 @@ export default function AdvanceCustomerPOPage() {
   const panelBadge = selected ? (STATUS_STYLE[selected.status] || STATUS_STYLE.Pending) : STATUS_STYLE.Pending;
   const { qty: sumLineQty, value: sumLineValue } = selected ? lineTotals(selected.lineItems) : { qty: 0, value: 0 };
 
-  const summarySource = selectedId != null ? SEED_RESERVATIONS.find((r) => r.id === selectedId) : null;
+  const summarySource = selectedId != null ? reservations.find((r) => r.id === selectedId) : null;
   const { sku: sumSku, item: sumItem, estQtyEnding: sumEst } = getSummaryFields(summarySource);
 
   return (
@@ -435,13 +476,29 @@ export default function AdvanceCustomerPOPage() {
           onFileChange: (e) => {
             const file = e.target.files?.[0];
             if (!file) return;
-            parseImportExcel(file,
-              (parsed) => alert(`Imported ${parsed.length} rows from ${file.name}`),
-              (err) => alert(`Import failed: ${err}`)
+            setImporting(true);
+            importReservations(file,
+              (parsed) => {
+                setImporting(false);
+                setReservations(parsed);
+                setCurrentPage(1);
+                setSelectedId(null);
+                setPanelOpen(false);
+                showToast(`Imported ${parsed.length} reservations successfully.`);
+              },
+              (err) => {
+                setImporting(false);
+                showToast(`Import failed: ${err}`, "error");
+              }
             );
             e.target.value = "";
           },
-          onExport: () => { if (!xlsxReady) { alert("SheetJS not ready yet."); return; } exportToWis(SEED_RESERVATIONS); },
+          importing,
+          importDisabled: !xlsxReady,
+          onExport: () => {
+            if (!xlsxReady) { showToast("SheetJS not ready yet.", "error"); return; }
+            exportToWis(reservations);
+          },
         }}
       />
 
@@ -576,6 +633,12 @@ export default function AdvanceCustomerPOPage() {
           </div>
         </div>
       </div>
+
+      {toast && (
+        <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type === "error" ? "#dc2626" : "#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+          {toast.msg}
+        </div>
+      )}
 
       {panelOpen && selected && (
         <>
