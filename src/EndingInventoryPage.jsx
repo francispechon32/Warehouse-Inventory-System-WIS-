@@ -10,6 +10,10 @@ import {
   readWorkbookSheet,
 } from "./excelImportUtils";
 import {
+  buildInitialEndingInventory,
+  sumEndingInventoryValue,
+} from "./inventoryUtils";
+import {
   modalOverlayStyle,
   modalPanelStyle,
   modalHeaderStyle,
@@ -34,7 +38,7 @@ function useSheetJS() {
   return ready;
 }
 
-const SEED_DATA = [
+export const INITIAL_ENDING_INVENTORY = [
   { no:1,  productDescription:"Deformed Round Bar, 10mm x 6M g33",                                               sku:"DRB007", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
   { no:2,  productDescription:"Deformed Round Bar, 12mm x 6M g33",                                               sku:"DRB008", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
   { no:3,  productDescription:"Deformed Round Bar, 16mm x 6M g33",                                               sku:"DRB009", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
@@ -325,11 +329,16 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
 }
 
 /* ─── MAIN COMPONENT ── */
-export default function EndingInventoryPage() {
+export default function EndingInventoryPage({
+  inventoryData: propInventoryData,
+  setInventoryData: propSetInventoryData,
+}) {
   const xlsxReady = useSheetJS();
-  const [inventoryData, setInventoryData] = useState(
-    SEED_DATA.map((r, i) => ({ ...r, id: r.no ?? i+1, totalUnitCost: r.qtyAsPerWis * r.avgUnitCost || r.totalUnitCost }))
+  const [localInventoryData, setLocalInventoryData] = useState(() =>
+    buildInitialEndingInventory(INITIAL_ENDING_INVENTORY),
   );
+  const inventoryData = propInventoryData ?? localInventoryData;
+  const setInventoryData = propSetInventoryData ?? setLocalInventoryData;
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [activeTab, setActiveTab] = useState("wis");
@@ -345,7 +354,7 @@ export default function EndingInventoryPage() {
   const filtered = useMemo(() => {
     let d = inventoryData;
     if (searchQuery.trim()) { const q = searchQuery.toLowerCase(); d = d.filter(r => r.sku.toLowerCase().includes(q) || r.productDescription.toLowerCase().includes(q)); }
-    if (statusFilter === "In Stock")     d = d.filter(r => r.qtyAsPerWis > 0);
+    if (statusFilter === "Total Stock")     d = d.filter(r => r.qtyAsPerWis > 0);
     if (statusFilter === "Out of Stock") d = d.filter(r => r.qtyAsPerWis === 0);
     if (statusFilter === "Variance")     d = d.filter(r => r.varianceQty !== 0);
     return d;
@@ -406,7 +415,7 @@ export default function EndingInventoryPage() {
     showToast("✓ Ending inventory count saved.");
   };
 
-  const totalValue = inventoryData.reduce((s,r) => s + (r.totalUnitCost||0), 0);
+  const totalValue = sumEndingInventoryValue(inventoryData);
   const inStockCount = inventoryData.filter(r => r.qtyAsPerWis > 0).length;
   const varianceCount = inventoryData.filter(r => r.varianceQty !== 0).length;
 
@@ -417,7 +426,7 @@ export default function EndingInventoryPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
         {[
           { label: "Total SKUs",            value: inventoryData.length, color: "#3b82f6" },
-          { label: "In Stock",              value: inStockCount,          color: "#16a34a" },
+          { label: "Total Stock",           value: inStockCount,          color: "#16a34a" },
           { label: "Variance Items",        value: varianceCount,         color: varianceCount > 0 ? "#dc2626" : "#6b7280" },
           { label: "Total Inventory Value", value: fmtPHP(totalValue),    color: "#e87c27" },
         ].map(c => (
@@ -449,7 +458,7 @@ export default function EndingInventoryPage() {
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "In Stock", "Out of Stock", "Variance"], minWidth: 150 },
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "Total Stock", "Out of Stock", "Variance"], minWidth: 150 },
         ]}
         primaryAction={{ label: "Start Ending Inventory", onClick: () => setShowStartModal(true) }}
         importExport={{
