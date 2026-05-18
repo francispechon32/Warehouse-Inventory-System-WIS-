@@ -24,7 +24,7 @@ function formatDate(iso) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-const SEED_PURCHASE_ORDERS = [
+export const INITIAL_PURCHASE_ORDERS = [
   {
     id: 1,
     transNo: "001",
@@ -417,9 +417,15 @@ async function importPurchaseOrders(file, onDone, onError) {
   }
 }
 
-export default function PurchasingOrderPage() {
+export default function PurchasingOrderPage({
+  initialStatusFilter = "All Status",
+  orders: propOrders,
+  setOrders: propSetOrders,
+}) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [orders, setOrders] = useState(SEED_PURCHASE_ORDERS);
+  const [localOrders, setLocalOrders] = useState(INITIAL_PURCHASE_ORDERS);
+  const orders = propOrders ?? localOrders;
+  const setOrders = propSetOrders ?? setLocalOrders;
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -430,11 +436,18 @@ export default function PurchasingOrderPage() {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
-  const [statusFilter, setStatusFilter] = useState("All Status");
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
   const [supplierFilter, setSupplierFilter] = useState("All Suppliers");
   const [currentPage, setCurrentPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+
+  useEffect(() => {
+    setStatusFilter(initialStatusFilter);
+    setCurrentPage(1);
+    setPanelOpen(false);
+    setSelectedId(null);
+  }, [initialStatusFilter]);
 
   const filtered = useMemo(() => {
     let rows = orders;

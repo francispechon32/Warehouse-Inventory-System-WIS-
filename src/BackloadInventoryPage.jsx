@@ -10,6 +10,20 @@ import {
   parseRowId,
   readWorkbookSheet,
 } from "./excelImportUtils";
+import {
+  modalOverlayStyle,
+  modalPanelStyle,
+  modalHeaderStyle,
+  modalFooterStyle,
+  modalTitleStyle,
+  modalSubtitleStyle,
+  modalCloseBtnStyle,
+  modalLabelStyle,
+  modalBtnSecondary,
+  modalBtnPrimary,
+  modalInput,
+  modalCellInput,
+} from "./modalFormStyles";
 
 /* ─── SEED DATA from Excel BACKLOAD INVENTORY sheet ── */
 const SEED_BACKLOAD = [
@@ -91,34 +105,36 @@ function AddEntryModal({ onClose, onSave }) {
     onClose();
   };
 
-  const inputStyle = { width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", color: "#111827", outline: "none", background: "#fff" };
-  const labelStyle = { fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.05em" };
-
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 16, padding: 32, width: 560, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>Start Backload Inventory</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><IconX size={20} /></button>
+    <div style={modalOverlayStyle}>
+      <div style={{ ...modalPanelStyle, width: "min(96vw, 560px)" }}>
+        <div style={modalHeaderStyle}>
+          <div>
+            <h2 style={modalTitleStyle}>Start Backload Inventory</h2>
+            <p style={modalSubtitleStyle}>Add a new backload entry. Fields marked with * are required.</p>
+          </div>
+          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close"><IconX size={18} /></button>
         </div>
+        <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div><label style={labelStyle}>Date</label><input type="date" value={form.date} onChange={e => set("date", e.target.value)} style={inputStyle} /></div>
-          <div><label style={labelStyle}>DR #</label><input value={form.drNo} onChange={e => set("drNo", e.target.value)} style={inputStyle} placeholder="e.g. DR26001" /></div>
-          <div><label style={labelStyle}>SKU</label><input value={form.sku} onChange={e => set("sku", e.target.value)} style={inputStyle} placeholder="e.g. DRB052" /></div>
-          <div><label style={labelStyle}>Status</label>
-            <select value={form.status} onChange={e => set("status", e.target.value)} style={{ ...inputStyle, appearance: "none" }}>
+          <div><label style={modalLabelStyle}>Date</label><input type="date" value={form.date} onChange={e => set("date", e.target.value)} {...modalInput()} /></div>
+          <div><label style={modalLabelStyle}>DR #</label><input value={form.drNo} onChange={e => set("drNo", e.target.value)} {...modalInput()} placeholder="e.g. DR26001" /></div>
+          <div><label style={modalLabelStyle}>SKU</label><input value={form.sku} onChange={e => set("sku", e.target.value)} {...modalInput()} placeholder="e.g. DRB052" /></div>
+          <div><label style={modalLabelStyle}>Status</label>
+            <select value={form.status} onChange={e => set("status", e.target.value)} {...modalInput({ appearance: "none" })}>
               {["Pending", "Partial", "Delivered"].map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
-          <div style={{ gridColumn: "1/-1" }}><label style={labelStyle}>Item Description *</label><input value={form.item} onChange={e => set("item", e.target.value)} style={inputStyle} placeholder="e.g. Sheet Pile T2, 400mm x..." /></div>
-          <div><label style={labelStyle}>Quantity *</label><input type="number" value={form.qty} onChange={e => set("qty", e.target.value)} style={inputStyle} placeholder="0" /></div>
-          <div><label style={labelStyle}>Unit Cost (₱)</label><input type="number" value={form.unitCost} onChange={e => set("unitCost", e.target.value)} style={inputStyle} placeholder="0.00" /></div>
-          <div style={{ gridColumn: "1/-1" }}><label style={labelStyle}>Customer Name *</label><input value={form.customerName} onChange={e => set("customerName", e.target.value)} style={inputStyle} placeholder="e.g. AREMAR CONSTRUCTION CORP." /></div>
-          <div style={{ gridColumn: "1/-1" }}><label style={labelStyle}>Remarks</label><input value={form.remarks} onChange={e => set("remarks", e.target.value)} style={inputStyle} placeholder="Optional notes..." /></div>
+          <div style={{ gridColumn: "1/-1" }}><label style={modalLabelStyle}>Item Description *</label><input value={form.item} onChange={e => set("item", e.target.value)} {...modalInput()} placeholder="e.g. Sheet Pile T2, 400mm x..." /></div>
+          <div><label style={modalLabelStyle}>Quantity *</label><input type="number" value={form.qty} onChange={e => set("qty", e.target.value)} {...modalInput()} placeholder="0" /></div>
+          <div><label style={modalLabelStyle}>Unit Cost (₱)</label><input type="number" value={form.unitCost} onChange={e => set("unitCost", e.target.value)} {...modalInput()} placeholder="0.00" /></div>
+          <div style={{ gridColumn: "1/-1" }}><label style={modalLabelStyle}>Customer Name *</label><input value={form.customerName} onChange={e => set("customerName", e.target.value)} {...modalInput()} placeholder="e.g. AREMAR CONSTRUCTION CORP." /></div>
+          <div style={{ gridColumn: "1/-1" }}><label style={modalLabelStyle}>Remarks</label><input value={form.remarks} onChange={e => set("remarks", e.target.value)} {...modalInput()} placeholder="Optional notes..." /></div>
         </div>
-        <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 24 }}>
-          <button onClick={onClose} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
-          <button onClick={handleSave} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>Save Entry</button>
+        </div>
+        <div style={modalFooterStyle}>
+          <button type="button" onClick={onClose} style={modalBtnSecondary}>Cancel</button>
+          <button type="button" onClick={handleSave} style={modalBtnPrimary}>Save Entry</button>
         </div>
       </div>
     </div>
@@ -129,25 +145,23 @@ function AddEntryModal({ onClose, onSave }) {
 function EditableRow({ row, onSave, onCancel, idx }) {
   const [draft, setDraft] = useState({ ...row });
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
-  const inputSt = { padding: "5px 8px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 6, fontFamily: "inherit", background: "#fff", width: "100%" };
-
   return (
     <tr style={{ background: "#fffbf7", borderBottom: "1px solid #f3f4f6" }}>
       <td style={{ padding: "8px 12px", fontSize: 11, color: "#9ca3af" }}>{row.id}</td>
-      <td style={{ padding: "8px 8px" }}><input type="date" value={draft.date} onChange={e => set("date", e.target.value)} style={{ ...inputSt, width: 130 }} /></td>
-      <td style={{ padding: "8px 8px" }}><input value={draft.drNo} onChange={e => set("drNo", e.target.value)} style={inputSt} /></td>
-      <td style={{ padding: "8px 8px" }}><input value={draft.sku} onChange={e => set("sku", e.target.value)} style={inputSt} /></td>
-      <td style={{ padding: "8px 8px" }}><input value={draft.item} onChange={e => set("item", e.target.value)} style={{ ...inputSt, width: 200 }} /></td>
-      <td style={{ padding: "8px 8px" }}><input type="number" value={draft.qty} onChange={e => set("qty", parseFloat(e.target.value)||0)} style={{ ...inputSt, width: 70, textAlign: "right" }} /></td>
-      <td style={{ padding: "8px 8px" }}><input type="number" value={draft.unitCost} onChange={e => set("unitCost", parseFloat(e.target.value)||0)} style={{ ...inputSt, width: 100, textAlign: "right" }} /></td>
+      <td style={{ padding: "8px 8px" }}><input type="date" value={draft.date} onChange={e => set("date", e.target.value)} {...modalCellInput({ width: 130 })} /></td>
+      <td style={{ padding: "8px 8px" }}><input value={draft.drNo} onChange={e => set("drNo", e.target.value)} {...modalCellInput()} /></td>
+      <td style={{ padding: "8px 8px" }}><input value={draft.sku} onChange={e => set("sku", e.target.value)} {...modalCellInput()} /></td>
+      <td style={{ padding: "8px 8px" }}><input value={draft.item} onChange={e => set("item", e.target.value)} {...modalCellInput({ width: 200 })} /></td>
+      <td style={{ padding: "8px 8px" }}><input type="number" min={0} value={draft.qty ?? ""} onChange={e => set("qty", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 70, textAlign: "right" })} /></td>
+      <td style={{ padding: "8px 8px" }}><input type="number" min={0} step="0.01" value={draft.unitCost ?? ""} onChange={e => set("unitCost", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 100, textAlign: "right" })} /></td>
       <td style={{ padding: "8px 8px", textAlign: "right", fontSize: 12, color: "#374151", fontWeight: 600 }}>{fmtPHP(draft.qty * draft.unitCost)}</td>
-      <td style={{ padding: "8px 8px" }}><input value={draft.customerName} onChange={e => set("customerName", e.target.value)} style={{ ...inputSt, width: 160 }} /></td>
-      <td style={{ padding: "8px 8px" }}><input type="number" value={draft.totalQtyOut} onChange={e => set("totalQtyOut", parseFloat(e.target.value)||0)} style={{ ...inputSt, width: 70, textAlign: "right" }} /></td>
+      <td style={{ padding: "8px 8px" }}><input value={draft.customerName} onChange={e => set("customerName", e.target.value)} {...modalCellInput({ width: 160 })} /></td>
+      <td style={{ padding: "8px 8px" }}><input type="number" min={0} value={draft.totalQtyOut ?? ""} onChange={e => set("totalQtyOut", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 70, textAlign: "right" })} /></td>
       <td style={{ padding: "8px 8px", textAlign: "right", fontSize: 12, fontWeight: 700, color: draft.qty - draft.totalQtyOut > 0 ? "#111827" : "#9ca3af" }}>{draft.qty - draft.totalQtyOut}</td>
       <td style={{ padding: "8px 8px", textAlign: "right", fontSize: 12, color: "#374151" }}>{fmtPHP(draft.unitCost * (draft.qty - draft.totalQtyOut))}</td>
-      <td style={{ padding: "8px 8px" }}><input value={draft.remarks} onChange={e => set("remarks", e.target.value)} style={inputSt} /></td>
+      <td style={{ padding: "8px 8px" }}><input value={draft.remarks} onChange={e => set("remarks", e.target.value)} {...modalCellInput()} /></td>
       <td style={{ padding: "8px 8px" }}>
-        <select value={draft.status} onChange={e => set("status", e.target.value)} style={{ ...inputSt, color: STATUS_CONFIG[draft.status]?.color || "#374151" }}>
+        <select value={draft.status} onChange={e => set("status", e.target.value)} {...modalCellInput({ color: STATUS_CONFIG[draft.status]?.color || "#374151" })}>
           {["Pending","Partial","Delivered"].map(s => <option key={s}>{s}</option>)}
         </select>
       </td>
@@ -318,16 +332,33 @@ export default function BackloadInventoryPage() {
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
       {/* Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
         {[
           { label: "Total Entries",      value: totalEntries,      color: "#3b82f6" },
           { label: "Pending Release",    value: pending,            color: "#d97706" },
           { label: "Total Backload Value", value: fmtPHP(totalValue), color: "#e87c27" },
           { label: "Total Balance Amount", value: fmtPHP(totalBalance), color: "#16a34a" },
         ].map(c => (
-          <div key={c.label} style={{ background: "#fff", borderRadius: 10, padding: "14px 18px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-            <p style={{ margin: 0, fontSize: 11, color: "#6b7280", fontWeight: 600 }}>{c.label}</p>
-            <p style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</p>
+          <div key={c.label} style={{
+            background: "#fff",
+            borderRadius: 16,
+            padding: "22px 24px",
+            minHeight: 118,
+            border: "1px solid #e5e7eb",
+            boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}>
+            <p style={{ margin: 0, fontSize: 15, color: "#6b7280", fontWeight: 700, lineHeight: 1.35 }}>{c.label}</p>
+            <p style={{
+              margin: "12px 0 0",
+              fontSize: typeof c.value === "number" ? 40 : 32,
+              fontWeight: 800,
+              color: c.color,
+              letterSpacing: "-0.5px",
+              lineHeight: 1.1,
+            }}>{c.value}</p>
           </div>
         ))}
       </div>

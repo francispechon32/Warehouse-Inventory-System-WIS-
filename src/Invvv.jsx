@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import ProductPage from "./ProductPage";
-import EndingInventoryPage from "./EndingInventoryPage";
+import EndingInventoryPage, { INITIAL_ENDING_INVENTORY } from "./EndingInventoryPage";
 import StockSheetsPage from "./StockSheetsPage";
-import PurchasingOrderPage from "./PurchasingOrderPage";
+import PurchasingOrderPage, { INITIAL_PURCHASE_ORDERS } from "./PurchasingOrderPage";
 import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
 import BackloadInventoryPage from "./BackloadInventoryPage";
 import ReturnPage from "./ReturnPage";
@@ -19,6 +19,11 @@ import {
   syncProductsStatus,
 } from "./productUtils";
 import { INITIAL_PRODUCTS } from "./initialProducts";
+import {
+  buildInitialEndingInventory,
+  sumEndingInventoryValue,
+  formatCompactPHP,
+} from "./inventoryUtils";
 
 /* ─── SHARED STOCK TRANSACTION DATA (source of truth) ───── */
 const INITIAL_STOCK_IN = [
@@ -409,6 +414,7 @@ export default function Dashboard() {
   const [dateRange, setDateRange]         = useState("Last 7 Days");
   const [sidebarOpen, setSidebarOpen]     = useState(true);
   const [productStatusFilter, setProductStatusFilter] = useState("All Status");
+  const [poStatusFilter, setPoStatusFilter]           = useState("All Status");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState("all");
   const lowStockPromptChecked = useRef(false);
@@ -417,6 +423,34 @@ export default function Dashboard() {
   const [products, setProducts]   = useState(() => syncProductsStatus(INITIAL_PRODUCTS));
   const [stockIn,  setStockIn]    = useState(INITIAL_STOCK_IN);
   const [stockOut, setStockOut]   = useState(INITIAL_STOCK_OUT);
+  const [purchaseOrders, setPurchaseOrders] = useState(INITIAL_PURCHASE_ORDERS);
+  const [endingInventory, setEndingInventory] = useState(() =>
+    buildInitialEndingInventory(INITIAL_ENDING_INVENTORY),
+  );
+
+  const pendingDeliveries = useMemo(
+    () => purchaseOrders.filter((o) => o.status === "Pending"),
+    [purchaseOrders],
+  );
+  const pendingDeliveryCount = pendingDeliveries.length;
+  const totalInventoryValue = useMemo(
+    () => sumEndingInventoryValue(endingInventory),
+    [endingInventory],
+  );
+  const transactionsToday = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return stockIn.filter((t) => t.date === today).length + stockOut.filter((t) => t.date === today).length;
+  }, [stockIn, stockOut]);
+
+  const goToPendingDeliveries = () => {
+    setPoStatusFilter("Pending");
+    setActiveNav("Purchasing Order");
+  };
+  const goToEndingInventory = () => {
+    setStockExpanded(true);
+    setActiveNav("Ending Inventory");
+  };
+  const goToStockSheets = () => setActiveNav("Stock Sheets");
 
   // ── Derived dashboard data ───────────────────────────────
   const lowStockAll      = getLowStockProducts(products);
@@ -718,7 +752,7 @@ export default function Dashboard() {
             {menuItems.map(({ label, Icon, hasChildren }) => {
               const isActive      = activeNav === label;
               const isStockParent = label === "Stock Management";
-              const isStockActive = isStockParent && (activeNav === label || isAnyStockSubActive);
+              const isStockActive = isStockParent && isAnyStockSubActive;
               const isItemActive  = (isActive && !isStockParent) || isStockActive;
 
               return (
@@ -730,9 +764,9 @@ export default function Dashboard() {
                         if (hasChildren) {
                           if (sidebarOpen) { setStockExpanded(v => !v); }
                           else { setSidebarOpen(true); setStockExpanded(true); }
-                          setActiveNav(label);
                         } else {
                           if (label === "Product") setProductStatusFilter("All Status");
+                          if (label === "Purchasing Order") setPoStatusFilter("All Status");
                           setActiveNav(label);
                         }
                       }}
@@ -870,7 +904,7 @@ export default function Dashboard() {
                   onViewLowStock={goToLowStock}
                   onViewStockSheets={() => {
                     setNotificationsOpen(false);
-                    setActiveNav("Stock Sheets");
+                    goToStockSheets();
                   }}
                 />
               </div>
@@ -905,11 +939,18 @@ export default function Dashboard() {
                 initialStatusFilter={productStatusFilter}
               />
             ) : activeNav === "Ending Inventory" ? (
-              <EndingInventoryPage />
+              <EndingInventoryPage
+                inventoryData={endingInventory}
+                setInventoryData={setEndingInventory}
+              />
             ) : activeNav === "Stock Sheets" ? (
               <StockSheetsPage />
             ) : activeNav === "Purchasing Order" ? (
-              <PurchasingOrderPage />
+              <PurchasingOrderPage
+                initialStatusFilter={poStatusFilter}
+                orders={purchaseOrders}
+                setOrders={setPurchaseOrders}
+              />
             ) : activeNav === "Backload Inventory" ? (
               <BackloadInventoryPage />
             ) : activeNav === "Advance Customer PO" ? (
@@ -930,26 +971,32 @@ export default function Dashboard() {
                   />
                   <MetricCard
                     icon={<IconTruck size={32} />} iconBg="#fff7ed" iconColor="#000000"
-                    label="Total Pending Deliveries" value="13"
-                    badge={{ text: "3 High Priority", color: "#d97706", bg: "#fef3c7", icon: <IconWarning size={12} /> }}
+                    label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
+                    badge={{
+                      text: pendingDeliveryCount > 0
+                        ? `${pendingDeliveryCount} pending order${pendingDeliveryCount === 1 ? "" : "s"}`
+                        : "No pending orders",
+                      color: "#d97706",
+                      bg: pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
+                      icon: pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
+                    }}
+                    onClick={goToPendingDeliveries}
                   />
                   <MetricCard
                     icon={<IconBarChart size={32} />} iconBg="#f0fdf4" iconColor="#000000"
-                    label="Total Inventory Value" value="₱2.4M"
-                    badge={{ text: "3.5% from last month", color: "#16a34a", bg: "transparent", iconEl: <IconTrendUp size={13} /> }}
+                    label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
+                    badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
+                    onClick={goToEndingInventory}
                   />
                   <MetricCard
                     icon={<IconBag size={32} />} iconBg="#fdf4ff" iconColor="#000000"
-                    label="Transactions Today" value={
-                      (() => {
-                        const today = new Date().toISOString().slice(0, 10);
-                        return String(
-                          stockIn.filter(t => t.date === today).length +
-                          stockOut.filter(t => t.date === today).length
-                        );
-                      })()
-                    }
-                    badge={{ text: "0.8% from last month", color: "#dc2626", bg: "transparent", iconEl: <IconTrendDown size={13} /> }}
+                    label="Transactions Today" value={String(transactionsToday)}
+                    badge={{
+                      text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
+                      color: transactionsToday > 0 ? "#e87c27" : "#6b7280",
+                      bg: "transparent",
+                    }}
+                    onClick={goToStockSheets}
                   />
                 </div>
 
@@ -1002,7 +1049,7 @@ export default function Dashboard() {
                   <div className="dashboard-pair-card">
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Top Released Items</p>
-                      <button onClick={() => setActiveNav("Stock Sheets")} style={{
+                      <button onClick={goToStockSheets} style={{
                         fontSize: 11, color: "#e87c27", background: "none", border: "none",
                         cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
                       }}>
@@ -1125,7 +1172,7 @@ export default function Dashboard() {
                   }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
                       <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Recent Activity</p>
-                      <button onClick={() => setActiveNav("Stock Sheets")} style={{
+                      <button onClick={goToStockSheets} style={{
                         fontSize: 11, color: "#e87c27", background: "none", border: "none",
                         cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
                       }}>
@@ -1137,10 +1184,17 @@ export default function Dashboard() {
                     ) : (
                       <div className="dashboard-scroll-panel">
                         {recentActivity.map((a, i) => (
-                        <div key={i} style={{
+                        <div
+                          key={i}
+                          role="button"
+                          tabIndex={0}
+                          onClick={goToStockSheets}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") goToStockSheets(); }}
+                          style={{
                           display: "flex", alignItems: "center", gap: 12,
                           padding: "11px 0",
                           borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
+                          cursor: "pointer",
                         }}>
                           <div style={{
                             width: 10, height: 10, borderRadius: "50%", flexShrink: 0,

@@ -9,6 +9,22 @@ import {
   rowHasData,
   readWorkbookSheet,
 } from "./excelImportUtils";
+import {
+  buildInitialEndingInventory,
+  sumEndingInventoryValue,
+} from "./inventoryUtils";
+import {
+  modalOverlayStyle,
+  modalPanelStyle,
+  modalHeaderStyle,
+  modalFooterStyle,
+  modalTitleStyle,
+  modalSubtitleStyle,
+  modalCloseBtnStyle,
+  modalBtnSecondary,
+  modalBtnPrimary,
+  modalCellInput,
+} from "./modalFormStyles";
 
 function useSheetJS() {
   const [ready, setReady] = useState(!!window.XLSX);
@@ -22,7 +38,7 @@ function useSheetJS() {
   return ready;
 }
 
-const SEED_DATA = [
+export const INITIAL_ENDING_INVENTORY = [
   { no:1,  productDescription:"Deformed Round Bar, 10mm x 6M g33",                                               sku:"DRB007", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
   { no:2,  productDescription:"Deformed Round Bar, 12mm x 6M g33",                                               sku:"DRB008", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
   { no:3,  productDescription:"Deformed Round Bar, 16mm x 6M g33",                                               sku:"DRB009", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
@@ -166,29 +182,28 @@ function StartInventoryModal({ data, onClose, onSave }) {
     onClose();
   };
 
-  const inputSt = { padding: "6px 8px", fontSize: 12, border: "1px solid #d1d5db", borderRadius: 6, fontFamily: "inherit", background: "#fff", width: "100%" };
+  const numCols = ["QTY AS PER WIS", "TOTAL COST (AUTO)", "AVG UNIT COST", "QTY AS PER COUNTING", "VARIANCE (QTY)", "VARIANCE (AMT)"];
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 16, width: "92vw", maxWidth: 1100, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-        {/* Header */}
-        <div style={{ padding: "20px 28px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+    <div style={modalOverlayStyle}>
+      <div style={{ ...modalPanelStyle, maxWidth: 1140, width: "min(96vw, 1140px)" }}>
+        <div style={modalHeaderStyle}>
           <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#111827", margin: 0 }}>Start Ending Inventory</h2>
-            <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>Fill in the editable fields. Total Cost and Variances are auto-calculated.</p>
+            <h2 style={modalTitleStyle}>Start Ending Inventory</h2>
+            <p style={modalSubtitleStyle}>Fill in the highlighted fields below. Total cost and variances update automatically.</p>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4 }}><IconX size={20} /></button>
+          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close"><IconX size={18} /></button>
         </div>
 
 
 
-        {/* Table */}
-        <div style={{ overflowY: "auto", flex: 1 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0, padding: "0 16px 16px" }}>
+          <div style={{ flex: 1, overflow: "auto", border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 1050 }}>
             <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
               <tr style={{ background: "#1c2235" }}>
                 {["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS"].map(h => (
-                  <th key={h} style={{ padding: "12px 10px", textAlign: ["QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)"].includes(h) ? "right" : "left", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h} style={{ padding: "11px 10px", textAlign: numCols.includes(h) ? "right" : "left", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.03em" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -201,8 +216,6 @@ function StartInventoryModal({ data, onClose, onSave }) {
                 const counting = parseFloat(ed.qtyAsPerCounting) || 0;
                 const varQty = counting - qty;
                 const varAmt = varQty * avg;
-                const isEditable = row => true; // all rows editable
-
                 return (
                   <tr key={row.no} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
                     <td style={{ padding: "8px 10px", color: "#9ca3af", fontSize: 11 }}>{row.no}</td>
@@ -210,21 +223,21 @@ function StartInventoryModal({ data, onClose, onSave }) {
                     <td style={{ padding: "8px 10px", color: "#e87c27", fontWeight: 700 }}>{row.sku}</td>
                     {/* EDITABLE: Last Acceptance Date */}
                     <td style={{ padding: "6px 8px" }}>
-                      <input type="date" value={ed.lastAcceptanceDate||""} onChange={e => setField(row.no, "lastAcceptanceDate", e.target.value)} style={{ ...inputSt, width: 130, borderColor: "#e87c27" }} />
+                      <input type="date" value={ed.lastAcceptanceDate||""} onChange={e => setField(row.no, "lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
                     </td>
                     {/* EDITABLE: Qty as per WIS */}
                     <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      <input type="number" value={ed.qtyAsPerWis||0} onChange={e => setField(row.no, "qtyAsPerWis", parseFloat(e.target.value)||0)} style={{ ...inputSt, width: 80, textAlign: "right", borderColor: "#e87c27" }} />
+                      <input type="number" min={0} value={ed.qtyAsPerWis ?? ""} onChange={e => setField(row.no, "qtyAsPerWis", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
                     </td>
                     {/* AUTO: Total Cost */}
                     <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 600, fontSize: 11 }}>{totalCost > 0 ? fmtPHP(totalCost) : "—"}</td>
                     {/* EDITABLE: Avg Unit Cost */}
                     <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      <input type="number" value={ed.avgUnitCost||0} onChange={e => setField(row.no, "avgUnitCost", parseFloat(e.target.value)||0)} step="0.01" style={{ ...inputSt, width: 100, textAlign: "right", borderColor: "#e87c27" }} />
+                      <input type="number" min={0} step="0.01" value={ed.avgUnitCost ?? ""} onChange={e => setField(row.no, "avgUnitCost", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
                     </td>
                     {/* EDITABLE: Qty as per Counting */}
                     <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      <input type="number" value={ed.qtyAsPerCounting||0} onChange={e => setField(row.no, "qtyAsPerCounting", parseFloat(e.target.value)||0)} style={{ ...inputSt, width: 80, textAlign: "right", borderColor: "#e87c27" }} />
+                      <input type="number" min={0} value={ed.qtyAsPerCounting ?? ""} onChange={e => setField(row.no, "qtyAsPerCounting", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
                     </td>
                     {/* AUTO: Variance Qty */}
                     <td style={{ padding: "8px 10px", textAlign: "right" }}>
@@ -236,19 +249,19 @@ function StartInventoryModal({ data, onClose, onSave }) {
                     </td>
                     {/* EDITABLE: Remarks */}
                     <td style={{ padding: "6px 8px" }}>
-                      <input value={ed.remarks||""} onChange={e => setField(row.no, "remarks", e.target.value)} style={{ ...inputSt, width: 140, borderColor: "#e87c27" }} placeholder="Notes..." />
+                      <input value={ed.remarks||""} onChange={e => setField(row.no, "remarks", e.target.value)} placeholder="Notes..." {...modalCellInput({ width: 150 })} />
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          </div>
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: "16px 28px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 12, justifyContent: "flex-end", flexShrink: 0, background: "#fafafa" }}>
-          <button onClick={onClose} style={{ padding: "10px 22px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
-          <button onClick={handleSave} style={{ padding: "10px 22px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={modalFooterStyle}>
+          <button type="button" onClick={onClose} style={modalBtnSecondary}>Cancel</button>
+          <button type="button" onClick={handleSave} style={modalBtnPrimary}>
             <IconSave size={14} /> Save Inventory Count
           </button>
         </div>
@@ -268,8 +281,6 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
     return next;
   });
 
-  const inputSt = { padding: "5px 7px", fontSize: 12, border: "1.5px solid #e87c27", borderRadius: 6, fontFamily: "inherit", background: "#fffbf7" };
-
   return (
     <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
       <td style={{ padding: "8px 16px", color: "#9ca3af", fontSize: 11 }}>{item.no}</td>
@@ -277,21 +288,21 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
       <td style={{ padding: "8px 16px", color: "#e87c27", fontWeight: 700 }}>{item.sku}</td>
       {/* EDITABLE: Last Acceptance Date */}
       <td style={{ padding: "6px 10px" }}>
-        <input type="date" value={draft.lastAcceptanceDate||""} onChange={e => set("lastAcceptanceDate", e.target.value)} style={{ ...inputSt, width: 130 }} />
+        <input type="date" value={draft.lastAcceptanceDate||""} onChange={e => set("lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
       </td>
       {/* EDITABLE: Qty as per WIS */}
       <td style={{ padding: "6px 10px", textAlign: "right" }}>
-        <input type="number" value={draft.qtyAsPerWis} onChange={e => set("qtyAsPerWis", parseFloat(e.target.value)||0)} style={{ ...inputSt, width: 80, textAlign: "right" }} />
+        <input type="number" min={0} value={draft.qtyAsPerWis ?? ""} onChange={e => set("qtyAsPerWis", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
       </td>
       {/* AUTO: Total Unit Cost */}
       <td style={{ padding: "8px 16px", textAlign: "right", color: "#374151", fontSize: 11 }}>{fmtPHP(draft.totalUnitCost)}</td>
       {/* EDITABLE: Avg Unit Cost */}
       <td style={{ padding: "6px 10px", textAlign: "right" }}>
-        <input type="number" value={draft.avgUnitCost} onChange={e => set("avgUnitCost", parseFloat(e.target.value)||0)} step="0.01" style={{ ...inputSt, width: 100, textAlign: "right" }} />
+        <input type="number" min={0} step="0.01" value={draft.avgUnitCost ?? ""} onChange={e => set("avgUnitCost", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
       </td>
       {/* EDITABLE: Qty as per Counting */}
       <td style={{ padding: "6px 10px", textAlign: "right" }}>
-        <input type="number" value={draft.qtyAsPerCounting} onChange={e => set("qtyAsPerCounting", parseFloat(e.target.value)||0)} style={{ ...inputSt, width: 80, textAlign: "right" }} />
+        <input type="number" min={0} value={draft.qtyAsPerCounting ?? ""} onChange={e => set("qtyAsPerCounting", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
       </td>
       {/* AUTO: Variance Qty */}
       <td style={{ padding: "8px 16px", textAlign: "right" }}>
@@ -303,7 +314,7 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
       </td>
       {/* EDITABLE: Remarks */}
       <td style={{ padding: "6px 10px" }}>
-        <input value={draft.remarks||""} onChange={e => set("remarks", e.target.value)} style={{ ...inputSt, width: 140 }} placeholder="Notes..." />
+        <input value={draft.remarks||""} onChange={e => set("remarks", e.target.value)} placeholder="Notes..." {...modalCellInput({ width: 150 })} />
       </td>
       <td style={{ padding: "8px 10px" }}>
         <div style={{ display: "flex", gap: 6 }}>
@@ -318,11 +329,16 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
 }
 
 /* ─── MAIN COMPONENT ── */
-export default function EndingInventoryPage() {
+export default function EndingInventoryPage({
+  inventoryData: propInventoryData,
+  setInventoryData: propSetInventoryData,
+}) {
   const xlsxReady = useSheetJS();
-  const [inventoryData, setInventoryData] = useState(
-    SEED_DATA.map((r, i) => ({ ...r, id: r.no ?? i+1, totalUnitCost: r.qtyAsPerWis * r.avgUnitCost || r.totalUnitCost }))
+  const [localInventoryData, setLocalInventoryData] = useState(() =>
+    buildInitialEndingInventory(INITIAL_ENDING_INVENTORY),
   );
+  const inventoryData = propInventoryData ?? localInventoryData;
+  const setInventoryData = propSetInventoryData ?? setLocalInventoryData;
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [activeTab, setActiveTab] = useState("wis");
@@ -338,7 +354,7 @@ export default function EndingInventoryPage() {
   const filtered = useMemo(() => {
     let d = inventoryData;
     if (searchQuery.trim()) { const q = searchQuery.toLowerCase(); d = d.filter(r => r.sku.toLowerCase().includes(q) || r.productDescription.toLowerCase().includes(q)); }
-    if (statusFilter === "In Stock")     d = d.filter(r => r.qtyAsPerWis > 0);
+    if (statusFilter === "Total Stock")     d = d.filter(r => r.qtyAsPerWis > 0);
     if (statusFilter === "Out of Stock") d = d.filter(r => r.qtyAsPerWis === 0);
     if (statusFilter === "Variance")     d = d.filter(r => r.varianceQty !== 0);
     return d;
@@ -399,7 +415,7 @@ export default function EndingInventoryPage() {
     showToast("✓ Ending inventory count saved.");
   };
 
-  const totalValue = inventoryData.reduce((s,r) => s + (r.totalUnitCost||0), 0);
+  const totalValue = sumEndingInventoryValue(inventoryData);
   const inStockCount = inventoryData.filter(r => r.qtyAsPerWis > 0).length;
   const varianceCount = inventoryData.filter(r => r.varianceQty !== 0).length;
 
@@ -407,16 +423,33 @@ export default function EndingInventoryPage() {
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
       {/* Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
         {[
           { label: "Total SKUs",            value: inventoryData.length, color: "#3b82f6" },
-          { label: "In Stock",              value: inStockCount,          color: "#16a34a" },
+          { label: "Total Stock",           value: inStockCount,          color: "#16a34a" },
           { label: "Variance Items",        value: varianceCount,         color: varianceCount > 0 ? "#dc2626" : "#6b7280" },
           { label: "Total Inventory Value", value: fmtPHP(totalValue),    color: "#e87c27" },
         ].map(c => (
-          <div key={c.label} style={{ background: "#fff", borderRadius: 10, padding: "14px 18px", border: "1px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-            <p style={{ margin: 0, fontSize: 11, color: "#6b7280", fontWeight: 600 }}>{c.label}</p>
-            <p style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 800, color: c.color }}>{c.value}</p>
+          <div key={c.label} style={{
+            background: "#fff",
+            borderRadius: 16,
+            padding: "22px 24px",
+            minHeight: 118,
+            border: "1px solid #e5e7eb",
+            boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}>
+            <p style={{ margin: 0, fontSize: 15, color: "#6b7280", fontWeight: 700, lineHeight: 1.35 }}>{c.label}</p>
+            <p style={{
+              margin: "12px 0 0",
+              fontSize: typeof c.value === "number" ? 40 : 32,
+              fontWeight: 800,
+              color: c.color,
+              letterSpacing: "-0.5px",
+              lineHeight: 1.1,
+            }}>{c.value}</p>
           </div>
         ))}
       </div>
@@ -425,7 +458,7 @@ export default function EndingInventoryPage() {
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "In Stock", "Out of Stock", "Variance"], minWidth: 150 },
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "Total Stock", "Out of Stock", "Variance"], minWidth: 150 },
         ]}
         primaryAction={{ label: "Start Ending Inventory", onClick: () => setShowStartModal(true) }}
         importExport={{
