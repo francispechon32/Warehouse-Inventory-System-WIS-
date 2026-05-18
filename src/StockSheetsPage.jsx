@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { productSearchInputStyle } from "./searchFieldStyles";
+import { useState, useMemo, useEffect, useRef } from "react";
+import PageToolbar from "./PageToolbar";
 
 const RECENT_SKUS = ["DRB007", "DRB052", "SHPT2", "MSP010", "WF10833"];
 
@@ -100,24 +100,138 @@ function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination }) 
   );
 }
 
+
+function useSheetJS() {
+  const [ready, setReady] = useState(!!window.XLSX);
+  useEffect(() => {
+    if (window.XLSX) { setReady(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => setReady(true);
+    document.head.appendChild(s);
+  }, []);
+  return ready;
+}
+
+function IconUpload2({ size = 16 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+}
+
+function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows) {
+  if (!window.XLSX) { alert("SheetJS not loaded."); return; }
+  const XLSX = window.XLSX;
+  const wb = XLSX.utils.book_new();
+
+  // Stock IN sheet
+  const inHeaders = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Stock Sheet — Stock IN for SKU: " + sku],
+    ["PRODUCT:", skuInfo.desc, "", "WEIGHT:", skuInfo.weight],
+    ["AS OF:", new Date().toLocaleString()],
+    [],
+    ["TRANS #","DATE","TDT PO #","TDT PO DATE","VENDOR #","VENDOR NAME","CUSTOMER'S NAME AS PER DR","TDT WO #","ACCEPTANCE DATE","QTY","COST/KILO","COST/UNIT","TOTAL PURCHASE","RUNNING QTY","AVG UNIT COST","TOTAL VALUE","REMARK"],
+  ];
+  const inData = stockInRows.map(r => [r.transNo, r.date, r.tdtPo, r.tdtPoDate, r.vendorNo, r.vendorName, r.customerDr, r.tdtWo, r.acceptDate, r.qty, r.costKilo, r.costUnit, r.totalPurchase, r.runningQty, r.avgUnitCost, r.totalValue, r.remark||"—"]);
+  const wsIn = XLSX.utils.aoa_to_sheet([...inHeaders, ...inData]);
+  wsIn["!cols"] = [{wch:10},{wch:12},{wch:16},{wch:12},{wch:10},{wch:18},{wch:22},{wch:10},{wch:14},{wch:8},{wch:10},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsIn, sku + " STOCK IN");
+
+  // Stock OUT sheet
+  const outHeaders = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Stock Sheet — Stock OUT for SKU: " + sku],
+    ["PRODUCT:", skuInfo.desc],
+    ["AS OF:", new Date().toLocaleString()],
+    [],
+    ["TRANS #","DISPATCH DATE","TDT WO#","CUSTOMER NAME","TDT DR#","BRANCH","SUMMARY OF TDT BDR#","TDT SI#","QTY OUT","UNIT COST","TOTAL PRICE","SERIES 1 — QTY / DATE","SERIES 2 — QTY / DATE","SERIES 3 — QTY / DATE","RUNNING QTY","RUNNING VALUE","REMARKS"],
+  ];
+  const outData = stockOutRows.map(r => [r.transNo, r.dispatchDate, r.tdtWo, r.customer, r.tdtDr, r.branch, r.bdrSummary, r.tdtSi, r.qtyOut, r.unitCost, r.totalPrice, r.s1, r.s2, r.s3, r.runningQty, r.runningValue, r.remarks||"—"]);
+  const wsOut = XLSX.utils.aoa_to_sheet([...outHeaders, ...outData]);
+  wsOut["!cols"] = [{wch:10},{wch:14},{wch:12},{wch:20},{wch:14},{wch:10},{wch:14},{wch:12},{wch:8},{wch:12},{wch:14},{wch:18},{wch:18},{wch:18},{wch:12},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, wsOut, sku + " STOCK OUT");
+
+  XLSX.writeFile(wb, "TDT_WIS_Stock_Sheet_" + sku + ".xlsx");
+}
+
+function importStockSheets(file, onInDone, onOutDone, onError) {
+  if (!window.XLSX) { onError("SheetJS not loaded."); return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/,/g, "")); return isNaN(n) ? 0 : n; };
+      const parseSheet = (ws, colMap) => {
+        if (!ws) return [];
+        const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+        let start = 0;
+        for (let i = 0; i < Math.min(raw.length, 15); i++) {
+          if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) { start = i + 1; break; }
+        }
+        const result = [];
+        for (let i = start; i < raw.length; i++) {
+          const r = raw[i]; if (!r || !r[0] || String(r[0]).trim() === "") continue;
+          const row = { id: i - start + 1 };
+          colMap.forEach(([field, idx, numeric]) => { row[field] = numeric ? toNum(r[idx]) : String(r[idx] ?? ""); });
+          result.push(row);
+        }
+        return result;
+      };
+
+      // Find IN and OUT sheets
+      const inSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("IN")) || wb.SheetNames[0];
+      const outSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("OUT")) || wb.SheetNames[1] || wb.SheetNames[0];
+
+      const inCols = [
+        ["transNo",0,false],["date",1,false],["tdtPo",2,false],["tdtPoDate",3,false],
+        ["vendorNo",4,false],["vendorName",5,false],["customerDr",6,false],["tdtWo",7,false],
+        ["acceptDate",8,false],["qty",9,true],["costKilo",10,true],["costUnit",11,true],
+        ["totalPurchase",12,true],["runningQty",13,true],["avgUnitCost",14,true],
+        ["totalValue",15,true],["remark",16,false],
+      ];
+      const outCols = [
+        ["transNo",0,false],["dispatchDate",1,false],["tdtWo",2,false],["customer",3,false],
+        ["tdtDr",4,false],["branch",5,false],["bdrSummary",6,false],["tdtSi",7,false],
+        ["qtyOut",8,true],["unitCost",9,true],["totalPrice",10,true],
+        ["s1",11,false],["s2",12,false],["s3",13,false],
+        ["runningQty",14,true],["runningValue",15,true],["remarks",16,false],
+      ];
+
+      const inRows = parseSheet(wb.Sheets[inSheetName], inCols);
+      const outRows = parseSheet(wb.Sheets[outSheetName], outCols);
+      if (!inRows.length && !outRows.length) throw new Error("No data rows found.");
+      onInDone(inRows);
+      onOutDone(outRows);
+    } catch(err) { onError(err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 export default function StockSheetsPage() {
+  const xlsxReady = useSheetJS();
   const [searchSku, setSearchSku] = useState("DRB007");
   const [activeTab, setActiveTab] = useState("all");
   const [inPage, setInPage] = useState(1);
   const [outPage, setOutPage] = useState(1);
+  const [stockInData, setStockInData] = useState(SEED_STOCK_IN);
+  const [stockOutData, setStockOutData] = useState(SEED_STOCK_OUT);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState(null);
+  const importRef = useRef(null);
+
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   const skuKey = searchSku.trim().toUpperCase();
   const skuInfo = SKU_CATALOG[skuKey] || { desc: "—", weight: "—" };
 
   const stockInRows = useMemo(() => {
-    if (!skuKey || skuKey === "DRB007") return SEED_STOCK_IN;
-    return SEED_STOCK_IN.filter((_, i) => i < 1);
-  }, [skuKey]);
+    if (!skuKey || skuKey === "DRB007") return stockInData;
+    return stockInData.filter((_, i) => i < 1);
+  }, [skuKey, stockInData]);
 
   const stockOutRows = useMemo(() => {
-    if (!skuKey || skuKey === "DRB007") return SEED_STOCK_OUT;
-    return SEED_STOCK_OUT.filter((_, i) => i < 1);
-  }, [skuKey]);
+    if (!skuKey || skuKey === "DRB007") return stockOutData;
+    return stockOutData.filter((_, i) => i < 1);
+  }, [skuKey, stockOutData]);
 
   const inTotalPages = Math.max(1, Math.ceil(stockInRows.length / PAGE_SIZE));
   const outTotalPages = Math.max(1, Math.ceil(stockOutRows.length / PAGE_SIZE));
@@ -136,18 +250,11 @@ export default function StockSheetsPage() {
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
-      <div style={{ background: "#fff", borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#374151", flexShrink: 0 }}>Search SKU:</span>
-          <div style={{ position: "relative", flex: "1 1 200px", maxWidth: 280 }}>
-            <input
-              type="text"
-              value={searchSku}
-              onChange={(e) => { setSearchSku(e.target.value); setInPage(1); setOutPage(1); }}
-              style={{ ...productSearchInputStyle, paddingLeft: 12 }}
-            />
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#374151", pointerEvents: "none" }}><IconSearch size={16} /></span>
-          </div>
+      <PageToolbar
+        searchValue={searchSku}
+        onSearchChange={(v) => { setSearchSku(v); setInPage(1); setOutPage(1); }}
+        primaryAction={{ label: "New Stock Sheet", onClick: () => {} }}
+        row1End={
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: "1 1 300px" }}>
             <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>Recent:</span>
             {RECENT_SKUS.map((sku) => {
@@ -173,8 +280,26 @@ export default function StockSheetsPage() {
               );
             })}
           </div>
-        </div>
-      </div>
+        }
+        importExport={{
+          fileInputRef: importRef,
+          onFileChange: (e) => {
+            const file = e.target.files?.[0]; if (!file) return;
+            setImporting(true);
+            importStockSheets(
+              file,
+              (inRows) => { setStockInData(inRows); setInPage(1); },
+              (outRows) => { setStockOutData(outRows); setOutPage(1); setImporting(false); showToast(`Imported stock sheet from ${file.name}`); },
+              (err) => { setImporting(false); showToast(`Import failed: ${err}`, "error"); }
+            );
+            e.target.value = "";
+          },
+          importing,
+          importDisabled: !xlsxReady,
+          importLabel: "Import WIS",
+          onExport: () => exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows),
+        }}
+      />
 
       <div style={{ background: "#fff", borderRadius: 14, padding: "20px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 20 }}>
         <div style={{ display: "flex", flex: "1 1 0", gap: 28, flexWrap: "wrap", minWidth: 0 }}>
@@ -190,16 +315,6 @@ export default function StockSheetsPage() {
             <p style={{ margin: 0, fontSize: 10, fontWeight: 800, color: "#9ca3af", letterSpacing: "0.12em", textTransform: "uppercase" }}>WEIGHT</p>
             <p style={{ margin: "8px 0 0", fontSize: 16, fontWeight: 800, color: "#111827" }}>{skuInfo.weight}</p>
           </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
-          <button type="button" style={{ padding: "10px 18px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
-            <IconPlus size={16} />
-            New Stock Sheet
-          </button>
-          <button type="button" style={{ padding: "10px 18px", border: "1px solid #b8bec9", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, justifyContent: "center", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" }}>
-            <IconDownload size={16} />
-            Export WIS
-          </button>
         </div>
       </div>
 
@@ -291,6 +406,12 @@ export default function StockSheetsPage() {
         <span style={{ fontSize: 12, color: "#6b7280" }}>All Transactions — March 2026</span>
         <Pagination currentPage={outPage} totalPages={outTotalPages} onPage={setOutPage} />
       </div>
+
+      {toast && (
+        <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type === "error" ? "#dc2626" : "#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+          {toast.msg}
+        </div>
+      )}
     </div>
   );
 }

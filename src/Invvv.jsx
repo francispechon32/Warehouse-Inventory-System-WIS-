@@ -1,81 +1,44 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import ProductPage from "./ProductPage";
 import EndingInventoryPage from "./EndingInventoryPage";
-import BackloadInventoryPage from "./BackloadInventoryPage";
-import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
-import ReturnPage from "./ReturnPage";
-import PurchasingOrderPage from "./PurchasingOrderPage";
 import StockSheetsPage from "./StockSheetsPage";
+import PurchasingOrderPage from "./PurchasingOrderPage";
+import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
+import BackloadInventoryPage from "./BackloadInventoryPage";
+import ReturnPage from "./ReturnPage";
+import NotificationPanel from "./NotificationPanel";
+import { shouldShowLowStockPrompt, markLowStockPromptShown } from "./notificationPrompt";
 import Logo from "./assets/Untitled_design.svg";
+import {
+  getLowStockProducts,
+  getUniqueStockAlerts,
+  syncProductsStatus,
+} from "./productUtils";
+import { INITIAL_PRODUCTS } from "./initialProducts";
 
-/* ─── DATA ─────────────────────────────────────────────── */
-const inventoryDataByRange = {
-  "Last 7 Days": [
-    { day: "Mon",   stockIn: 320, stockOut: 180 },
-    { day: "Tues",  stockIn: 460, stockOut: 310 },
-    { day: "Wed",   stockIn: 260, stockOut: 260 },
-    { day: "Thurs", stockIn: 510, stockOut: 200 },
-    { day: "Fri",   stockIn: 300, stockOut: 290 },
-    { day: "Sat",   stockIn: 180, stockOut: 100 },
-    { day: "Sun",   stockIn: 310, stockOut: 290 },
-  ],
-  "Last 30 Days": [
-    { day: "Week 1", stockIn: 2240, stockOut: 1340 },
-    { day: "Week 2", stockIn: 2680, stockOut: 1820 },
-    { day: "Week 3", stockIn: 1950, stockOut: 1560 },
-    { day: "Week 4", stockIn: 2120, stockOut: 1680 },
-  ],
-  "Last 6 Months": [
-    { day: "Jan", stockIn: 8500, stockOut: 6200 },
-    { day: "Feb", stockIn: 7800, stockOut: 5900 },
-    { day: "Mar", stockIn: 9200, stockOut: 7100 },
-    { day: "Apr", stockIn: 8900, stockOut: 6800 },
-    { day: "May", stockIn: 9600, stockOut: 7400 },
-    { day: "Jun", stockIn: 8200, stockOut: 6500 },
-  ],
-  "Last 1 Year": [
-    { day: "Jan", stockIn: 8500, stockOut: 6200 },
-    { day: "Feb", stockIn: 7800, stockOut: 5900 },
-    { day: "Mar", stockIn: 9200, stockOut: 7100 },
-    { day: "Apr", stockIn: 8900, stockOut: 6800 },
-    { day: "May", stockIn: 9600, stockOut: 7400 },
-    { day: "Jun", stockIn: 8200, stockOut: 6500 },
-    { day: "Jul", stockIn: 9100, stockOut: 7200 },
-    { day: "Aug", stockIn: 8700, stockOut: 6900 },
-    { day: "Sep", stockIn: 9300, stockOut: 7500 },
-    { day: "Oct", stockIn: 8800, stockOut: 6700 },
-    { day: "Nov", stockIn: 9500, stockOut: 7600 },
-    { day: "Dec", stockIn: 9900, stockOut: 8000 },
-  ],
-  "Last 5 Years": [
-    { day: "2020", stockIn: 95000,  stockOut: 75000 },
-    { day: "2021", stockIn: 102000, stockOut: 81000 },
-    { day: "2022", stockIn: 115000, stockOut: 92000 },
-    { day: "2023", stockIn: 108000, stockOut: 86000 },
-    { day: "2024", stockIn: 120000, stockOut: 95000 },
-  ],
-};
-
-const topItems = [
-  { name: "Angle bar 10mm",   value: "₱105K", pct: 55 },
-  { name: "Round bar 12mm",   value: "₱95K",  pct: 50 },
-  { name: "Steel bar 10mm",   value: "₱190K", pct: 100 },
-  { name: "Channel bar 10mm", value: "₱145K", pct: 76 },
-  { name: "Wide flange 10mm", value: "₱160K", pct: 84 },
+/* ─── SHARED STOCK TRANSACTION DATA (source of truth) ───── */
+const INITIAL_STOCK_IN = [
+  { id: 1, sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33", date: "2026-05-12", qty: 500,  vendor: "Steel Asia Corp"  },
+  { id: 2, sku: "DRB052", description: "Deformed Round Bar, 16mm x 6M g40", date: "2026-05-13", qty: 200,  vendor: "Dragon Steel"     },
+  { id: 3, sku: "MSP010", description: "MS Plate, 6mm x 4' x 8'",           date: "2026-05-14", qty: 150,  vendor: "Pag-asa Steel"    },
+  { id: 4, sku: "SHPT2",  description: "Sheet Pile T2 x 12M",               date: "2026-05-15", qty: 80,   vendor: "Steel Asia Corp"  },
+  { id: 5, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-16", qty: 320,  vendor: "Dragon Steel"     },
+  { id: 6, sku: "WF016",  description: "Wide Flange, 8 x 4 x 10# x 6M",    date: "2026-05-17", qty: 100,  vendor: "Pag-asa Steel"    },
+  { id: 7, sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33", date: "2026-05-18", qty: 260,  vendor: "Steel Asia Corp"  },
 ];
 
-const stockAlerts = [
-  { name: 'GI pipe 1"', sku: "SKU: GP-3302 – 49 units left", level: "low" },
-  { name: 'GI pipe 1"', sku: "SKU: GP-3302 – 51 units left", level: "low" },
-];
-
-const recentActivity = [
-  { text: "Steel bar 10mm – 50 units received", time: "2:00 pm", type: "in"  },
-  { text: "Steel bar 10mm – 50 units released", time: "2:00 pm", type: "out" },
+const INITIAL_STOCK_OUT = [
+  { id: 1, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-12", qty: 120,  customer: "Michael Santiago",   totalPrice: 25200  },
+  { id: 2, sku: "SHPT2",  description: "Sheet Pile T2 x 12M",               date: "2026-05-13", qty: 80,   customer: "RCM Builders",       totalPrice: 16640  },
+  { id: 3, sku: "DRB052", description: "Deformed Round Bar, 16mm x 6M g40", date: "2026-05-14", qty: 60,   customer: "Prime Builders Corp.",totalPrice: 12720  },
+  { id: 4, sku: "MSP010", description: "MS Plate, 6mm x 4' x 8'",           date: "2026-05-15", qty: 50,   customer: "GW Construction",    totalPrice: 9800   },
+  { id: 5, sku: "SHPT3",  description: "Sheet Pile T3 x 12M",               date: "2026-05-16", qty: 40,   customer: "RCM Builders",       totalPrice: 190000 },
+  { id: 6, sku: "DRB051", description: "Deformed Round Bar, 12mm x 6M g40", date: "2026-05-17", qty: 1,    customer: "Michael Santiago",   totalPrice: 186    },
+  { id: 7, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-18", qty: 290,  customer: "Metro Builders Inc.", totalPrice: 58000  },
 ];
 
 /* ─── ICONS ─────────────────────────────────────────────── */
@@ -277,6 +240,14 @@ function IconHelp({ size = 22 }) {
     </svg>
   );
 }
+function IconArrowRight({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14M12 5l7 7-7 7" />
+    </svg>
+  );
+}
 
 /* ─── CUSTOM TOOLTIP ─────────────────────────────────────── */
 function CustomTooltip({ active, payload, label }) {
@@ -306,7 +277,7 @@ const stockSubItems = [
   { label: "Return",              Icon: IconReturn     },
 ];
 
-/* ─── TOOLTIP WRAPPER (for collapsed icon-only mode) ────── */
+/* ─── TOOLTIP WRAPPER ────────────────────────────────────── */
 function NavTooltip({ label, children, show }) {
   const [visible, setVisible] = useState(false);
   if (!show) return children;
@@ -341,12 +312,152 @@ function NavTooltip({ label, children, show }) {
   );
 }
 
+/* ─── HELPERS ────────────────────────────────────────────── */
+// Build chart data from actual stock-in / stock-out transactions for Last 7 Days
+function buildLast7DaysChart(stockIn, stockOut) {
+  const days = ["Sun","Mon","Tues","Wed","Thurs","Fri","Sat"];
+  const today = new Date();
+  const result = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayLabel = days[d.getDay()];
+    const inQty  = stockIn.filter(t => t.date === dateStr).reduce((s, t) => s + t.qty, 0);
+    const outQty = stockOut.filter(t => t.date === dateStr).reduce((s, t) => s + t.qty, 0);
+    result.push({ day: dayLabel, stockIn: inQty, stockOut: outQty });
+  }
+  return result;
+}
+
+// Aggregate stock-out qty by SKU, return top 5
+function buildTopReleasedItems(stockOut, products) {
+  const totals = {};
+  stockOut.forEach(t => {
+    totals[t.sku] = (totals[t.sku] || 0) + t.qty;
+  });
+  const sorted = Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const maxQty = sorted[0]?.[1] || 1;
+  return sorted.map(([sku, qty]) => {
+    const p = products.find(p => p.sku === sku);
+    // short name from description
+    const desc = p?.description || sku;
+    const shortName = desc.length > 22 ? desc.slice(0, 22) + "…" : desc;
+    return {
+      sku,
+      name: shortName,
+      value: `${qty} pcs`,
+      pct: Math.round((qty / maxQty) * 100),
+    };
+  });
+}
+
+// Last 6 activity entries (most recent stock-in + stock-out combined)
+function buildRecentActivity(stockIn, stockOut, limit = 6) {
+  const ins  = stockIn.map(t  => ({ text: `${t.description} – ${t.qty} units received`, time: t.date, type: "in"  }));
+  const outs = stockOut.map(t => ({ text: `${t.description} – ${t.qty} units released`, time: t.date, type: "out" }));
+  return [...ins, ...outs]
+    .sort((a, b) => b.time.localeCompare(a.time))
+    .slice(0, limit)
+    .map(a => ({ ...a, time: new Date(a.time).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) }));
+}
+
+const inventoryDataByRange = {
+  "Last 30 Days": [
+    { day: "Week 1", stockIn: 2240, stockOut: 1340 },
+    { day: "Week 2", stockIn: 2680, stockOut: 1820 },
+    { day: "Week 3", stockIn: 1950, stockOut: 1560 },
+    { day: "Week 4", stockIn: 2120, stockOut: 1680 },
+  ],
+  "Last 6 Months": [
+    { day: "Jan", stockIn: 8500, stockOut: 6200 },
+    { day: "Feb", stockIn: 7800, stockOut: 5900 },
+    { day: "Mar", stockIn: 9200, stockOut: 7100 },
+    { day: "Apr", stockIn: 8900, stockOut: 6800 },
+    { day: "May", stockIn: 9600, stockOut: 7400 },
+    { day: "Jun", stockIn: 8200, stockOut: 6500 },
+  ],
+  "Last 1 Year": [
+    { day: "Jan", stockIn: 8500, stockOut: 6200 },
+    { day: "Feb", stockIn: 7800, stockOut: 5900 },
+    { day: "Mar", stockIn: 9200, stockOut: 7100 },
+    { day: "Apr", stockIn: 8900, stockOut: 6800 },
+    { day: "May", stockIn: 9600, stockOut: 7400 },
+    { day: "Jun", stockIn: 8200, stockOut: 6500 },
+    { day: "Jul", stockIn: 9100, stockOut: 7200 },
+    { day: "Aug", stockIn: 8700, stockOut: 6900 },
+    { day: "Sep", stockIn: 9300, stockOut: 7500 },
+    { day: "Oct", stockIn: 8800, stockOut: 6700 },
+    { day: "Nov", stockIn: 9500, stockOut: 7600 },
+    { day: "Dec", stockIn: 9900, stockOut: 8000 },
+  ],
+  "Last 5 Years": [
+    { day: "2020", stockIn: 95000,  stockOut: 75000 },
+    { day: "2021", stockIn: 102000, stockOut: 81000 },
+    { day: "2022", stockIn: 115000, stockOut: 92000 },
+    { day: "2023", stockIn: 108000, stockOut: 86000 },
+    { day: "2024", stockIn: 120000, stockOut: 95000 },
+  ],
+};
+
 /* ─── MAIN DASHBOARD ─────────────────────────────────────── */
 export default function Dashboard() {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(true);
-  const [dateRange, setDateRange]         = useState("Last 30 Days");
+  const [dateRange, setDateRange]         = useState("Last 7 Days");
   const [sidebarOpen, setSidebarOpen]     = useState(true);
+  const [productStatusFilter, setProductStatusFilter] = useState("All Status");
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationTab, setNotificationTab] = useState("all");
+  const lowStockPromptChecked = useRef(false);
+
+  // ── Shared data lifted here ──────────────────────────────
+  const [products, setProducts]   = useState(() => syncProductsStatus(INITIAL_PRODUCTS));
+  const [stockIn,  setStockIn]    = useState(INITIAL_STOCK_IN);
+  const [stockOut, setStockOut]   = useState(INITIAL_STOCK_OUT);
+
+  // ── Derived dashboard data ───────────────────────────────
+  const lowStockAll      = getLowStockProducts(products);
+  const stockAlerts      = getUniqueStockAlerts(products);
+  const topReleasedItems = buildTopReleasedItems(stockOut, products);
+  const recentActivity        = buildRecentActivity(stockIn, stockOut);
+  const notificationActivity  = buildRecentActivity(stockIn, stockOut, 12);
+  const notificationCount     = stockAlerts.length + notificationActivity.length;
+  const chartData = dateRange === "Last 7 Days"
+    ? buildLast7DaysChart(stockIn, stockOut)
+    : inventoryDataByRange[dateRange] || [];
+  const chartYMax = (() => {
+    const peak = chartData.reduce((m, d) => Math.max(m, d.stockIn || 0, d.stockOut || 0), 0);
+    if (peak <= 0) return 100;
+    const padded = peak * 1.25;
+    const step = padded <= 120 ? 25 : padded <= 600 ? 50 : 100;
+    return Math.ceil(padded / step) * step;
+  })();
+
+  const goToLowStock = () => {
+    setNotificationsOpen(false);
+    setProductStatusFilter("Low Stock");
+    setActiveNav("Product");
+  };
+
+  useEffect(() => {
+    setNotificationsOpen(false);
+  }, [activeNav]);
+
+  // Auto-open low-stock notifications once per login (once ever while guest / no auth)
+  useEffect(() => {
+    if (lowStockPromptChecked.current || stockAlerts.length === 0) return;
+    lowStockPromptChecked.current = true;
+
+    const userId = null; // TODO: set from auth after login is implemented
+    if (!shouldShowLowStockPrompt(userId)) return;
+
+    setNotificationTab("stock");
+    setNotificationsOpen(true);
+    markLowStockPromptShown(userId);
+  }, [stockAlerts.length]);
 
   const SIDEBAR_FULL      = 250;
   const SIDEBAR_COLLAPSED = 68;
@@ -417,13 +528,11 @@ export default function Dashboard() {
           transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
           overflow: hidden;
         }
-
         .label-fade {
           transition: opacity 0.15s ease, width 0.25s ease;
           white-space: nowrap;
           overflow: hidden;
         }
-
         .toggle-btn {
           display: flex; align-items: center; justify-content: center;
           width: 26px; height: 26px; border-radius: 50%;
@@ -431,79 +540,180 @@ export default function Dashboard() {
           color: #8b95a9; cursor: pointer;
           transition: all 0.2s ease; flex-shrink: 0;
         }
-        .toggle-btn:hover {
-          background: #e87c27; border-color: #e87c27; color: #fff;
+        .toggle-btn:hover { background: #e87c27; border-color: #e87c27; color: #fff; }
+
+        .alert-row {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 12px 16px; background: #fafafa;
+          border-radius: 10; border: 1px solid #f3f4f6;
+          cursor: pointer;
+          transition: background 0.15s ease, box-shadow 0.15s ease;
+          border-radius: 10px;
+        }
+        .alert-row:hover {
+          background: #fff7ed;
+          box-shadow: 0 2px 8px rgba(232,124,39,0.12);
+          border-color: #fde68a;
+        }
+        .alert-row:hover .alert-arrow { opacity: 1; transform: translateX(2px); }
+        .alert-arrow {
+          opacity: 0;
+          transition: opacity 0.15s ease, transform 0.15s ease;
+          color: #e87c27;
+          display: flex;
+          align-items: center;
+        }
+
+        .dashboard-scroll-panel {
+          max-height: 320px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding-right: 4px;
+          margin-right: -4px;
+        }
+        .dashboard-scroll-panel::-webkit-scrollbar { width: 6px; }
+        .dashboard-scroll-panel::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 3px;
+        }
+        .dashboard-scroll-panel::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .dashboard-scroll-panel::-webkit-scrollbar-track { background: transparent; }
+
+        .dashboard-pair-card {
+          background: #fff;
+          border-radius: 14px;
+          padding: 16px 18px;
+          box-shadow: 0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05);
+          display: flex;
+          flex-direction: column;
+          min-height: 400px;
+          height: 100%;
+        }
+        .dashboard-pair-chart {
+          flex: 1;
+          min-height: 280px;
+          width: 100%;
+        }
+        .dashboard-pair-list {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          gap: 4px;
+          min-height: 280px;
+        }
+        .dashboard-pair-list-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex: 1;
+        }
+        .dashboard-pair-bar-track {
+          height: 14px;
+          background: #f3f4f6;
+          border-radius: 0;
+          overflow: hidden;
+        }
+        .dashboard-pair-bar-fill {
+          height: 100%;
+          border-radius: 0;
+        }
+
+        .notif-backdrop {
+          position: fixed; inset: 0; z-index: 1999; background: transparent;
+        }
+        .notif-panel {
+          position: absolute; top: calc(100% + 10px); right: 0;
+          width: min(420px, calc(100vw - 48px));
+          max-height: min(560px, calc(100vh - 96px));
+          background: #fff; border-radius: 14px;
+          box-shadow: 0 20px 50px rgba(0,0,0,0.14), 0 4px 14px rgba(0,0,0,0.08);
+          border: 1px solid #e5e7eb;
+          z-index: 2000;
+          display: flex; flex-direction: column; overflow: hidden;
+          animation: notifSlideIn 0.18s ease;
+        }
+        @keyframes notifSlideIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .notif-panel-body {
+          flex: 1; overflow-y: auto; min-height: 0; max-height: 400px;
+        }
+        .notif-panel-body::-webkit-scrollbar { width: 5px; }
+        .notif-panel-body::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        .notif-item-btn {
+          display: flex; align-items: center; gap: 12px; width: 100%;
+          padding: 12px 16px; border: none; border-bottom: 1px solid #f3f4f6;
+          background: #fff; cursor: pointer; text-align: left;
+          transition: background 0.15s ease;
+        }
+        .notif-item-btn:hover { background: #fff7ed; }
+        .notif-item-static {
+          display: flex; align-items: center; gap: 12px;
+          padding: 12px 16px; border-bottom: 1px solid #f3f4f6;
+        }
+        .notif-footer-btn {
+          display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+          padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer;
+          font-size: 11px; font-weight: 700; font-family: inherit;
+          transition: opacity 0.15s ease;
+        }
+        .notif-footer-btn:hover { opacity: 0.9; }
+        .notif-footer-primary {
+          flex: 1; background: #e87c27; color: #fff;
+        }
+        .notif-footer-secondary {
+          flex: 1; background: #fff; color: #374151; border: 1px solid #e5e7eb;
         }
 
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-
         @keyframes metricPulse {
           0%, 100% { transform: scale(1); opacity: 0.12; }
-          50% { transform: scale(1.15); opacity: 0.18; }
+          50% { transform: scale(1.1); opacity: 0.18; }
         }
       `}</style>
 
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
 
-        {/* ════════════════════════════════
-            SIDEBAR
-        ════════════════════════════════ */}
+        {/* ── SIDEBAR ── */}
         <aside
           className="sidebar-transition"
           style={{
-            width: sidebarWidth,
-            minWidth: sidebarWidth,
-            height: "100vh",
-            background: "#141C25",
-            display: "flex",
-            flexDirection: "column",
-            flexShrink: 0,
-            position: "relative",
+            width: sidebarWidth, minWidth: sidebarWidth, height: "100vh",
+            background: "#141C25", display: "flex", flexDirection: "column",
+            flexShrink: 0, position: "relative",
           }}
         >
-          {/* ── Logo + Toggle ── */}
           <div style={{
-            padding: "16px 14px 12px",
-            display: "flex",
-            alignItems: "center",
+            padding: "16px 14px 12px", display: "flex", alignItems: "center",
             justifyContent: sidebarOpen ? "space-between" : "center",
-            gap: 8,
-            minHeight: 64,
+            gap: 8, minHeight: 64,
           }}>
             {sidebarOpen && (
-              <img
-                src={Logo}
-                alt="TDT PowerSteel Logo"
-                style={{ width: "170px", height: "auto", display: "block", flexShrink: 0 }}
-              />
+              <img src={Logo} alt="TDT PowerSteel Logo"
+                style={{ width: "170px", height: "auto", display: "block", flexShrink: 0 }} />
             )}
-            <button
-              className="toggle-btn"
-              onClick={() => setSidebarOpen(v => !v)}
-              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            >
+            <button className="toggle-btn" onClick={() => setSidebarOpen(v => !v)}
+              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}>
               {sidebarOpen ? <IconChevronLeft size={14} /> : <IconChevronRight size={14} />}
             </button>
           </div>
 
-          {/* ── Divider ── */}
           <div style={{ height: 2, background: "#1e2a38", margin: "0 14px 12px" }} />
 
-          {/* ── MENU section label ── */}
           {sidebarOpen && (
             <p style={{
               fontSize: 12, fontWeight: 700, color: "#3d4f63",
               letterSpacing: "0.12em", textTransform: "uppercase",
               padding: "10px 20px 8px",
-            }}>
-              Menu
-            </p>
+            }}>Menu</p>
           )}
 
-          {/* ── Nav items ── */}
           <nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {menuItems.map(({ label, Icon, hasChildren }) => {
               const isActive      = activeNav === label;
@@ -518,14 +728,11 @@ export default function Dashboard() {
                       className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${isItemActive ? "active" : ""}`}
                       onClick={() => {
                         if (hasChildren) {
-                          if (sidebarOpen) {
-                            setStockExpanded(v => !v);
-                          } else {
-                            setSidebarOpen(true);
-                            setStockExpanded(true);
-                          }
+                          if (sidebarOpen) { setStockExpanded(v => !v); }
+                          else { setSidebarOpen(true); setStockExpanded(true); }
                           setActiveNav(label);
                         } else {
+                          if (label === "Product") setProductStatusFilter("All Status");
                           setActiveNav(label);
                         }
                       }}
@@ -538,8 +745,7 @@ export default function Dashboard() {
                             <span style={{
                               display: "flex",
                               transform: stockExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                              transition: "transform .22s ease",
-                              opacity: 0.6,
+                              transition: "transform .22s ease", opacity: 0.6,
                             }}>
                               <IconChevronDown size={13} />
                             </span>
@@ -549,15 +755,12 @@ export default function Dashboard() {
                     </button>
                   </NavTooltip>
 
-                  {/* Sub-items — only when expanded */}
                   {hasChildren && stockExpanded && sidebarOpen && (
                     <div style={{ animation: "slideDown .2s ease" }}>
                       {stockSubItems.map(({ label: subLabel, Icon: SubIcon }) => (
-                        <button
-                          key={subLabel}
+                        <button key={subLabel}
                           className={`sub-btn ${activeNav === subLabel ? "active" : ""}`}
-                          onClick={() => setActiveNav(subLabel)}
-                        >
+                          onClick={() => setActiveNav(subLabel)}>
                           <SubIcon size={15} />
                           {subLabel}
                         </button>
@@ -569,21 +772,16 @@ export default function Dashboard() {
             })}
           </nav>
 
-          {/* ── Divider ── */}
           <div style={{ height: 1, background: "#1e2a38", margin: "0 14px" }} />
 
-          {/* ── GENERAL section label ── */}
           {sidebarOpen && (
             <p style={{
               fontSize: 12, fontWeight: 700, color: "#3d4f63",
               letterSpacing: "0.12em", textTransform: "uppercase",
               padding: "12px 20px 8px",
-            }}>
-              GENERAL
-            </p>
+            }}>GENERAL</p>
           )}
 
-          {/* ── Settings + Help ── */}
           <div style={{ paddingBottom: 20 }}>
             <NavTooltip label="Settings" show={!sidebarOpen}>
               <button className={`nav-btn ${sidebarOpen ? "expanded" : ""}`}>
@@ -591,7 +789,6 @@ export default function Dashboard() {
                 {sidebarOpen && "Settings"}
               </button>
             </NavTooltip>
-
             <NavTooltip label="Help" show={!sidebarOpen}>
               <button className={`nav-btn ${sidebarOpen ? "expanded" : ""}`}>
                 <IconHelp size={22} />
@@ -601,9 +798,7 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        {/* ════════════════════════════════
-            MAIN COLUMN
-        ════════════════════════════════ */}
+        {/* ── MAIN COLUMN ── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100vh", overflow: "hidden" }}>
 
           {/* ── Header ── */}
@@ -616,49 +811,68 @@ export default function Dashboard() {
           }}>
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
-                {activeNav === "Product"             ? "List of SKU"
-                  : activeNav === "Ending Inventory"    ? "Ending Inventory"
-                  : activeNav === "Backload Inventory"  ? "Backload Inventory"
-                  : activeNav === "Advance Customer PO" ? "Advance Customer PO"
-                  : activeNav === "Return"               ? "Return"
-                  : activeNav === "Purchasing Order"     ? "List of Purchase Order"
-                  : activeNav === "Stock Sheets"         ? "Stock Sheets / SKU"
+                {activeNav === "Product"              ? "List of SKU"
+                  : activeNav === "Ending Inventory"  ? "Ending Inventory"
+                  : activeNav === "Stock Sheets"      ? "Stock Sheets"
+                  : activeNav === "Purchasing Order"  ? "Purchasing Orders"
+                  : activeNav === "Backload Inventory"? "Backload Inventory"
+                  : activeNav === "Advance Customer PO"?"Advance Customer PO"
+                  : activeNav === "Return"            ? "Returns"
                   : "Welcome Back, Chelsea!"}
               </h1>
-              {activeNav === "Product" && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Master list of all Stock Keeping Units</p>
-              )}
-              {activeNav === "Ending Inventory" && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Monthly Warehouse Inventory</p>
-              )}
-              {activeNav === "Backload Inventory" && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Inbound transfers and pending warehouse releases</p>
-              )}
-              {activeNav === "Advance Customer PO" && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
-                  Manila Warehouse as of {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                </p>
-              )}
-              {activeNav === "Return" && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Returns and credit memos</p>
-              )}
-              {activeNav === "Purchasing Order" && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Track all incoming purchase orders</p>
-              )}
-              {activeNav === "Stock Sheets" && (
-                <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Daily stock IN and OUT per product — Marilao Warehouse</p>
-              )}
+              {activeNav === "Product"               && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
+              {activeNav === "Ending Inventory"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>}
+              {activeNav === "Stock Sheets"          && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>}
+              {activeNav === "Purchasing Order"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>}
+              {activeNav === "Backload Inventory"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Track backloaded inventory</p>}
+              {activeNav === "Advance Customer PO"   && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Advance customer purchase orders</p>}
+              {activeNav === "Return"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <div style={{ position: "relative", color: "#374151", cursor: "pointer" }}>
-                <IconBell size={26} />
-                <span style={{
-                  position: "absolute", top: -6, right: -7,
-                  background: "#ef4444", color: "#fff", borderRadius: "50%",
-                  width: 18, height: 18, fontSize: 9, fontWeight: 800,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>9+</span>
+              {/* Bell — notification panel */}
+              <div style={{ position: "relative", zIndex: notificationsOpen ? 2001 : undefined }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotificationTab("all");
+                    setNotificationsOpen((v) => !v);
+                  }}
+                  title="Notifications"
+                  aria-expanded={notificationsOpen}
+                  aria-haspopup="dialog"
+                  style={{
+                    position: "relative", background: "none", border: "none", padding: 4,
+                    color: notificationsOpen ? "#e87c27" : "#374151",
+                    cursor: "pointer", display: "flex", alignItems: "center",
+                  }}
+                >
+                  <IconBell size={26} />
+                  {notificationCount > 0 && (
+                    <span style={{
+                      position: "absolute", top: -2, right: -4,
+                      background: "#ef4444", color: "#fff", borderRadius: "50%",
+                      minWidth: 18, height: 18, fontSize: 9, fontWeight: 800,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: "0 4px",
+                    }}>
+                      {notificationCount > 99 ? "99+" : notificationCount}
+                    </span>
+                  )}
+                </button>
+                <NotificationPanel
+                  open={notificationsOpen}
+                  onClose={() => setNotificationsOpen(false)}
+                  initialTab={notificationTab}
+                  stockAlerts={stockAlerts}
+                  lowStockRowCount={lowStockAll.length}
+                  recentActivity={notificationActivity}
+                  onViewLowStock={goToLowStock}
+                  onViewStockSheets={() => {
+                    setNotificationsOpen(false);
+                    setActiveNav("Stock Sheets");
+                  }}
+                />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                 <div style={{
@@ -685,169 +899,261 @@ export default function Dashboard() {
             display: "flex", flexDirection: "column",
           }}>
             {activeNav === "Product" ? (
-              <ProductPage />
+              <ProductPage
+                products={products}
+                setProducts={setProducts}
+                initialStatusFilter={productStatusFilter}
+              />
             ) : activeNav === "Ending Inventory" ? (
               <EndingInventoryPage />
+            ) : activeNav === "Stock Sheets" ? (
+              <StockSheetsPage />
+            ) : activeNav === "Purchasing Order" ? (
+              <PurchasingOrderPage />
             ) : activeNav === "Backload Inventory" ? (
               <BackloadInventoryPage />
             ) : activeNav === "Advance Customer PO" ? (
               <AdvanceCustomerPOPage />
             ) : activeNav === "Return" ? (
               <ReturnPage />
-            ) : activeNav === "Purchasing Order" ? (
-              <PurchasingOrderPage />
-            ) : activeNav === "Stock Sheets" ? (
-              <StockSheetsPage />
             ) : (
+              /* ══ HOME DASHBOARD ══ */
               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
-
-                {/* Date Range Filter */}
-                <div style={{ display: "flex", gap: 10 }}>
-                  {["Last 7 Days", "Last 30 Days", "Last 6 Months", "Last 1 Year", "Last 5 Years"].map(range => (
-                    <button
-                      key={range}
-                      onClick={() => setDateRange(range)}
-                      style={{
-                        padding: "10px 16px",
-                        border: dateRange === range ? "2px solid #e87c27" : "1px solid #d1d5db",
-                        borderRadius: 8,
-                        background: dateRange === range ? "#e87c27" : "#fff",
-                        color: dateRange === range ? "#fff" : "#374151",
-                        fontSize: 13, fontWeight: 600, cursor: "pointer",
-                        transition: "all 0.2s", fontFamily: "inherit",
-                      }}
-                      onMouseEnter={e => { if (dateRange !== range) e.target.style.background = "#f9fafb"; }}
-                      onMouseLeave={e => { if (dateRange !== range) e.target.style.background = "#fff"; }}
-                    >
-                      {range}
-                    </button>
-                  ))}
-                </div>
 
                 {/* Metric Cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
                   <MetricCard
-                    icon={<IconBox size={30} />} iconBg="#f0f4ff" iconColor="#3b82f6"
-                    label="Total List of SKU" value="231"
+                    icon={<IconBox size={34} />} iconBg="#f0f4ff" iconColor="#000000"
+                    label="Total List of SKU" value={products.length.toString()}
                     badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
-                    onClick={() => setActiveNav("Product")}
+                    onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
                   />
                   <MetricCard
-                    icon={<IconTruck size={28} />} iconBg="#fff7ed" iconColor="#f97316"
+                    icon={<IconTruck size={32} />} iconBg="#fff7ed" iconColor="#000000"
                     label="Total Pending Deliveries" value="13"
                     badge={{ text: "3 High Priority", color: "#d97706", bg: "#fef3c7", icon: <IconWarning size={12} /> }}
-                    onClick={() => { setActiveNav("Advance Customer PO"); setStockExpanded(true); }}
                   />
                   <MetricCard
-                    icon={<IconBarChart size={28} />} iconBg="#f0fdf4" iconColor="#22c55e"
+                    icon={<IconBarChart size={32} />} iconBg="#f0fdf4" iconColor="#000000"
                     label="Total Inventory Value" value="₱2.4M"
                     badge={{ text: "3.5% from last month", color: "#16a34a", bg: "transparent", iconEl: <IconTrendUp size={13} /> }}
-                    onClick={() => { setActiveNav("Ending Inventory"); setStockExpanded(true); }}
                   />
                   <MetricCard
-                    icon={<IconBag size={28} />} iconBg="#fdf4ff" iconColor="#a855f7"
-                    label="Transactions Today" value="48"
+                    icon={<IconBag size={32} />} iconBg="#fdf4ff" iconColor="#000000"
+                    label="Transactions Today" value={
+                      (() => {
+                        const today = new Date().toISOString().slice(0, 10);
+                        return String(
+                          stockIn.filter(t => t.date === today).length +
+                          stockOut.filter(t => t.date === today).length
+                        );
+                      })()
+                    }
                     badge={{ text: "0.8% from last month", color: "#dc2626", bg: "transparent", iconEl: <IconTrendDown size={13} /> }}
-                    onClick={() => setActiveNav("Purchasing Order")}
                   />
                 </div>
 
-                {/* Chart + Top Items */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 18 }}>
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px 18px", boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                {/* Chart + Top Released Items */}
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(300px, 34%)", gap: 18, alignItems: "stretch" }}>
+                  <div className="dashboard-pair-card">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
-                      <div style={{ display: "flex", gap: 20 }}>
-                        {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
-                          <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
-                            <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
-                            {l}
-                          </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {/* Date range selector */}
+                        {["Last 7 Days"].map(r => (
+                          <button key={r} onClick={() => setDateRange(r)} style={{
+                            padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                            borderRadius: 6, cursor: "pointer",
+                            border: dateRange === r ? "1px solid #e87c27" : "1px solid #e5e7eb",
+                            background: dateRange === r ? "#fff7ed" : "#fff",
+                            color: dateRange === r ? "#e87c27" : "#6b7280",
+                          }}>{r.replace("Last ", "")}</button>
                         ))}
                       </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <BarChart data={inventoryDataByRange[dateRange]} barCategoryGap="35%" barGap={4}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                        <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
-                        <Bar dataKey="stockIn"  fill="#e87c27" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="stockOut" fill="#52c4b0" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px", boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
-                    <p style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 18 }}>Top Released Items</p>
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      {topItems.map((item, i) => (
-                        <div key={i} style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                          padding: "12px 0",
-                          borderBottom: i < topItems.length - 1 ? "1px solid #f3f4f6" : "none",
-                        }}>
-                          <div style={{ flex: 1 }}>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>{item.name}</p>
-                            <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
-                              <div style={{
-                                height: "100%", width: `${item.pct}%`,
-                                background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
-                                borderRadius: 3,
-                              }} />
-                            </div>
-                          </div>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginLeft: 16, minWidth: 56, textAlign: "right" }}>
-                            {item.value}
-                          </span>
+                    <div style={{ display: "flex", gap: 16, marginBottom: 10, flexShrink: 0 }}>
+                      {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
+                        <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
+                          <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
+                          {l}
                         </div>
                       ))}
                     </div>
+                    <div className="dashboard-pair-chart">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={chartData}
+                          barCategoryGap="22%"
+                          barGap={5}
+                          margin={{ top: 8, right: 10, left: -6, bottom: 4 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                          <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                          <YAxis domain={[0, chartYMax]} tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} width={38} />
+                          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
+                          <Bar dataKey="stockIn"  fill="#e87c27" radius={0} maxBarSize={40} />
+                          <Bar dataKey="stockOut" fill="#52c4b0" radius={0} maxBarSize={40} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Top Released Items — from real stock-out data */}
+                  <div className="dashboard-pair-card">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Top Released Items</p>
+                      <button onClick={() => setActiveNav("Stock Sheets")} style={{
+                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+                      }}>
+                        View all <IconArrowRight size={12} />
+                      </button>
+                    </div>
+                    {topReleasedItems.length === 0 ? (
+                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No stock-out data yet</p>
+                    ) : (
+                      <div className="dashboard-pair-list">
+                        {topReleasedItems.map((item, i) => (
+                          <div key={i} className="dashboard-pair-list-row">
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {item.name}
+                              </p>
+                              <p style={{ fontSize: 10, color: "#9ca3af", marginBottom: 6 }}>{item.sku}</p>
+                              <div className="dashboard-pair-bar-track">
+                                <div
+                                  className="dashboard-pair-bar-fill"
+                                  style={{
+                                    width: `${item.pct}%`,
+                                    background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
+                                    minWidth: item.pct > 0 ? 4 : 0,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#111827", flexShrink: 0, minWidth: 52, textAlign: "right" }}>
+                              {item.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Alerts + Activity */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px", boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", marginBottom: 16 }}>Stocks alerts</p>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {stockAlerts.map((a, i) => (
-                        <div key={i} style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                          padding: "12px 16px", background: "#fafafa",
-                          borderRadius: 10, border: "1px solid #f3f4f6",
-                        }}>
-                          <div>
-                            <p style={{ fontSize: 13.5, fontWeight: 600, color: "#374151", marginBottom: 3 }}>{a.name}</p>
-                            <p style={{ fontSize: 11, color: "#9ca3af" }}>{a.sku}</p>
-                          </div>
+
+                  {/* ── Stock Alerts — from real low-stock products ── */}
+                  <div style={{
+                    background: "#fff", borderRadius: 14, padding: "24px",
+                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+                    display: "flex", flexDirection: "column", minHeight: 0,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>
+                        Stock Alerts
+                        {lowStockAll.length > 0 && (
                           <span style={{
-                            fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
-                            background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
-                          }}>
-                            Low stock
+                            marginLeft: 8, fontSize: 11, fontWeight: 700,
+                            background: "#fef3c7", color: "#d97706",
+                            padding: "2px 8px", borderRadius: 20,
+                          }} title={lowStockAll.length !== stockAlerts.length ? `${lowStockAll.length} rows, ${stockAlerts.length} unique SKUs` : undefined}>
+                            {stockAlerts.length}
+                            {lowStockAll.length !== stockAlerts.length ? ` (${lowStockAll.length} rows)` : ""}
                           </span>
-                        </div>
-                      ))}
+                        )}
+                      </p>
+                      <button onClick={goToLowStock} style={{
+                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+                      }}>
+                        View all <IconArrowRight size={12} />
+                      </button>
                     </div>
+
+                    {stockAlerts.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "24px 0" }}>
+                        <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
+                      </div>
+                    ) : (
+                      <div className="dashboard-scroll-panel" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {stockAlerts.map((a) => (
+                          <div
+                            key={a.sku}
+                            className="alert-row"
+                            onClick={goToLowStock}
+                            title={`Click to view ${a.sku} in Product page`}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {a.description.length > 36 ? a.description.slice(0, 36) + "…" : a.description}
+                              </p>
+                              <p style={{ fontSize: 11, color: "#9ca3af" }}>
+                                SKU: {a.sku} — {a.stock} unit{a.stock !== 1 ? "s" : ""} left
+                              </p>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 10 }}>
+                              <span style={{
+                                fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
+                                background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
+                              }}>
+                                Low stock
+                              </span>
+                              <span className="alert-arrow">
+                                <IconArrowRight size={14} />
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* hint text */}
+                    {stockAlerts.length > 0 && (
+                      <p style={{ fontSize: 10, color: "#d97706", marginTop: 12, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                        <span>↑</span> Click any alert to go to Product page
+                      </p>
+                    )}
                   </div>
 
-                  <div style={{ background: "#fff", borderRadius: 12, padding: 20, boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 14 }}>Recently activity</p>
-                    {recentActivity.map((a, i) => (
-                      <div key={i} style={{
-                        display: "flex", alignItems: "center", gap: 12,
-                        padding: "11px 0",
-                        borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
+                  {/* ── Recent Activity — from real stock transactions ── */}
+                  <div style={{
+                    background: "#fff", borderRadius: 14, padding: "24px",
+                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+                    display: "flex", flexDirection: "column", minHeight: 0,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Recent Activity</p>
+                      <button onClick={() => setActiveNav("Stock Sheets")} style={{
+                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
                       }}>
-                        <div style={{
-                          width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-                          background: a.type === "in" ? "#22c55e" : "#ef4444",
-                        }} />
-                        <span style={{ fontSize: 12, color: "#374151", flex: 1 }}>{a.text}</span>
-                        <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
+                        View all <IconArrowRight size={12} />
+                      </button>
+                    </div>
+                    {recentActivity.length === 0 ? (
+                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No recent transactions</p>
+                    ) : (
+                      <div className="dashboard-scroll-panel">
+                        {recentActivity.map((a, i) => (
+                        <div key={i} style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          padding: "11px 0",
+                          borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
+                        }}>
+                          <div style={{
+                            width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                            background: a.type === "in" ? "#22c55e" : "#ef4444",
+                          }} />
+                          <span style={{ fontSize: 12, color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {a.text}
+                          </span>
+                          <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
+                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -871,25 +1177,22 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
         position: "relative",
         background: "#fff",
         borderRadius: 18,
-        padding: "20px 20px 16px",
-        minHeight: 200,
+        padding: "20px 22px 16px",
+        minHeight: 188,
         overflow: "hidden",
-        boxShadow: "0px 39px 39px rgba(0,0,0,0.06), 0px 10px 21px rgba(0,0,0,0.08)",
-        display: "flex", flexDirection: "column", gap: 6,
+        boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+        display: "flex", flexDirection: "column", justifyContent: "space-between",
         cursor: onClick ? "pointer" : "default",
         transition: "transform 0.4s cubic-bezier(0.15, 0.83, 0.66, 1)",
       }}
-      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.04)"; }}
+      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.03)"; }}
       onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}
     >
-      {/* Radial glow background */}
       <div style={{
-        position: "absolute", inset: 0, borderRadius: 18,
+        position: "absolute", inset: 0, borderRadius: 16,
         background: `radial-gradient(ellipse at 80% 110%, ${iconBg} 0%, rgba(255,255,255,0) 65%)`,
         opacity: 0.7, pointerEvents: "none",
       }} />
-
-      {/* Large pulsing icon blob top-right */}
       <div style={{
         position: "absolute", right: -18, top: -22,
         width: 100, height: 100, borderRadius: "50%",
@@ -899,27 +1202,30 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
         transition: "opacity 0.3s ease",
         pointerEvents: "none",
       }} />
-
-      {/* Floating icon badge */}
       <div style={{
-        position: "absolute", right: 14, top: 14,
-        width: 44, height: 44, borderRadius: 12,
-        background: iconBg,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        color: iconColor, flexShrink: 0,
+        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+        gap: 10, position: "relative", zIndex: 2,
       }}>
-        {icon}
+        <p style={{ fontSize: 15, fontWeight: 700, color: "#6b7280", lineHeight: 1.35, flex: 1, paddingRight: 4 }}>
+          {label}
+        </p>
+        <div style={{
+          width: 48, height: 48, borderRadius: 12,
+          background: iconBg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: iconColor, flexShrink: 0,
+        }}>
+          {icon}
+        </div>
       </div>
-
-      {/* Content */}
-      <p style={{ fontSize: 15, fontWeight: 700, color: "#6b7280", lineHeight: 1.4, maxWidth: 120, position: "relative", zIndex: 2 }}>
-        {label}
-      </p>
-      <p style={{ fontSize: 30, fontWeight: 700, color: "#111827", letterSpacing: "-1px", lineHeight: 1, position: "relative", zIndex: 2, marginTop: 4 }}>
+      <p style={{
+        fontSize: 42, fontWeight: 800, color: "#111827", letterSpacing: "-1px",
+        lineHeight: 1, position: "relative", zIndex: 2, margin: "14px 0 8px",
+      }}>
         {value}
       </p>
       {badge && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative", zIndex: 2, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative", zIndex: 2 }}>
           {badge.icon && (
             <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: "#f59e0b" }}>
               {badge.icon}
@@ -927,7 +1233,7 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
           )}
           {badge.iconEl && <span style={{ color: badge.color, display: "flex" }}>{badge.iconEl}</span>}
           <span style={{
-            fontSize: 11, fontWeight: 600, color: badge.color,
+            fontSize: 12, fontWeight: 600, color: badge.color,
             background: badge.bg !== "transparent" ? badge.bg : "transparent",
             padding: badge.bg !== "transparent" ? "2px 8px" : "0",
             borderRadius: 20,

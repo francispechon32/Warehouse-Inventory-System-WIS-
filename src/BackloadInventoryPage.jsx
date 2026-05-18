@@ -1,5 +1,15 @@
-import { useState, useRef, useMemo } from "react";
-import { productSearchInputStyle, productSearchIconLeftStyle } from "./searchFieldStyles";
+import { useState, useRef, useMemo, useEffect } from "react";
+import PageToolbar from "./PageToolbar";
+import {
+  cellStr,
+  cellNum,
+  formatExcelDate,
+  findHeaderRowIndex,
+  pickCol,
+  rowHasData,
+  parseRowId,
+  readWorkbookSheet,
+} from "./excelImportUtils";
 
 /* ─── SEED DATA from Excel BACKLOAD INVENTORY sheet ── */
 const SEED_BACKLOAD = [
@@ -151,8 +161,88 @@ function EditableRow({ row, onSave, onCancel, idx }) {
   );
 }
 
+
+function useSheetJS() {
+  const [ready, setReady] = useState(!!window.XLSX);
+  useEffect(() => {
+    if (window.XLSX) { setReady(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => setReady(true);
+    document.head.appendChild(s);
+  }, []);
+  return ready;
+}
+
+function IconUpload2({ size = 16 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+}
+
+function exportBackload(rows) {
+  if (!window.XLSX) { alert("SheetJS not loaded."); return; }
+  const XLSX = window.XLSX;
+  const wb = XLSX.utils.book_new();
+  const headers = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Backload Inventory"],
+    ["LOCATION:", "MARILAO WAREHOUSE"],
+    ["AS OF:", new Date().toLocaleString()],
+    [],
+    ["TRANS NO.", "DATE", "DR #", "SKU", "ITEM", "QTY", "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "TOTAL QTY OUT", "QTY BALANCE", "AMOUNT BALANCE", "REMARKS", "STATUS"],
+  ];
+  const dataRows = rows.map(r => {
+    const qtyBal = r.qty - r.totalQtyOut;
+    const amtBal = r.unitCost * qtyBal;
+    return [r.id, r.date, r.drNo||"—", r.sku||"—", r.item, r.qty, r.unitCost, r.qty*r.unitCost, r.customerName, r.totalQtyOut, qtyBal, amtBal, r.remarks||"—", r.status];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
+  ws["!cols"] = [{wch:8},{wch:12},{wch:12},{wch:10},{wch:40},{wch:8},{wch:12},{wch:14},{wch:28},{wch:12},{wch:12},{wch:16},{wch:30},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws, "BACKLOAD INVENTORY");
+  XLSX.writeFile(wb, "TDT_WIS_Backload_Inventory.xlsx");
+}
+
+async function importBackload(file, onDone, onError) {
+  try {
+    const { raw } = await readWorkbookSheet(file, ["BACKLOAD"]);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    const parsed = [];
+
+    for (let i = dataStart; i < raw.length; i++) {
+      const r = raw[i];
+      if (!rowHasData(r)) continue;
+
+      const transOrId = cellStr(pickCol(r, headers, ["TRANS NO", "TRANS", "NO."], 0));
+      const item = cellStr(pickCol(r, headers, ["ITEM"], 4));
+      const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 8));
+      if (!transOrId && !item && !customer) continue;
+
+      parsed.push({
+        id: parseRowId(transOrId, parsed.length + 1),
+        date: formatExcelDate(pickCol(r, headers, ["DATE"], 1)),
+        drNo: cellStr(pickCol(r, headers, ["DR"], 2)),
+        sku: cellStr(pickCol(r, headers, ["SKU"], 3)),
+        item,
+        qty: cellNum(pickCol(r, headers, ["QTY"], 5)),
+        unitCost: cellNum(pickCol(r, headers, ["UNIT COST"], 6)),
+        customerName: customer,
+        totalQtyOut: cellNum(pickCol(r, headers, ["TOTAL QTY OUT", "QTY OUT"], 9)),
+        remarks: cellStr(pickCol(r, headers, ["REMARKS"], 12)),
+        status: cellStr(pickCol(r, headers, ["STATUS"], 13)) || "Pending",
+      });
+    }
+
+    if (!parsed.length) throw new Error("No data rows found. Check that TRANS NO / ITEM columns are filled.");
+    onDone(parsed);
+  } catch (err) {
+    onError(err.message || "Import failed.");
+  }
+}
+
 /* ─── MAIN PAGE ── */
 export default function BackloadInventoryPage() {
+  const xlsxReady = useSheetJS();
   const [data, setData] = useState(SEED_BACKLOAD);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -160,7 +250,31 @@ export default function BackloadInventoryPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [importing, setImporting] = useState(false);
   const nextId = useRef(SEED_BACKLOAD.length + 1);
+  const importFileRef = useRef(null);
+
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImporting(true);
+    importBackload(
+      file,
+      (parsed) => {
+        setImporting(false);
+        setData(parsed);
+        nextId.current = Math.max(...parsed.map((r) => r.id), 0) + 1;
+        setCurrentPage(1);
+        showToast(`Imported ${parsed.length} entries successfully.`);
+        e.target.value = "";
+      },
+      (err) => {
+        setImporting(false);
+        showToast(`Import failed: ${err}`, "error");
+        e.target.value = "";
+      }
+    );
+  };
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -218,32 +332,21 @@ export default function BackloadInventoryPage() {
         ))}
       </div>
 
-      {/* Search / Filter / Buttons Row */}
-      <div style={{ background: "#fff", borderRadius: 14, padding: "16px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ flex: 1, position: "relative", minWidth: 240, maxWidth: 480 }}>
-          <input
-            type="text"
-            placeholder="Search SKU or product name..."
-            value={searchQuery}
-            onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            style={productSearchInputStyle}
-          />
-          <span style={productSearchIconLeftStyle}><IconSearch size={16} /></span>
-        </div>
-        <div style={{ position: "relative", minWidth: 150 }}>
-          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-            style={{ padding: "11px 32px 11px 14px", fontSize: 14, border: "1px solid #b8bec9", borderRadius: 8, background: "#fff", color: "#111827", cursor: "pointer", fontFamily: "inherit", width: "100%", appearance: "none", fontWeight: 500, outline: "none", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" }}>
-            {["All Status", "Pending", "Partial", "Delivered"].map(s => <option key={s}>{s}</option>)}
-          </select>
-          <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-        </div>
-        <div style={{ background: "#e87c27", color: "#fff", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-          📅 {new Date().toLocaleDateString("en-PH", { month: "long", year: "numeric" })} ▾
-        </div>
-        <button onClick={() => setShowModal(true)} style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-          <IconPlus size={16} /> Start Backload Inventory
-        </button>
-      </div>
+      <PageToolbar
+        searchValue={searchQuery}
+        onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
+        filters={[
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "Pending", "Partial", "Delivered"], minWidth: 150 },
+        ]}
+        primaryAction={{ label: "Start Backload Inventory", onClick: () => setShowModal(true) }}
+        importExport={{
+          fileInputRef: importFileRef,
+          onFileChange: handleImport,
+          importing,
+          importDisabled: !xlsxReady,
+          onExport: () => exportBackload(data),
+        }}
+      />
 
       {/* Table */}
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
@@ -325,9 +428,6 @@ export default function BackloadInventoryPage() {
               <IconChevronRight size={14} />
             </button>
           </div>
-          <button style={{ padding: "8px 14px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-            <IconDownload size={14} /> Export WIS
-          </button>
         </div>
       </div>
 

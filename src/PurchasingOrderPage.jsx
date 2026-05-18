@@ -1,5 +1,14 @@
-import { useState, useMemo, useEffect } from "react";
-import { productSearchInputStyle, productSearchWrapStyle, productSearchIconLeftStyle } from "./searchFieldStyles";
+import { useState, useMemo, useRef, useEffect } from "react";
+import PageToolbar from "./PageToolbar";
+import {
+  cellStr,
+  cellNum,
+  formatExcelDate,
+  findHeaderRowIndex,
+  pickCol,
+  rowHasData,
+  readWorkbookSheet,
+} from "./excelImportUtils";
 
 const PAGE_SIZE = 8;
 
@@ -305,8 +314,122 @@ function lineValSum(lines) {
   return lines.reduce((s, L) => s + L.val, 0);
 }
 
+
+/* ─── SheetJS loader ── */
+function useSheetJS() {
+  const [ready, setReady] = useState(!!window.XLSX);
+  useEffect(() => {
+    if (window.XLSX) { setReady(true); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => setReady(true);
+    document.head.appendChild(s);
+  }, []);
+  return ready;
+}
+
+function IconUpload({ size = 16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
+
+/* ─── EXPORT ── */
+function exportToWis(rows) {
+  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
+  const XLSX = window.XLSX;
+  const wb = XLSX.utils.book_new();
+  const headers = [
+    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
+    ["Purchasing Orders"],
+    ["LOCATION:", "MARILAO WAREHOUSE"],
+    ["AS OF", new Date().toLocaleString()],
+    [],
+    ["NO.", "TRANS #", "PO DATE", "ETA", "PURCHASER", "TDT PO #", "VENDOR", "PRODUCT DESC", "DESTINATION", "METRIC TONS", "QTY PER PO", "STATUS"],
+  ];
+  const dataRows = rows.map((r, i) => [i+1, r.transNo, r.poDate, r.eta, r.purchaser, r.tdtPo, r.vendor, r.productDesc, r.destination, r.metricTons, r.qtyPerPo, r.status]);
+  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
+  ws["!cols"] = [{wch:5},{wch:8},{wch:12},{wch:12},{wch:18},{wch:16},{wch:20},{wch:45},{wch:20},{wch:12},{wch:12},{wch:12}];
+  const numCols = ws["!cols"].length;
+  // Style header row 6
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(0, numCols).split("").forEach(c => {
+    const addr = `${c}6`;
+    if (ws[addr]) ws[addr].s = { font: { bold: true, sz: 9, color: { rgb: "FFFFFF" }, name: "Arial" }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center", wrapText: true } };
+  });
+  // Style title rows
+  ["A1","A2","A3","B3","A4","B4"].forEach(cell => {
+    if (ws[cell]) ws[cell].s = { font: { bold: true, sz: 13, name: "Arial" }, alignment: { horizontal: "left" } };
+  });
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, "PURCHASING ORDER");
+  XLSX.writeFile(wb, "TDT_WIS_Purchasing_Order_Export.xlsx");
+}
+
+/* ─── IMPORT parser ── */
+async function importPurchaseOrders(file, onDone, onError) {
+  try {
+    const { raw } = await readWorkbookSheet(file, ["PURCHASING"]);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    const parsed = [];
+
+    for (let i = dataStart; i < raw.length; i++) {
+      const r = raw[i];
+      if (!rowHasData(r)) continue;
+
+      let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 1));
+      let poDate = formatExcelDate(pickCol(r, headers, ["PO DATE", "DATE"], 2));
+      const col0 = cellStr(r[0]);
+      const col1 = r[1];
+      if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
+        transNo = col0;
+        poDate = formatExcelDate(col1);
+      }
+      const productDesc = cellStr(pickCol(r, headers, ["PRODUCT"], 7));
+      const vendor = cellStr(pickCol(r, headers, ["VENDOR", "SUPPLIER"], 6));
+      if (!transNo && !productDesc && !vendor) continue;
+
+      parsed.push({
+        id: parsed.length + 1,
+        transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
+        poDate,
+        eta: formatExcelDate(pickCol(r, headers, ["ETA"], 3)),
+        purchaser: cellStr(pickCol(r, headers, ["PURCHASER", "NAME OF PURCHASER"], 4)),
+        tdtPo: cellStr(pickCol(r, headers, ["TDT PO", "PURCHASE ORDER"], 5)),
+        vendor,
+        productDesc,
+        destination: cellStr(pickCol(r, headers, ["DESTINATION"], 8)),
+        tradingOrStocks: "Stocks",
+        warehouseType: "Stocks",
+        metricTons: cellNum(pickCol(r, headers, ["METRIC TONS", "METRIC"], 9)),
+        qtyPerPo: cellNum(pickCol(r, headers, ["QTY"], 10)),
+        weight: "—",
+        status: cellStr(pickCol(r, headers, ["STATUS"], 11)) || "Pending",
+        txnNo: "",
+        lineItems: [],
+      });
+    }
+
+    if (!parsed.length) throw new Error("No data rows found. Fill TRANS # or product/vendor columns.");
+    onDone(parsed);
+  } catch (err) {
+    onError(err.message || "Import failed.");
+  }
+}
+
 export default function PurchasingOrderPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [orders, setOrders] = useState(SEED_PURCHASE_ORDERS);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const xlsxReady = useSheetJS();
+  const importRef = useRef(null);
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [supplierFilter, setSupplierFilter] = useState("All Suppliers");
   const [currentPage, setCurrentPage] = useState(1);
@@ -314,7 +437,7 @@ export default function PurchasingOrderPage() {
   const [selectedId, setSelectedId] = useState(null);
 
   const filtered = useMemo(() => {
-    let rows = SEED_PURCHASE_ORDERS;
+    let rows = orders;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       rows = rows.filter(
@@ -330,7 +453,7 @@ export default function PurchasingOrderPage() {
     if (statusFilter !== "All Status") rows = rows.filter((r) => r.status === statusFilter);
     if (supplierFilter !== "All Suppliers") rows = rows.filter((r) => r.vendor === supplierFilter);
     return rows;
-  }, [searchQuery, statusFilter, supplierFilter]);
+  }, [orders, searchQuery, statusFilter, supplierFilter]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -341,7 +464,7 @@ export default function PurchasingOrderPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const selected = selectedId != null ? SEED_PURCHASE_ORDERS.find((r) => r.id === selectedId) : null;
+  const selected = selectedId != null ? orders.find((r) => r.id === selectedId) : null;
   const panelBadge = selected ? (STATUS_BADGE[selected.status] || STATUS_BADGE.Pending) : STATUS_BADGE.Pending;
 
   const totalSeed = 218;
@@ -349,46 +472,47 @@ export default function PurchasingOrderPage() {
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
-      <div style={{ background: "#fff", borderRadius: 14, padding: "16px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ ...productSearchWrapStyle, flex: "1 1 280px", maxWidth: 520 }}>
-            <input
-              type="text"
-              placeholder="Search PO# or vendor..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              style={productSearchInputStyle}
-            />
-            <span style={productSearchIconLeftStyle}><IconSearch size={16} /></span>
-          </div>
-          <div style={{ position: "relative", minWidth: 140, flex: "0 1 140px" }}>
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }} style={selectSt}>
-              {STATUS_OPTS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-          </div>
-          <div style={{ position: "relative", minWidth: 160, flex: "0 1 160px" }}>
-            <select value={supplierFilter} onChange={(e) => { setSupplierFilter(e.target.value); setCurrentPage(1); }} style={selectSt}>
-              {SUPPLIER_OPTS.map((o) => <option key={o}>{o}</option>)}
-            </select>
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}><IconChevronDown size={14} /></span>
-          </div>
-          <button type="button" style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-            <IconPlus size={16} />
-            Create Purchase Order
-          </button>
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 14, flexWrap: "wrap" }}>
-          <button type="button" style={{ padding: "10px 16px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-            <IconCalendar size={16} />
-            April 5, 2026 – May 5, 2026
-          </button>
-          <button type="button" style={{ padding: "10px 16px", border: "1px solid #b8bec9", borderRadius: 8, background: "#fff", cursor: "pointer", color: "#374151", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)" }}>
-            <IconDownload size={16} />
-            Export WIS
-          </button>
-        </div>
-      </div>
+      <PageToolbar
+        searchValue={searchQuery}
+        searchPlaceholder="Search PO# or vendor..."
+        onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
+        filters={[
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: STATUS_OPTS, minWidth: 140 },
+          { key: "supplier", value: supplierFilter, onChange: (v) => { setSupplierFilter(v); setCurrentPage(1); }, options: SUPPLIER_OPTS, minWidth: 160 },
+        ]}
+        primaryAction={{ label: "Create Purchase Order", onClick: () => {} }}
+        importExport={{
+          fileInputRef: importRef,
+          onFileChange: (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setImporting(true);
+            importPurchaseOrders(
+              file,
+              (parsed) => {
+                setImporting(false);
+                setOrders(parsed);
+                setCurrentPage(1);
+                setSelectedId(null);
+                setPanelOpen(false);
+                showToast(`Imported ${parsed.length} purchase orders successfully.`);
+                e.target.value = "";
+              },
+              (err) => {
+                setImporting(false);
+                showToast(`Import failed: ${err}`, "error");
+                e.target.value = "";
+              }
+            );
+          },
+          importing,
+          importDisabled: !xlsxReady,
+          onExport: () => {
+            if (!xlsxReady) { showToast("SheetJS not ready yet.", "error"); return; }
+            exportToWis(orders);
+          },
+        }}
+      />
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
@@ -513,6 +637,12 @@ export default function PurchasingOrderPage() {
             </div>
           </aside>
         </>
+      )}
+
+      {toast && (
+        <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type === "error" ? "#dc2626" : "#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+          {toast.msg}
+        </div>
       )}
     </div>
   );
