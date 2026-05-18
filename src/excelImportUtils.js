@@ -82,6 +82,21 @@ export function parseRowId(v, fallback) {
   return fallback;
 }
 
+/** Skip WIS title/metadata/header rows that are not real products. */
+export function isInvalidProductRow(sku, description = "") {
+  const s = cellStr(sku).toUpperCase();
+  const d = cellStr(description).toUpperCase();
+  if (!s) return true;
+  if (s === "SKU CODE" || s === "NO." || s === "NO") return true;
+  if (d === "PRODUCT DESCRIPTION" || s === "PRODUCT DESCRIPTION") return true;
+  if (d === "CATEGORY" || s === "CATEGORY" || s === "UNIT" || s === "STATUS") return true;
+  if (s.includes("WAREHOUSE") || s.includes("TDT WAREHOUSE") || s.includes("LIST OF SKU")) return true;
+  if (s.includes("LOCATION") || s.startsWith("AS OF") || d.includes("LOCATION")) return true;
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)) return true;
+  if (/\d{1,2}:\d{2}/.test(s)) return true;
+  return false;
+}
+
 export function readWorkbookSheet(file, sheetMatchers) {
   return new Promise((resolve, reject) => {
     if (!window.XLSX) {

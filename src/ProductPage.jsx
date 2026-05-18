@@ -1,7 +1,23 @@
 import { useState, useRef, useEffect } from "react";
 import PageToolbar from "./PageToolbar";
+import {
+  cellStr,
+  cellNum,
+  findHeaderRowIndex,
+  pickCol,
+  rowHasData,
+  readWorkbookSheet,
+  isInvalidProductRow,
+} from "./excelImportUtils";
+import {
+  dedupeProductsBySku,
+  deriveProductStatus,
+  getLowStockProducts,
+  isLowStock,
+  syncProductsStatus,
+} from "./productUtils";
 
-/* ─── SAMPLE DATA ─────────────────────────────────────────── */
+/* ─── FALLBACK SAMPLE DATA (used only if no props passed) ── */
 const sampleProducts = [
   { id: 1,  sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33",                                 category: "Deformed Round Bar", unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
   { id: 2,  sku: "DRB008", description: "Deformed Round Bar, 12mm x 6M g33",                                 category: "Deformed Round Bar", unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
@@ -43,6 +59,14 @@ function IconUpload({ size = 16 }) {
 function IconPlus({ size = 16 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
 }
+function IconWarning({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+  );
+}
 
 /* ─── SHEETJS LOADER ─────────────────────────────────────── */
 function useSheetJS() {
@@ -70,10 +94,12 @@ function exportProducts(rows) {
     [],
     ["NO.", "SKU CODE", "PRODUCT DESCRIPTION", "CATEGORY", "UNIT", "CURRENT STOCK", "AVG COST", "TOTAL VALUE", "STATUS"],
   ];
-  const dataRows = rows.map((r, i) => [i + 1, r.sku, r.description, r.category, r.unit, r.stock, r.avgCost, r.totalValue, r.status]);
+  const dataRows = rows.map((r, i) => [
+    i + 1, r.sku, r.description, r.category, r.unit, r.stock, r.avgCost, r.totalValue,
+    deriveProductStatus(r.stock),
+  ]);
   const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
   ws["!cols"] = [{wch:5},{wch:12},{wch:55},{wch:22},{wch:6},{wch:14},{wch:12},{wch:14},{wch:10}];
-  // Style header row
   const hStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center" } };
   ["A6","B6","C6","D6","E6","F6","G6","H6","I6"].forEach(c => {
     if (!ws[c]) ws[c] = { v: "" };
@@ -87,62 +113,95 @@ function exportProducts(rows) {
 }
 
 /* ─── IMPORT ─────────────────────────────────────────────── */
-function importProducts(file, onDone, onError) {
-  if (!window.XLSX) { onError("SheetJS not loaded."); return; }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
-      const ws = wb.Sheets["LIST OF SKU"] || wb.Sheets[wb.SheetNames[0]];
-      if (!ws) throw new Error("No valid sheet found.");
-      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      let start = 0;
-      for (let i = 0; i < Math.min(raw.length, 10); i++) {
-        if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("SKU"))) { start = i + 1; break; }
-      }
-      const parsed = [];
-      for (let i = start; i < raw.length; i++) {
-        const r = raw[i]; if (!r || !r[1]) continue;
-        parsed.push({
-          id: i, sku: String(r[1]||"").trim(), description: String(r[2]||"").trim(),
-          category: String(r[3]||"").trim(), unit: String(r[4]||"pcs").trim(),
-          stock: parseFloat(r[5])||0, avgCost: parseFloat(r[6])||0,
-          totalValue: parseFloat(r[7])||0, status: String(r[8]||"Active").trim(),
-        });
-      }
-      if (!parsed.length) throw new Error("No data rows found.");
-      onDone(parsed);
-    } catch(err) { onError(err.message); }
-  };
-  reader.readAsArrayBuffer(file);
+async function importProducts(file, onDone, onError) {
+  try {
+    const { raw } = await readWorkbookSheet(file, ["LIST OF SKU", "SKU"]);
+    const headerIdx = findHeaderRowIndex(raw, ["SKU CODE", "PRODUCT DESCRIPTION"], 20);
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    const parsed = [];
+
+    for (let i = dataStart; i < raw.length; i++) {
+      const r = raw[i];
+      if (!rowHasData(r)) continue;
+
+      const sku = cellStr(pickCol(r, headers, ["SKU CODE", "SKU"], 1));
+      const description = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 2));
+      if (isInvalidProductRow(sku, description)) continue;
+
+      const stock = cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 5));
+      const avgCost = cellNum(pickCol(r, headers, ["AVG COST", "AVERAGE"], 6));
+      const totalValue = cellNum(pickCol(r, headers, ["TOTAL VALUE", "TOTAL"], 7)) || stock * avgCost;
+
+      parsed.push({
+        id: parsed.length + 1,
+        sku,
+        description,
+        category: cellStr(pickCol(r, headers, ["CATEGORY"], 3)) || "Uncategorized",
+        unit: cellStr(pickCol(r, headers, ["UNIT"], 4)) || "pcs",
+        stock,
+        avgCost,
+        totalValue,
+        status: deriveProductStatus(stock),
+      });
+    }
+
+    if (!parsed.length) throw new Error("No product rows found. Use Export WIS template or check SKU column.");
+    onDone(dedupeProductsBySku(parsed));
+  } catch (err) {
+    onError(err.message || "Import failed.");
+  }
 }
 
-export default function ProductPage() {
+/* ─── PRODUCT PAGE ───────────────────────────────────────── */
+/**
+ * Props:
+ *   products    – shared product list from Dashboard (optional)
+ *   setProducts – setter for shared product list (optional)
+ *   initialStatusFilter – pre-select status filter, e.g. "Low Stock" (optional)
+ */
+export default function ProductPage({ products: propProducts, setProducts: propSetProducts, initialStatusFilter = "All Status" }) {
   const xlsxReady = useSheetJS();
-  const [products, setProducts] = useState(sampleProducts);
-  const [searchQuery, setSearchQuery] = useState("");
+
+  // If no props passed (standalone use), manage local state
+  const [localProducts, setLocalProducts] = useState(() => syncProductsStatus(sampleProducts));
+  const products    = propProducts    ?? localProducts;
+  const setProducts = propSetProducts ?? setLocalProducts;
+
+  const [searchQuery, setSearchQuery]     = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
-  const [statusFilter, setStatusFilter] = useState("All Status");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [importing, setImporting] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [statusFilter, setStatusFilter]   = useState(initialStatusFilter);
+  const [currentPage, setCurrentPage]     = useState(1);
+  const [importing, setImporting]         = useState(false);
+  const [toast, setToast]                 = useState(null);
   const fileInputRef = useRef(null);
   const itemsPerPage = 8;
+
+  // If navigated here with a pre-set filter, apply it on mount
+  useEffect(() => {
+    setStatusFilter(initialStatusFilter);
+    setCurrentPage(1);
+  }, [initialStatusFilter]);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   const filtered = products.filter(p => {
     const q = searchQuery.toLowerCase();
     const matchSearch = !q || p.sku.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
-    const matchCat = categoryFilter === "All Categories" || p.category === categoryFilter;
-    const matchSt = statusFilter === "All Status" || p.status === statusFilter;
+    const matchCat    = categoryFilter === "All Categories" || p.category === categoryFilter;
+    const matchSt     = statusFilter === "All Status"
+      || (statusFilter === "Low Stock" ? isLowStock(p) : statusFilter === "Active" ? !isLowStock(p) : p.status === statusFilter);
     return matchSearch && matchCat && matchSt;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  const startIdx = (currentPage - 1) * itemsPerPage;
+  const totalPages    = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const startIdx      = (currentPage - 1) * itemsPerPage;
   const paginatedItems = filtered.slice(startIdx, startIdx + itemsPerPage);
-  const categories = ["All Categories", ...new Set(products.map(p => p.category))];
+  const categories    = ["All Categories", ...new Set(products.map(p => p.category))];
+
+  // Count low-stock items for the banner
+  const lowStockCount = getLowStockProducts(products).length;
+  const duplicateSkuCount = products.length - new Set(products.map((p) => (p.sku || "").trim().toUpperCase()).filter(Boolean)).size;
 
   const handleImport = (e) => {
     const file = e.target.files[0]; if (!file) return;
@@ -160,12 +219,42 @@ export default function ProductPage() {
 
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
+
+      {/* ── Low-stock banner when filter is active ── */}
+      {statusFilter === "Low Stock" && lowStockCount > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          background: "#fffbeb", border: "1px solid #fde68a",
+          borderRadius: 10, padding: "12px 18px",
+        }}>
+          <span style={{ color: "#d97706", display: "flex" }}><IconWarning size={18} /></span>
+          <p style={{ fontSize: 13, color: "#92400e", fontWeight: 600 }}>
+            {lowStockCount} item{lowStockCount > 1 ? "s" : ""} with low stock — review and reorder as needed.
+            {duplicateSkuCount > 0 && (
+              <span style={{ display: "block", fontWeight: 500, marginTop: 4, fontSize: 12 }}>
+                Note: {duplicateSkuCount} duplicate SKU{duplicateSkuCount > 1 ? "s" : ""} in the list — import merges rows with the same SKU.
+              </span>
+            )}
+          </p>
+          <button
+            onClick={() => { setStatusFilter("All Status"); setCurrentPage(1); }}
+            style={{
+              marginLeft: "auto", fontSize: 12, color: "#92400e",
+              background: "none", border: "1px solid #fcd34d",
+              borderRadius: 6, padding: "4px 12px", cursor: "pointer", fontWeight: 600,
+            }}
+          >
+            Show all items
+          </button>
+        </div>
+      )}
+
       <PageToolbar
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
           { key: "category", value: categoryFilter, onChange: (v) => { setCategoryFilter(v); setCurrentPage(1); }, options: categories, minWidth: 160 },
-          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "Active", "Low Stock"], minWidth: 140 },
+          { key: "status",   value: statusFilter,   onChange: (v) => { setStatusFilter(v);   setCurrentPage(1); }, options: ["All Status", "Active", "Low Stock"], minWidth: 140 },
         ]}
         primaryAction={{ label: "Add Item", onClick: () => {} }}
         showDateRange={false}
@@ -184,46 +273,116 @@ export default function ProductPage() {
             <thead>
               <tr style={{ background: "#1c2235" }}>
                 {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS"].map(h => (
-                  <th key={h} style={{ padding: "16px 20px", textAlign: ["CURRENT STOCK","AVG COST","TOTAL VALUE"].includes(h)?"right":"left", color: "#fff", fontWeight: 700, fontSize: 12 }}>{h}</th>
+                  <th key={h} style={{
+                    padding: "16px 20px",
+                    textAlign: ["CURRENT STOCK","AVG COST","TOTAL VALUE"].includes(h) ? "right" : "left",
+                    color: "#fff", fontWeight: 700, fontSize: 12,
+                  }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {paginatedItems.map((product, idx) => (
-                <tr key={product.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}
+              {paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                    No items match your search or filter.
+                  </td>
+                </tr>
+              ) : paginatedItems.map((product, idx) => {
+                const low = isLowStock(product);
+                const displayStatus = deriveProductStatus(product.stock);
+                return (
+                <tr
+                  key={product.id}
+                  style={{
+                    borderBottom: "1px solid #f3f4f6",
+                    background: low
+                      ? (idx % 2 === 0 ? "#fffdf5" : "#fffbeb")
+                      : (idx % 2 === 0 ? "#fff" : "#fafafa"),
+                  }}
                   onMouseEnter={(e) => e.currentTarget.style.background = "#f5f9ff"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fafafa"}>
+                  onMouseLeave={(e) => e.currentTarget.style.background =
+                    low
+                      ? (idx % 2 === 0 ? "#fffdf5" : "#fffbeb")
+                      : (idx % 2 === 0 ? "#fff" : "#fafafa")
+                  }
+                >
                   <td style={{ padding: "14px 20px", color: "#374151", fontWeight: 600 }}>{product.sku}</td>
                   <td style={{ padding: "14px 20px", color: "#374151", fontSize: 12 }}>{product.description}</td>
                   <td style={{ padding: "14px 20px", color: "#6b7280", fontSize: 12 }}>{product.category}</td>
                   <td style={{ padding: "14px 20px", color: "#374151" }}>{product.unit}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>{product.stock.toLocaleString()}</td>
+                  <td style={{
+                    padding: "14px 20px", textAlign: "right",
+                    color: low ? "#d97706" : "#374151",
+                    fontWeight: low ? 700 : 400,
+                  }}>
+                    {product.stock.toLocaleString()}
+                    {low && (
+                      <span style={{ marginLeft: 6, color: "#d97706" }}><IconWarning size={12} /></span>
+                    )}
+                  </td>
                   <td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>₱{product.avgCost.toFixed(2)}</td>
                   <td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>₱{product.totalValue.toFixed(2)}</td>
                   <td style={{ padding: "14px 20px", textAlign: "center" }}>
-                    <span style={{ padding: "4px 12px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: product.status === "Active" ? "#dcfce7" : "#fef3c7", color: product.status === "Active" ? "#16a34a" : "#d97706" }}>{product.status}</span>
+                    <span style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      whiteSpace: "nowrap",
+                      padding: "4px 12px",
+                      borderRadius: 12,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      lineHeight: 1.2,
+                      background: displayStatus === "Active" ? "#dcfce7" : "#fef3c7",
+                      color: displayStatus === "Active" ? "#16a34a" : "#d97706",
+                    }}>
+                      {displayStatus}
+                    </span>
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
-          <span style={{ fontSize: 12, color: "#6b7280" }}>Showing {startIdx + 1} to {Math.min(startIdx + itemsPerPage, filtered.length)} of {filtered.length} SKUs</span>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 24px", borderTop: "1px solid #f3f4f6",
+          background: "#fafafa", flexWrap: "wrap", gap: 10,
+        }}>
+          <span style={{ fontSize: 12, color: "#6b7280" }}>
+            Showing {filtered.length === 0 ? 0 : startIdx + 1} to {Math.min(startIdx + itemsPerPage, filtered.length)} of {filtered.length} SKUs
+            {statusFilter === "Low Stock" && (
+              <span style={{ marginLeft: 8, color: "#d97706", fontWeight: 600 }}>· {lowStockCount} Low Stock</span>
+            )}
+          </span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
-              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===1?"not-allowed":"pointer", opacity: currentPage===1?0.5:1 }}>
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===1?"not-allowed":"pointer", opacity: currentPage===1?0.5:1 }}
+            >
               <IconChevronLeft size={16} />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
               <button key={page} onClick={() => setCurrentPage(page)}
-                style={{ width: 32, height: 32, border: page===currentPage?"1px solid #e87c27":"1px solid #e5e7eb", borderRadius: 6, background: page===currentPage?"#e87c27":"#fff", color: page===currentPage?"#fff":"#374151", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                style={{
+                  width: 32, height: 32,
+                  border: page===currentPage ? "1px solid #e87c27" : "1px solid #e5e7eb",
+                  borderRadius: 6,
+                  background: page===currentPage ? "#e87c27" : "#fff",
+                  color: page===currentPage ? "#fff" : "#374151",
+                  cursor: "pointer", fontSize: 12, fontWeight: 600,
+                }}>
                 {page}
               </button>
             ))}
-            <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}
-              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.5:1 }}>
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.5:1 }}
+            >
               <IconChevronRight size={16} />
             </button>
           </div>
@@ -231,7 +390,12 @@ export default function ProductPage() {
       </div>
 
       {toast && (
-        <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type==="error"?"#dc2626":"#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+        <div style={{
+          position: "fixed", bottom: 28, right: 28, zIndex: 9999,
+          background: toast.type==="error" ? "#dc2626" : "#16a34a",
+          color: "#fff", borderRadius: 10, padding: "12px 20px",
+          fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+        }}>
           {toast.msg}
         </div>
       )}

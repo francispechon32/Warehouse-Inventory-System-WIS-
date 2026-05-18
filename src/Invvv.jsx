@@ -11,71 +11,51 @@ import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
 import BackloadInventoryPage from "./BackloadInventoryPage";
 import ReturnPage from "./ReturnPage";
 import Logo from "./assets/Untitled_design.svg";
+import {
+  getLowStockProducts,
+  getUniqueStockAlerts,
+  syncProductsStatus,
+} from "./productUtils";
 
-/* ─── DATA ─────────────────────────────────────────────── */
-const inventoryDataByRange = {
-  "Last 7 Days": [
-    { day: "Mon",   stockIn: 320, stockOut: 180 },
-    { day: "Tues",  stockIn: 460, stockOut: 310 },
-    { day: "Wed",   stockIn: 260, stockOut: 260 },
-    { day: "Thurs", stockIn: 510, stockOut: 200 },
-    { day: "Fri",   stockIn: 300, stockOut: 290 },
-    { day: "Sat",   stockIn: 180, stockOut: 100 },
-    { day: "Sun",   stockIn: 310, stockOut: 290 },
-  ],
-  "Last 30 Days": [
-    { day: "Week 1", stockIn: 2240, stockOut: 1340 },
-    { day: "Week 2", stockIn: 2680, stockOut: 1820 },
-    { day: "Week 3", stockIn: 1950, stockOut: 1560 },
-    { day: "Week 4", stockIn: 2120, stockOut: 1680 },
-  ],
-  "Last 6 Months": [
-    { day: "Jan", stockIn: 8500, stockOut: 6200 },
-    { day: "Feb", stockIn: 7800, stockOut: 5900 },
-    { day: "Mar", stockIn: 9200, stockOut: 7100 },
-    { day: "Apr", stockIn: 8900, stockOut: 6800 },
-    { day: "May", stockIn: 9600, stockOut: 7400 },
-    { day: "Jun", stockIn: 8200, stockOut: 6500 },
-  ],
-  "Last 1 Year": [
-    { day: "Jan", stockIn: 8500, stockOut: 6200 },
-    { day: "Feb", stockIn: 7800, stockOut: 5900 },
-    { day: "Mar", stockIn: 9200, stockOut: 7100 },
-    { day: "Apr", stockIn: 8900, stockOut: 6800 },
-    { day: "May", stockIn: 9600, stockOut: 7400 },
-    { day: "Jun", stockIn: 8200, stockOut: 6500 },
-    { day: "Jul", stockIn: 9100, stockOut: 7200 },
-    { day: "Aug", stockIn: 8700, stockOut: 6900 },
-    { day: "Sep", stockIn: 9300, stockOut: 7500 },
-    { day: "Oct", stockIn: 8800, stockOut: 6700 },
-    { day: "Nov", stockIn: 9500, stockOut: 7600 },
-    { day: "Dec", stockIn: 9900, stockOut: 8000 },
-  ],
-  "Last 5 Years": [
-    { day: "2020", stockIn: 95000,  stockOut: 75000 },
-    { day: "2021", stockIn: 102000, stockOut: 81000 },
-    { day: "2022", stockIn: 115000, stockOut: 92000 },
-    { day: "2023", stockIn: 108000, stockOut: 86000 },
-    { day: "2024", stockIn: 120000, stockOut: 95000 },
-  ],
-};
-
-const topItems = [
-  { name: "Angle bar 10mm",   value: "₱105K", pct: 55 },
-  { name: "Round bar 12mm",   value: "₱95K",  pct: 50 },
-  { name: "Steel bar 10mm",   value: "₱190K", pct: 100 },
-  { name: "Channel bar 10mm", value: "₱145K", pct: 76 },
-  { name: "Wide flange 10mm", value: "₱160K", pct: 84 },
+/* ─── SHARED PRODUCT DATA (source of truth) ──────────────── */
+const INITIAL_PRODUCTS = [
+  { id: 1,  sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33",                                 category: "Deformed Round Bar", unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 2,  sku: "DRB008", description: "Deformed Round Bar, 12mm x 6M g33",                                 category: "Deformed Round Bar", unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 3,  sku: "DRB009", description: "Deformed Round Bar, 16mm x 6M g33",                                 category: "Deformed Round Bar", unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 4,  sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40",                                 category: "Deformed Round Bar", unit: "pcs", stock: 1557, avgCost: 136.60,  totalValue: 212886.42,  status: "Active"   },
+  { id: 5,  sku: "DRB051", description: "Deformed Round Bar, 12mm x 6M g40",                                 category: "Deformed Round Bar", unit: "pcs", stock: 1,    avgCost: 186.38,  totalValue: 186.38,     status: "Low Stock"},
+  { id: 6,  sku: "DRB052", description: "Deformed Round Bar, 16mm x 6M g40",                                 category: "Deformed Round Bar", unit: "pcs", stock: 1225, avgCost: 346.73,  totalValue: 424744.25,  status: "Active"   },
+  { id: 7,  sku: "SHPT2",  description: "Sheet Pile, T2, 400mm x 100mm x 10.5mm x 48kg/m x 12M (576 kilos)",category: "Sheet Pile",          unit: "pcs", stock: 560,  avgCost: 22529.66,totalValue: 12616609.60, status: "Active"   },
+  { id: 8,  sku: "MSP010", description: "MS Plate, 6mm x 4' x 8'",                                          category: "MS Plate",            unit: "pcs", stock: 322,  avgCost: 554.79,  totalValue: 178642.38,  status: "Active"   },
+  { id: 9,  sku: "MSP018", description: "MS Plate, 12mm x 4' x 8'",                                         category: "MS Plate",            unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 10, sku: "SKU10",  description: "MS Plate, 10mm X 4' x 8'",                                         category: "MS Plate",            unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 11, sku: "SHPT2A", description: "Sheet Pile, T2, 400mm x 100mm x 10.5mm x 48kg/m x 6M (288 kilos)",category: "Sheet Pile",          unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 12, sku: "SHPT7",  description: "Sheet Pile Z type 12 meters",                                       category: "Sheet Pile",          unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 13, sku: "JINXI",  description: "Sheet Pile, Z - Pile 770mm W x 354mm H x 8.5mm x 73.2kg/M x 12M", category: "Sheet Pile",          unit: "pcs", stock: 15,   avgCost: 41838.53,totalValue: 627577.95,  status: "Low Stock"},
+  { id: 14, sku: "WF016",  description: "Wide Flange, 8 x 4 x 10# x 6M",                                   category: "Wide Flange",         unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 15, sku: "WF009",  description: "Wide Flange, 6 x 4 x 9# x 6M",                                    category: "Wide Flange",         unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
+  { id: 16, sku: "SHPT3",  description: "Sheet Pile, T3, 400mm x 125mm x 13mm x 60kg/m x 12M (720kgs)",    category: "Sheet Pile",          unit: "pcs", stock: 481,  avgCost: 28271.06,totalValue: 13598379.86, status: "Active"   },
 ];
 
-const stockAlerts = [
-  { name: 'GI pipe 1"', sku: "SKU: GP-3302 – 49 units left", level: "low" },
-  { name: 'GI pipe 1"', sku: "SKU: GP-3302 – 51 units left", level: "low" },
+/* ─── SHARED STOCK TRANSACTION DATA (source of truth) ───── */
+const INITIAL_STOCK_IN = [
+  { id: 1, sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33", date: "2026-05-12", qty: 500,  vendor: "Steel Asia Corp"  },
+  { id: 2, sku: "DRB052", description: "Deformed Round Bar, 16mm x 6M g40", date: "2026-05-13", qty: 200,  vendor: "Dragon Steel"     },
+  { id: 3, sku: "MSP010", description: "MS Plate, 6mm x 4' x 8'",           date: "2026-05-14", qty: 150,  vendor: "Pag-asa Steel"    },
+  { id: 4, sku: "SHPT2",  description: "Sheet Pile T2 x 12M",               date: "2026-05-15", qty: 80,   vendor: "Steel Asia Corp"  },
+  { id: 5, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-16", qty: 320,  vendor: "Dragon Steel"     },
+  { id: 6, sku: "WF016",  description: "Wide Flange, 8 x 4 x 10# x 6M",    date: "2026-05-17", qty: 100,  vendor: "Pag-asa Steel"    },
+  { id: 7, sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33", date: "2026-05-18", qty: 260,  vendor: "Steel Asia Corp"  },
 ];
 
-const recentActivity = [
-  { text: "Steel bar 10mm – 50 units received", time: "2:00 pm", type: "in"  },
-  { text: "Steel bar 10mm – 50 units released", time: "2:00 pm", type: "out" },
+const INITIAL_STOCK_OUT = [
+  { id: 1, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-12", qty: 120,  customer: "Michael Santiago",   totalPrice: 25200  },
+  { id: 2, sku: "SHPT2",  description: "Sheet Pile T2 x 12M",               date: "2026-05-13", qty: 80,   customer: "RCM Builders",       totalPrice: 16640  },
+  { id: 3, sku: "DRB052", description: "Deformed Round Bar, 16mm x 6M g40", date: "2026-05-14", qty: 60,   customer: "Prime Builders Corp.",totalPrice: 12720  },
+  { id: 4, sku: "MSP010", description: "MS Plate, 6mm x 4' x 8'",           date: "2026-05-15", qty: 50,   customer: "GW Construction",    totalPrice: 9800   },
+  { id: 5, sku: "SHPT3",  description: "Sheet Pile T3 x 12M",               date: "2026-05-16", qty: 40,   customer: "RCM Builders",       totalPrice: 190000 },
+  { id: 6, sku: "DRB051", description: "Deformed Round Bar, 12mm x 6M g40", date: "2026-05-17", qty: 1,    customer: "Michael Santiago",   totalPrice: 186    },
+  { id: 7, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-18", qty: 290,  customer: "Metro Builders Inc.", totalPrice: 58000  },
 ];
 
 /* ─── ICONS ─────────────────────────────────────────────── */
@@ -277,7 +257,14 @@ function IconHelp({ size = 22 }) {
     </svg>
   );
 }
-
+function IconArrowRight({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14M12 5l7 7-7 7" />
+    </svg>
+  );
+}
 
 /* ─── CUSTOM TOOLTIP ─────────────────────────────────────── */
 function CustomTooltip({ active, payload, label }) {
@@ -307,7 +294,7 @@ const stockSubItems = [
   { label: "Return",              Icon: IconReturn     },
 ];
 
-/* ─── TOOLTIP WRAPPER (for collapsed icon-only mode) ────── */
+/* ─── TOOLTIP WRAPPER ────────────────────────────────────── */
 function NavTooltip({ label, children, show }) {
   const [visible, setVisible] = useState(false);
   if (!show) return children;
@@ -330,7 +317,6 @@ function NavTooltip({ label, children, show }) {
           pointerEvents: "none",
         }}>
           {label}
-          {/* Arrow */}
           <div style={{
             position: "absolute", right: "100%", top: "50%",
             transform: "translateY(-50%)",
@@ -343,12 +329,122 @@ function NavTooltip({ label, children, show }) {
   );
 }
 
+/* ─── HELPERS ────────────────────────────────────────────── */
+// Build chart data from actual stock-in / stock-out transactions for Last 7 Days
+function buildLast7DaysChart(stockIn, stockOut) {
+  const days = ["Sun","Mon","Tues","Wed","Thurs","Fri","Sat"];
+  const today = new Date();
+  const result = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayLabel = days[d.getDay()];
+    const inQty  = stockIn.filter(t => t.date === dateStr).reduce((s, t) => s + t.qty, 0);
+    const outQty = stockOut.filter(t => t.date === dateStr).reduce((s, t) => s + t.qty, 0);
+    result.push({ day: dayLabel, stockIn: inQty, stockOut: outQty });
+  }
+  return result;
+}
+
+// Aggregate stock-out qty by SKU, return top 5
+function buildTopReleasedItems(stockOut, products) {
+  const totals = {};
+  stockOut.forEach(t => {
+    totals[t.sku] = (totals[t.sku] || 0) + t.qty;
+  });
+  const sorted = Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const maxQty = sorted[0]?.[1] || 1;
+  return sorted.map(([sku, qty]) => {
+    const p = products.find(p => p.sku === sku);
+    // short name from description
+    const desc = p?.description || sku;
+    const shortName = desc.length > 22 ? desc.slice(0, 22) + "…" : desc;
+    return {
+      sku,
+      name: shortName,
+      value: `${qty} pcs`,
+      pct: Math.round((qty / maxQty) * 100),
+    };
+  });
+}
+
+// Last 6 activity entries (most recent stock-in + stock-out combined)
+function buildRecentActivity(stockIn, stockOut) {
+  const ins  = stockIn.map(t  => ({ text: `${t.description} – ${t.qty} units received`, time: t.date, type: "in"  }));
+  const outs = stockOut.map(t => ({ text: `${t.description} – ${t.qty} units released`, time: t.date, type: "out" }));
+  return [...ins, ...outs]
+    .sort((a, b) => b.time.localeCompare(a.time))
+    .slice(0, 6)
+    .map(a => ({ ...a, time: new Date(a.time).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) }));
+}
+
+const inventoryDataByRange = {
+  "Last 30 Days": [
+    { day: "Week 1", stockIn: 2240, stockOut: 1340 },
+    { day: "Week 2", stockIn: 2680, stockOut: 1820 },
+    { day: "Week 3", stockIn: 1950, stockOut: 1560 },
+    { day: "Week 4", stockIn: 2120, stockOut: 1680 },
+  ],
+  "Last 6 Months": [
+    { day: "Jan", stockIn: 8500, stockOut: 6200 },
+    { day: "Feb", stockIn: 7800, stockOut: 5900 },
+    { day: "Mar", stockIn: 9200, stockOut: 7100 },
+    { day: "Apr", stockIn: 8900, stockOut: 6800 },
+    { day: "May", stockIn: 9600, stockOut: 7400 },
+    { day: "Jun", stockIn: 8200, stockOut: 6500 },
+  ],
+  "Last 1 Year": [
+    { day: "Jan", stockIn: 8500, stockOut: 6200 },
+    { day: "Feb", stockIn: 7800, stockOut: 5900 },
+    { day: "Mar", stockIn: 9200, stockOut: 7100 },
+    { day: "Apr", stockIn: 8900, stockOut: 6800 },
+    { day: "May", stockIn: 9600, stockOut: 7400 },
+    { day: "Jun", stockIn: 8200, stockOut: 6500 },
+    { day: "Jul", stockIn: 9100, stockOut: 7200 },
+    { day: "Aug", stockIn: 8700, stockOut: 6900 },
+    { day: "Sep", stockIn: 9300, stockOut: 7500 },
+    { day: "Oct", stockIn: 8800, stockOut: 6700 },
+    { day: "Nov", stockIn: 9500, stockOut: 7600 },
+    { day: "Dec", stockIn: 9900, stockOut: 8000 },
+  ],
+  "Last 5 Years": [
+    { day: "2020", stockIn: 95000,  stockOut: 75000 },
+    { day: "2021", stockIn: 102000, stockOut: 81000 },
+    { day: "2022", stockIn: 115000, stockOut: 92000 },
+    { day: "2023", stockIn: 108000, stockOut: 86000 },
+    { day: "2024", stockIn: 120000, stockOut: 95000 },
+  ],
+};
+
 /* ─── MAIN DASHBOARD ─────────────────────────────────────── */
 export default function Dashboard() {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(true);
   const [dateRange, setDateRange]         = useState("Last 7 Days");
   const [sidebarOpen, setSidebarOpen]     = useState(true);
+  const [productStatusFilter, setProductStatusFilter] = useState("All Status");
+
+  // ── Shared data lifted here ──────────────────────────────
+  const [products, setProducts]   = useState(() => syncProductsStatus(INITIAL_PRODUCTS));
+  const [stockIn,  setStockIn]    = useState(INITIAL_STOCK_IN);
+  const [stockOut, setStockOut]   = useState(INITIAL_STOCK_OUT);
+
+  // ── Derived dashboard data ───────────────────────────────
+  const lowStockAll      = getLowStockProducts(products);
+  const stockAlerts      = getUniqueStockAlerts(products);
+  const topReleasedItems = buildTopReleasedItems(stockOut, products);
+  const recentActivity   = buildRecentActivity(stockIn, stockOut);
+  const chartData = dateRange === "Last 7 Days"
+    ? buildLast7DaysChart(stockIn, stockOut)
+    : inventoryDataByRange[dateRange] || [];
+
+  const goToLowStock = () => {
+    setProductStatusFilter("Low Stock");
+    setActiveNav("Product");
+  };
 
   const SIDEBAR_FULL      = 250;
   const SIDEBAR_COLLAPSED = 68;
@@ -360,15 +456,6 @@ export default function Dashboard() {
     { label: "Stock Management", Icon: IconStock,  hasChildren: true  },
     { label: "Purchasing Order", Icon: IconPO,     hasChildren: false },
     { label: "Stock Sheets",     Icon: IconSheets, hasChildren: false },
-  ];
-
-  const additionalPages = [
-    "Purchasing Order",
-    "Stock Sheets",
-    "Ending Inventory",
-    "Backload Inventory",
-    "Advance Customer PO",
-    "Return",
   ];
 
   const isAnyStockSubActive = stockSubItems.some(s => s.label === activeNav);
@@ -428,13 +515,11 @@ export default function Dashboard() {
           transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
           overflow: hidden;
         }
-
         .label-fade {
           transition: opacity 0.15s ease, width 0.25s ease;
           white-space: nowrap;
           overflow: hidden;
         }
-
         .toggle-btn {
           display: flex; align-items: center; justify-content: center;
           width: 26px; height: 26px; border-radius: 50%;
@@ -442,75 +527,91 @@ export default function Dashboard() {
           color: #8b95a9; cursor: pointer;
           transition: all 0.2s ease; flex-shrink: 0;
         }
-        .toggle-btn:hover {
-          background: #e87c27; border-color: #e87c27; color: #fff;
+        .toggle-btn:hover { background: #e87c27; border-color: #e87c27; color: #fff; }
+
+        .alert-row {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 12px 16px; background: #fafafa;
+          border-radius: 10; border: 1px solid #f3f4f6;
+          cursor: pointer;
+          transition: background 0.15s ease, box-shadow 0.15s ease;
+          border-radius: 10px;
         }
+        .alert-row:hover {
+          background: #fff7ed;
+          box-shadow: 0 2px 8px rgba(232,124,39,0.12);
+          border-color: #fde68a;
+        }
+        .alert-row:hover .alert-arrow { opacity: 1; transform: translateX(2px); }
+        .alert-arrow {
+          opacity: 0;
+          transition: opacity 0.15s ease, transform 0.15s ease;
+          color: #e87c27;
+          display: flex;
+          align-items: center;
+        }
+
+        .dashboard-scroll-panel {
+          max-height: 320px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding-right: 4px;
+          margin-right: -4px;
+        }
+        .dashboard-scroll-panel::-webkit-scrollbar { width: 6px; }
+        .dashboard-scroll-panel::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 3px;
+        }
+        .dashboard-scroll-panel::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .dashboard-scroll-panel::-webkit-scrollbar-track { background: transparent; }
 
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes metricPulse {
+          0%, 100% { transform: scale(1); opacity: 0.12; }
+          50% { transform: scale(1.1); opacity: 0.18; }
+        }
       `}</style>
 
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
 
-        {/* ════════════════════════════════
-            SIDEBAR
-        ════════════════════════════════ */}
+        {/* ── SIDEBAR ── */}
         <aside
           className="sidebar-transition"
           style={{
-            width: sidebarWidth,
-            minWidth: sidebarWidth,
-            height: "100vh",
-            background: "#141C25",
-            display: "flex",
-            flexDirection: "column",
-            flexShrink: 0,
-            position: "relative",
+            width: sidebarWidth, minWidth: sidebarWidth, height: "100vh",
+            background: "#141C25", display: "flex", flexDirection: "column",
+            flexShrink: 0, position: "relative",
           }}
         >
-
-          {/* ── Logo + Toggle ── */}
           <div style={{
-            padding: "16px 14px 12px",
-            display: "flex",
-            alignItems: "center",
+            padding: "16px 14px 12px", display: "flex", alignItems: "center",
             justifyContent: sidebarOpen ? "space-between" : "center",
-            gap: 8,
-            minHeight: 64,
+            gap: 8, minHeight: 64,
           }}>
             {sidebarOpen && (
-              <img
-                src={Logo}
-                alt="TDT PowerSteel Logo"
-                style={{ width: "170px", height: "auto", display: "block", flexShrink: 0 }}
-              />
+              <img src={Logo} alt="TDT PowerSteel Logo"
+                style={{ width: "170px", height: "auto", display: "block", flexShrink: 0 }} />
             )}
-            <button
-              className="toggle-btn"
-              onClick={() => setSidebarOpen(v => !v)}
-              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            >
+            <button className="toggle-btn" onClick={() => setSidebarOpen(v => !v)}
+              title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}>
               {sidebarOpen ? <IconChevronLeft size={14} /> : <IconChevronRight size={14} />}
             </button>
           </div>
 
-          {/* ── Divider ── */}
           <div style={{ height: 2, background: "#1e2a38", margin: "0 14px 12px" }} />
 
-          {/* ── MENU section label ── */}
           {sidebarOpen && (
             <p style={{
               fontSize: 12, fontWeight: 700, color: "#3d4f63",
               letterSpacing: "0.12em", textTransform: "uppercase",
               padding: "10px 20px 8px",
-            }}>
-              Menu
-            </p>
+            }}>Menu</p>
           )}
 
-          {/* ── Nav items ── */}
           <nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
             {menuItems.map(({ label, Icon, hasChildren }) => {
               const isActive      = activeNav === label;
@@ -525,14 +626,11 @@ export default function Dashboard() {
                       className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${isItemActive ? "active" : ""}`}
                       onClick={() => {
                         if (hasChildren) {
-                          if (sidebarOpen) {
-                            setStockExpanded(v => !v);
-                          } else {
-                            setSidebarOpen(true);
-                            setStockExpanded(true);
-                          }
+                          if (sidebarOpen) { setStockExpanded(v => !v); }
+                          else { setSidebarOpen(true); setStockExpanded(true); }
                           setActiveNav(label);
                         } else {
+                          if (label === "Product") setProductStatusFilter("All Status");
                           setActiveNav(label);
                         }
                       }}
@@ -545,8 +643,7 @@ export default function Dashboard() {
                             <span style={{
                               display: "flex",
                               transform: stockExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                              transition: "transform .22s ease",
-                              opacity: 0.6,
+                              transition: "transform .22s ease", opacity: 0.6,
                             }}>
                               <IconChevronDown size={13} />
                             </span>
@@ -556,15 +653,12 @@ export default function Dashboard() {
                     </button>
                   </NavTooltip>
 
-                  {/* Sub-items — only when expanded */}
                   {hasChildren && stockExpanded && sidebarOpen && (
                     <div style={{ animation: "slideDown .2s ease" }}>
                       {stockSubItems.map(({ label: subLabel, Icon: SubIcon }) => (
-                        <button
-                          key={subLabel}
+                        <button key={subLabel}
                           className={`sub-btn ${activeNav === subLabel ? "active" : ""}`}
-                          onClick={() => setActiveNav(subLabel)}
-                        >
+                          onClick={() => setActiveNav(subLabel)}>
                           <SubIcon size={15} />
                           {subLabel}
                         </button>
@@ -575,23 +669,17 @@ export default function Dashboard() {
               );
             })}
           </nav>
-        
 
-          {/* ── Divider ── */}
           <div style={{ height: 1, background: "#1e2a38", margin: "0 14px" }} />
 
-          {/* ── SETTINGS section label ── */}
           {sidebarOpen && (
             <p style={{
               fontSize: 12, fontWeight: 700, color: "#3d4f63",
               letterSpacing: "0.12em", textTransform: "uppercase",
               padding: "12px 20px 8px",
-            }}>
-              GENERAL
-            </p>
+            }}>GENERAL</p>
           )}
 
-          {/* ── Settings + Help + Logout ── */}
           <div style={{ paddingBottom: 20 }}>
             <NavTooltip label="Settings" show={!sidebarOpen}>
               <button className={`nav-btn ${sidebarOpen ? "expanded" : ""}`}>
@@ -599,21 +687,16 @@ export default function Dashboard() {
                 {sidebarOpen && "Settings"}
               </button>
             </NavTooltip>
-
             <NavTooltip label="Help" show={!sidebarOpen}>
               <button className={`nav-btn ${sidebarOpen ? "expanded" : ""}`}>
                 <IconHelp size={22} />
                 {sidebarOpen && "Help"}
               </button>
             </NavTooltip>
-
-            
           </div>
         </aside>
 
-        {/* ════════════════════════════════
-            MAIN COLUMN
-        ════════════════════════════════ */}
+        {/* ── MAIN COLUMN ── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100vh", overflow: "hidden" }}>
 
           {/* ── Header ── */}
@@ -626,47 +709,40 @@ export default function Dashboard() {
           }}>
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
-                {activeNav === "Product" ? "List of SKU"
-                  : activeNav === "Ending Inventory" ? "Ending Inventory"
-                  : activeNav === "Stock Sheets" ? "Stock Sheets"
-                  : activeNav === "Purchasing Order" ? "Purchasing Orders"
-                  : activeNav === "Backload Inventory" ? "Backload Inventory"
-                  : activeNav === "Advance Customer PO" ? "Advance Customer PO"
-                  : activeNav === "Return" ? "Returns"
+                {activeNav === "Product"              ? "List of SKU"
+                  : activeNav === "Ending Inventory"  ? "Ending Inventory"
+                  : activeNav === "Stock Sheets"      ? "Stock Sheets"
+                  : activeNav === "Purchasing Order"  ? "Purchasing Orders"
+                  : activeNav === "Backload Inventory"? "Backload Inventory"
+                  : activeNav === "Advance Customer PO"?"Advance Customer PO"
+                  : activeNav === "Return"            ? "Returns"
                   : "Welcome Back, Chelsea!"}
               </h1>
-              {activeNav === "Product" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>
-              )}
-              {activeNav === "Ending Inventory" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>
-              )}
-              {activeNav === "Stock Sheets" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>
-              )}
-              {activeNav === "Purchasing Order" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>
-              )}
-              {activeNav === "Backload Inventory" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Track backloaded inventory</p>
-              )}
-              {activeNav === "Advance Customer PO" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Advance customer purchase orders</p>
-              )}
-              {activeNav === "Return" && (
-                <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>
-              )}
+              {activeNav === "Product"               && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
+              {activeNav === "Ending Inventory"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>}
+              {activeNav === "Stock Sheets"          && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>}
+              {activeNav === "Purchasing Order"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>}
+              {activeNav === "Backload Inventory"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Track backloaded inventory</p>}
+              {activeNav === "Advance Customer PO"   && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Advance customer purchase orders</p>}
+              {activeNav === "Return"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <div style={{ position: "relative", color: "#374151", cursor: "pointer" }}>
+              {/* Bell with live low-stock count */}
+              <div
+                style={{ position: "relative", color: "#374151", cursor: "pointer" }}
+                onClick={goToLowStock}
+                title="View low stock items"
+              >
                 <IconBell size={26} />
-                <span style={{
-                  position: "absolute", top: -6, right: -7,
-                  background: "#ef4444", color: "#fff", borderRadius: "50%",
-                  width: 18, height: 18, fontSize: 9, fontWeight: 800,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>9+</span>
+                {lowStockAll.length > 0 && (
+                  <span style={{
+                    position: "absolute", top: -6, right: -7,
+                    background: "#ef4444", color: "#fff", borderRadius: "50%",
+                    width: 18, height: 18, fontSize: 9, fontWeight: 800,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>{lowStockAll.length > 9 ? "9+" : lowStockAll.length}</span>
+                )}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                 <div style={{
@@ -686,36 +762,41 @@ export default function Dashboard() {
             </div>
           </header>
 
-           {/* ── Scrollable Content ── */}
-           <main id="scroll-area" style={{
-             flex: 1, overflowY: "auto",
-             background: "#f0f2f5",
-             display: "flex", flexDirection: "column",
-           }}>
-             {activeNav === "Product" ? (
-               <ProductPage />
-             ) : activeNav === "Ending Inventory" ? (
-               <EndingInventoryPage />
-             ) : activeNav === "Stock Sheets" ? (
-               <StockSheetsPage />
-             ) : activeNav === "Purchasing Order" ? (
-               <PurchasingOrderPage />
-             ) : activeNav === "Backload Inventory" ? (
-               <BackloadInventoryPage />
-             ) : activeNav === "Advance Customer PO" ? (
-               <AdvanceCustomerPOPage />
-             ) : activeNav === "Return" ? (
-               <ReturnPage />
-              ) : (
-                <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
+          {/* ── Scrollable Content ── */}
+          <main id="scroll-area" style={{
+            flex: 1, overflowY: "auto",
+            background: "#f0f2f5",
+            display: "flex", flexDirection: "column",
+          }}>
+            {activeNav === "Product" ? (
+              <ProductPage
+                products={products}
+                setProducts={setProducts}
+                initialStatusFilter={productStatusFilter}
+              />
+            ) : activeNav === "Ending Inventory" ? (
+              <EndingInventoryPage />
+            ) : activeNav === "Stock Sheets" ? (
+              <StockSheetsPage />
+            ) : activeNav === "Purchasing Order" ? (
+              <PurchasingOrderPage />
+            ) : activeNav === "Backload Inventory" ? (
+              <BackloadInventoryPage />
+            ) : activeNav === "Advance Customer PO" ? (
+              <AdvanceCustomerPOPage />
+            ) : activeNav === "Return" ? (
+              <ReturnPage />
+            ) : (
+              /* ══ HOME DASHBOARD ══ */
+              <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
-                 {/* Metric Cards */}
+                {/* Metric Cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
                   <MetricCard
                     icon={<IconBox size={30} />} iconBg="#f0f4ff" iconColor="#000000"
-                    label="Total List of SKU" value="231"
+                    label="Total List of SKU" value={products.length.toString()}
                     badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
-                    onClick={() => setActiveNav("Product")}
+                    onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
                   />
                   <MetricCard
                     icon={<IconTruck size={28} />} iconBg="#fff7ed" iconColor="#000000"
@@ -729,27 +810,47 @@ export default function Dashboard() {
                   />
                   <MetricCard
                     icon={<IconBag size={28} />} iconBg="#fdf4ff" iconColor="#000000"
-                    label="Transactions Today" value="48"
+                    label="Transactions Today" value={
+                      (() => {
+                        const today = new Date().toISOString().slice(0, 10);
+                        return String(
+                          stockIn.filter(t => t.date === today).length +
+                          stockOut.filter(t => t.date === today).length
+                        );
+                      })()
+                    }
                     badge={{ text: "0.8% from last month", color: "#dc2626", bg: "transparent", iconEl: <IconTrendDown size={13} /> }}
                   />
                 </div>
 
-                {/* Chart + Top Items */}
+                {/* Chart + Top Released Items */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 18 }}>
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px 18px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05) " }}>
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px 24px 18px", boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
-                      <div style={{ display: "flex", gap: 20 }}>
-                        {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
-                          <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
-                            <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
-                            {l}
-                          </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {/* Date range selector */}
+                        {["Last 7 Days"].map(r => (
+                          <button key={r} onClick={() => setDateRange(r)} style={{
+                            padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                            borderRadius: 6, cursor: "pointer",
+                            border: dateRange === r ? "1px solid #e87c27" : "1px solid #e5e7eb",
+                            background: dateRange === r ? "#fff7ed" : "#fff",
+                            color: dateRange === r ? "#e87c27" : "#6b7280",
+                          }}>{r.replace("Last ", "")}</button>
                         ))}
                       </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <BarChart data={inventoryDataByRange[dateRange]} barCategoryGap="35%" barGap={4}>
+                    <div style={{ display: "flex", gap: 20, marginBottom: 12 }}>
+                      {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
+                        <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
+                          <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
+                          {l}
+                        </div>
+                      ))}
+                    </div>
+                    <ResponsiveContainer width="100%" height={240}>
+                      <BarChart data={chartData} barCategoryGap="35%" barGap={4}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                         <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} />
@@ -760,76 +861,163 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                   </div>
 
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05) " }}>
-                    <p style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginBottom: 18 }}>Top Released Items</p>
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      {topItems.map((item, i) => (
-                        <div key={i} style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                          padding: "12px 0",
-                          borderBottom: i < topItems.length - 1 ? "1px solid #f3f4f6" : "none",
-                        }}>
-                          <div style={{ flex: 1 }}>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>{item.name}</p>
-                            <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
-                              <div style={{
-                                height: "100%", width: `${item.pct}%`,
-                                background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
-                                borderRadius: 3,
-                              }} />
-                            </div>
-                          </div>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginLeft: 16, minWidth: 56, textAlign: "right" }}>
-                            {item.value}
-                          </span>
-                        </div>
-                      ))}
+                  {/* Top Released Items — from real stock-out data */}
+                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px", boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+                      <p style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>Top Released Items</p>
+                      <button onClick={() => setActiveNav("Stock Sheets")} style={{
+                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+                      }}>
+                        View all <IconArrowRight size={12} />
+                      </button>
                     </div>
+                    {topReleasedItems.length === 0 ? (
+                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No stock-out data yet</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        {topReleasedItems.map((item, i) => (
+                          <div key={i} style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            padding: "12px 0",
+                            borderBottom: i < topReleasedItems.length - 1 ? "1px solid #f3f4f6" : "none",
+                          }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {item.name}
+                              </p>
+                              <p style={{ fontSize: 10, color: "#9ca3af", marginBottom: 5 }}>{item.sku}</p>
+                              <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3 }}>
+                                <div style={{
+                                  height: "100%", width: `${item.pct}%`,
+                                  background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
+                                  borderRadius: 3,
+                                }} />
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginLeft: 12, minWidth: 52, textAlign: "right" }}>
+                              {item.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Alerts + Activity */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-                  <div style={{ background: "#fff", borderRadius: 14, padding: "24px",  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", marginBottom: 16 }}>Stocks alerts</p>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {stockAlerts.map((a, i) => (
-                        <div key={i} style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                          padding: "12px 16px", background: "#fafafa",
-                          borderRadius: 10, border: "1px solid #f3f4f6",
-                        }}>
-                          <div>
-                            <p style={{ fontSize: 13.5, fontWeight: 600, color: "#374151", marginBottom: 3 }}>{a.name}</p>
-                            <p style={{ fontSize: 11, color: "#9ca3af" }}>{a.sku}</p>
-                          </div>
+
+                  {/* ── Stock Alerts — from real low-stock products ── */}
+                  <div style={{
+                    background: "#fff", borderRadius: 14, padding: "24px",
+                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+                    display: "flex", flexDirection: "column", minHeight: 0,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>
+                        Stock Alerts
+                        {lowStockAll.length > 0 && (
                           <span style={{
-                            fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
-                            background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
-                          }}>
-                            Low stock
+                            marginLeft: 8, fontSize: 11, fontWeight: 700,
+                            background: "#fef3c7", color: "#d97706",
+                            padding: "2px 8px", borderRadius: 20,
+                          }} title={lowStockAll.length !== stockAlerts.length ? `${lowStockAll.length} rows, ${stockAlerts.length} unique SKUs` : undefined}>
+                            {stockAlerts.length}
+                            {lowStockAll.length !== stockAlerts.length ? ` (${lowStockAll.length} rows)` : ""}
                           </span>
-                        </div>
-                      ))}
+                        )}
+                      </p>
+                      <button onClick={goToLowStock} style={{
+                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+                      }}>
+                        View all <IconArrowRight size={12} />
+                      </button>
                     </div>
+
+                    {stockAlerts.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "24px 0" }}>
+                        <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
+                      </div>
+                    ) : (
+                      <div className="dashboard-scroll-panel" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {stockAlerts.map((a) => (
+                          <div
+                            key={a.sku}
+                            className="alert-row"
+                            onClick={goToLowStock}
+                            title={`Click to view ${a.sku} in Product page`}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {a.description.length > 36 ? a.description.slice(0, 36) + "…" : a.description}
+                              </p>
+                              <p style={{ fontSize: 11, color: "#9ca3af" }}>
+                                SKU: {a.sku} — {a.stock} unit{a.stock !== 1 ? "s" : ""} left
+                              </p>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 10 }}>
+                              <span style={{
+                                fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
+                                background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
+                              }}>
+                                Low stock
+                              </span>
+                              <span className="alert-arrow">
+                                <IconArrowRight size={14} />
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* hint text */}
+                    {stockAlerts.length > 0 && (
+                      <p style={{ fontSize: 10, color: "#d97706", marginTop: 12, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                        <span>↑</span> Click any alert to go to Product page
+                      </p>
+                    )}
                   </div>
 
-                    <div style={{ background: "#fff", borderRadius: 12, padding: 20,  boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 14 }}>Recently activity</p>
-                    {recentActivity.map((a, i) => (
-                      <div key={i} style={{
-                        display: "flex", alignItems: "center", gap: 12,
-                        padding: "11px 0",
-                        borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
+                  {/* ── Recent Activity — from real stock transactions ── */}
+                  <div style={{
+                    background: "#fff", borderRadius: 14, padding: "24px",
+                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+                    display: "flex", flexDirection: "column", minHeight: 0,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Recent Activity</p>
+                      <button onClick={() => setActiveNav("Stock Sheets")} style={{
+                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
                       }}>
-                        <div style={{
-                          width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-                          background: a.type === "in" ? "#22c55e" : "#ef4444",
-                        }} />
-                        <span style={{ fontSize: 12, color: "#374151", flex: 1 }}>{a.text}</span>
-                        <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
+                        View all <IconArrowRight size={12} />
+                      </button>
+                    </div>
+                    {recentActivity.length === 0 ? (
+                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No recent transactions</p>
+                    ) : (
+                      <div className="dashboard-scroll-panel">
+                        {recentActivity.map((a, i) => (
+                        <div key={i} style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          padding: "11px 0",
+                          borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
+                        }}>
+                          <div style={{
+                            width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                            background: a.type === "in" ? "#22c55e" : "#ef4444",
+                          }} />
+                          <span style={{ fontSize: 12, color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {a.text}
+                          </span>
+                          <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
+                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
 
@@ -844,7 +1032,7 @@ export default function Dashboard() {
 
 /* ── METRIC CARD ─────────────────────────────────────────── */
 function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
-  const [hovered, setHovered] = useState(false);  // 👈 added
+  const [hovered, setHovered] = useState(false);
 
   return (
     <div
@@ -861,28 +1049,23 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
         cursor: onClick ? "pointer" : "default",
         transition: "transform 0.4s cubic-bezier(0.15, 0.83, 0.66, 1)",
       }}
-      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.04)"; }}  // 👈 added setHovered
-      onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}     // 👈 added setHovered
+      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.04)"; }}
+      onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}
     >
-      {/* Radial glow background */}
       <div style={{
         position: "absolute", inset: 0, borderRadius: 18,
         background: `radial-gradient(ellipse at 80% 110%, ${iconBg} 0%, rgba(255,255,255,0) 65%)`,
         opacity: 0.7, pointerEvents: "none",
       }} />
-
-      {/* Large pulsing icon blob top-right */}
       <div style={{
         position: "absolute", right: -18, top: -22,
         width: 100, height: 100, borderRadius: "50%",
         background: iconColor,
-        opacity: hovered ? 0.12 : 0,                                           // 👈 changed
-        animation: hovered ? "metricPulse 3s ease-in-out infinite" : "none",  // 👈 changed
+        opacity: hovered ? 0.12 : 0,
+        animation: hovered ? "metricPulse 3s ease-in-out infinite" : "none",
         transition: "opacity 0.3s ease",
         pointerEvents: "none",
       }} />
-
-      {/* Floating icon badge */}
       <div style={{
         position: "absolute", right: 14, top: 14,
         width: 44, height: 44, borderRadius: 12,
@@ -892,8 +1075,6 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
       }}>
         {icon}
       </div>
-
-      {/* Content */}
       <p style={{ fontSize: 15, fontWeight: 700, color: "#6b7280", lineHeight: 1.4, maxWidth: 120, position: "relative", zIndex: 2 }}>
         {label}
       </p>
