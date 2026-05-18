@@ -1,21 +1,36 @@
 /** Shared product / low-stock helpers (Dashboard ↔ Product page). */
 
-/** Stock from 0 through this value (inclusive) = Low Stock — avoid zero stock. */
 export const LOW_STOCK_THRESHOLD = 50;
+export const MIN_STOCK = 1;
+
+/** No zero stock in the system — floor at 1. */
+export function normalizeStock(stock) {
+  const n = Number(stock) || 0;
+  return n < MIN_STOCK ? MIN_STOCK : n;
+}
 
 /** Derive status from current stock (ignores manual STATUS column on import). */
 export function deriveProductStatus(stock) {
-  const n = Number(stock) || 0;
+  const n = normalizeStock(stock);
   return n <= LOW_STOCK_THRESHOLD ? "Low Stock" : "Active";
 }
 
 export function isLowStock(product) {
   if (!product) return false;
-  return deriveProductStatus(product.stock) === "Low Stock";
+  const n = normalizeStock(product.stock);
+  return n >= MIN_STOCK && n <= LOW_STOCK_THRESHOLD;
 }
 
 export function syncProductStatus(product) {
-  return { ...product, status: deriveProductStatus(product.stock) };
+  const stock = normalizeStock(product.stock);
+  const avgCost = Number(product.avgCost) || 0;
+  const totalValue = Number(product.totalValue) || stock * avgCost;
+  return {
+    ...product,
+    stock,
+    totalValue,
+    status: deriveProductStatus(stock),
+  };
 }
 
 export function syncProductsStatus(products) {
@@ -29,7 +44,6 @@ export function getLowStockProducts(products) {
 
 /**
  * One alert per SKU (keeps the row with the lowest stock if duplicated).
- * Prevents dashboard showing fewer items than the table when SKUs repeat.
  */
 export function getUniqueStockAlerts(products) {
   const low = getLowStockProducts(products);
@@ -39,7 +53,7 @@ export function getUniqueStockAlerts(products) {
     const key = (p.sku || "").trim().toUpperCase();
     if (!key) return;
     const existing = bySku.get(key);
-    if (!existing || (Number(p.stock) || 0) < (Number(existing.stock) || 0)) {
+    if (!existing || normalizeStock(p.stock) < normalizeStock(existing.stock)) {
       bySku.set(key, p);
     }
   });
@@ -57,7 +71,7 @@ export function countDuplicateSkus(products) {
   return [...seen.values()].filter((n) => n > 1).length;
 }
 
-/** Merge import rows: last row wins per SKU, status from stock. */
+/** Merge import rows: last row wins per SKU, status from stock (min 1). */
 export function dedupeProductsBySku(rows) {
   const bySku = new Map();
   rows.forEach((row) => {

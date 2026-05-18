@@ -15,27 +15,11 @@ import {
   getLowStockProducts,
   isLowStock,
   syncProductsStatus,
+  normalizeStock,
 } from "./productUtils";
+import { INITIAL_PRODUCTS } from "./initialProducts";
 
-/* ─── FALLBACK SAMPLE DATA (used only if no props passed) ── */
-const sampleProducts = [
-  { id: 1,  sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33",                                 category: "Deformed Round Bar", unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 2,  sku: "DRB008", description: "Deformed Round Bar, 12mm x 6M g33",                                 category: "Deformed Round Bar", unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 3,  sku: "DRB009", description: "Deformed Round Bar, 16mm x 6M g33",                                 category: "Deformed Round Bar", unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 4,  sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40",                                 category: "Deformed Round Bar", unit: "pcs", stock: 1557, avgCost: 136.60,  totalValue: 212886.42,  status: "Active"   },
-  { id: 5,  sku: "DRB051", description: "Deformed Round Bar, 12mm x 6M g40",                                 category: "Deformed Round Bar", unit: "pcs", stock: 1,    avgCost: 186.38,  totalValue: 186.38,     status: "Low Stock"},
-  { id: 6,  sku: "DRB052", description: "Deformed Round Bar, 16mm x 6M g40",                                 category: "Deformed Round Bar", unit: "pcs", stock: 1225, avgCost: 346.73,  totalValue: 424744.25,  status: "Active"   },
-  { id: 7,  sku: "SHPT2",  description: "Sheet Pile, T2, 400mm x 100mm x 10.5mm x 48kg/m x 12M (576 kilos)",category: "Sheet Pile",          unit: "pcs", stock: 560,  avgCost: 22529.66,totalValue: 12616609.60, status: "Active"   },
-  { id: 8,  sku: "MSP010", description: "MS Plate, 6mm x 4' x 8'",                                           category: "MS Plate",            unit: "pcs", stock: 322,  avgCost: 554.79,  totalValue: 178642.38,  status: "Active"   },
-  { id: 9,  sku: "MSP018", description: "MS Plate, 12mm x 4' x 8'",                                          category: "MS Plate",            unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 10, sku: "SKU10",  description: "MS Plate, 10mm X 4' x 8'",                                          category: "MS Plate",            unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 11, sku: "SHPT2A", description: "Sheet Pile, T2, 400mm x 100mm x 10.5mm x 48kg/m x 6M (288 kilos)", category: "Sheet Pile",          unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 12, sku: "SHPT7",  description: "Sheet Pile Z type 12 meters",                                        category: "Sheet Pile",          unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 13, sku: "JINXI",  description: "Sheet Pile, Z - Pile 770mm W x 354mm H x 8.5mm x 73.2kg/M x 12M",  category: "Sheet Pile",          unit: "pcs", stock: 15,   avgCost: 41838.53,totalValue: 627577.95,  status: "Low Stock"},
-  { id: 14, sku: "WF016",  description: "Wide Flange, 8 x 4 x 10# x 6M",                                    category: "Wide Flange",         unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 15, sku: "WF009",  description: "Wide Flange, 6 x 4 x 9# x 6M",                                     category: "Wide Flange",         unit: "pcs", stock: 0,    avgCost: 0,       totalValue: 0,          status: "Active"   },
-  { id: 16, sku: "SHPT3",  description: "Sheet Pile, T3, 400mm x 125mm x 13mm x 60kg/m x 12M (720kgs)",     category: "Sheet Pile",          unit: "pcs", stock: 481,  avgCost: 28271.06,totalValue: 13598379.86, status: "Active"   },
-];
+const sampleProducts = INITIAL_PRODUCTS;
 
 /* ─── ICONS ─────────────────────────────────────────────── */
 function IconSearch({ size = 16 }) {
@@ -129,7 +113,7 @@ async function importProducts(file, onDone, onError) {
       const description = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 2));
       if (isInvalidProductRow(sku, description)) continue;
 
-      const stock = cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 5));
+      const stock = normalizeStock(cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 5)));
       const avgCost = cellNum(pickCol(r, headers, ["AVG COST", "AVERAGE"], 6));
       const totalValue = cellNum(pickCol(r, headers, ["TOTAL VALUE", "TOTAL"], 7)) || stock * avgCost;
 
