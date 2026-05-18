@@ -718,7 +718,7 @@ export default function Dashboard() {
             {menuItems.map(({ label, Icon, hasChildren }) => {
               const isActive      = activeNav === label;
               const isStockParent = label === "Stock Management";
-              const isStockActive = isStockParent && (activeNav === label || isAnyStockSubActive);
+              const isStockActive = isStockParent && isAnyStockSubActive;
               const isItemActive  = (isActive && !isStockParent) || isStockActive;
 
               return (
@@ -730,7 +730,6 @@ export default function Dashboard() {
                         if (hasChildren) {
                           if (sidebarOpen) { setStockExpanded(v => !v); }
                           else { setSidebarOpen(true); setStockExpanded(true); }
-                          setActiveNav(label);
                         } else {
                           if (label === "Product") setProductStatusFilter("All Status");
                           setActiveNav(label);
