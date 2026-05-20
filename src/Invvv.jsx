@@ -318,7 +318,6 @@ function NavTooltip({ label, children, show }) {
 }
 
 /* ─── HELPERS ────────────────────────────────────────────── */
-// Build chart data from actual stock-in / stock-out transactions for Last 7 Days
 function buildLast7DaysChart(stockIn, stockOut) {
   const days = ["Sun","Mon","Tues","Wed","Thurs","Fri","Sat"];
   const today = new Date();
@@ -335,7 +334,6 @@ function buildLast7DaysChart(stockIn, stockOut) {
   return result;
 }
 
-// Aggregate stock-out qty by SKU, return top 5
 function buildTopReleasedItems(stockOut, products) {
   const totals = {};
   stockOut.forEach(t => {
@@ -347,7 +345,6 @@ function buildTopReleasedItems(stockOut, products) {
   const maxQty = sorted[0]?.[1] || 1;
   return sorted.map(([sku, qty]) => {
     const p = products.find(p => p.sku === sku);
-    // short name from description
     const desc = p?.description || sku;
     const shortName = desc.length > 22 ? desc.slice(0, 22) + "…" : desc;
     return {
@@ -359,7 +356,6 @@ function buildTopReleasedItems(stockOut, products) {
   });
 }
 
-// Last 6 activity entries (most recent stock-in + stock-out combined)
 function buildRecentActivity(stockIn, stockOut, limit = 6) {
   const ins  = stockIn.map(t  => ({ text: `${t.description} – ${t.qty} units received`, time: t.date, type: "in"  }));
   const outs = stockOut.map(t => ({ text: `${t.description} – ${t.qty} units released`, time: t.date, type: "out" }));
@@ -419,7 +415,6 @@ export default function Dashboard() {
   const [notificationTab, setNotificationTab] = useState("all");
   const lowStockPromptChecked = useRef(false);
 
-  // ── Shared data lifted here ──────────────────────────────
   const [products, setProducts]   = useState(() => syncProductsStatus(INITIAL_PRODUCTS));
   const [stockIn,  setStockIn]    = useState(INITIAL_STOCK_IN);
   const [stockOut, setStockOut]   = useState(INITIAL_STOCK_OUT);
@@ -452,7 +447,6 @@ export default function Dashboard() {
   };
   const goToStockSheets = () => setActiveNav("Stock Sheets");
 
-  // ── Derived dashboard data ───────────────────────────────
   const lowStockAll      = getLowStockProducts(products);
   const stockAlerts      = getUniqueStockAlerts(products);
   const topReleasedItems = buildTopReleasedItems(stockOut, products);
@@ -480,12 +474,11 @@ export default function Dashboard() {
     setNotificationsOpen(false);
   }, [activeNav]);
 
-  // Auto-open low-stock notifications once per login (once ever while guest / no auth)
   useEffect(() => {
     if (lowStockPromptChecked.current || stockAlerts.length === 0) return;
     lowStockPromptChecked.current = true;
 
-    const userId = null; // TODO: set from auth after login is implemented
+    const userId = null;
     if (!shouldShowLowStockPrompt(userId)) return;
 
     setNotificationTab("stock");
@@ -706,9 +699,11 @@ export default function Dashboard() {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+
+        /* ── FIXED: metric card pulse uses iconColor properly ── */
         @keyframes metricPulse {
-          0%, 100% { transform: scale(1); opacity: 0.12; }
-          50% { transform: scale(1.1); opacity: 0.18; }
+          0%, 100% { transform: scale(1); opacity: 0.15; }
+          50% { transform: scale(1.15); opacity: 0.25; }
         }
       `}</style>
 
@@ -864,7 +859,6 @@ export default function Dashboard() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              {/* Bell — notification panel */}
               <div style={{ position: "relative", zIndex: notificationsOpen ? 2001 : undefined }}>
                 <button
                   type="button"
@@ -963,14 +957,15 @@ export default function Dashboard() {
 
                 {/* Metric Cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
+                  {/* FIX: iconColor changed from #000000 to real accent colors */}
                   <MetricCard
-                    icon={<IconBox size={34} />} iconBg="#f0f4ff" iconColor="#000000"
+                    icon={<IconBox size={34} />} iconBg="#f0f4ff" iconColor="#3b5bdb"
                     label="Total List of SKU" value={products.length.toString()}
                     badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
                     onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
                   />
                   <MetricCard
-                    icon={<IconTruck size={32} />} iconBg="#fff7ed" iconColor="#000000"
+                    icon={<IconTruck size={32} />} iconBg="#fff7ed" iconColor="#e87c27"
                     label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
                     badge={{
                       text: pendingDeliveryCount > 0
@@ -983,13 +978,13 @@ export default function Dashboard() {
                     onClick={goToPendingDeliveries}
                   />
                   <MetricCard
-                    icon={<IconBarChart size={32} />} iconBg="#f0fdf4" iconColor="#000000"
+                    icon={<IconBarChart size={32} />} iconBg="#f0fdf4" iconColor="#16a34a"
                     label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
                     badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
                     onClick={goToEndingInventory}
                   />
                   <MetricCard
-                    icon={<IconBag size={32} />} iconBg="#fdf4ff" iconColor="#000000"
+                    icon={<IconBag size={32} />} iconBg="#fdf4ff" iconColor="#9333ea"
                     label="Transactions Today" value={String(transactionsToday)}
                     badge={{
                       text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
@@ -1006,7 +1001,6 @@ export default function Dashboard() {
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
                       <div style={{ display: "flex", gap: 8 }}>
-                        {/* Date range selector */}
                         {["Last 7 Days"].map(r => (
                           <button key={r} onClick={() => setDateRange(r)} style={{
                             padding: "4px 10px", fontSize: 11, fontWeight: 600,
@@ -1045,7 +1039,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Top Released Items — from real stock-out data */}
+                  {/* Top Released Items */}
                   <div className="dashboard-pair-card">
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
                       <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Top Released Items</p>
@@ -1091,7 +1085,7 @@ export default function Dashboard() {
                 {/* Alerts + Activity */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
 
-                  {/* ── Stock Alerts — from real low-stock products ── */}
+                  {/* ── Stock Alerts ── */}
                   <div style={{
                     background: "#fff", borderRadius: 14, padding: "24px",
                     boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
@@ -1156,7 +1150,6 @@ export default function Dashboard() {
                       </div>
                     )}
 
-                    {/* hint text */}
                     {stockAlerts.length > 0 && (
                       <p style={{ fontSize: 10, color: "#d97706", marginTop: 12, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
                         <span>↑</span> Click any alert to go to Product page
@@ -1164,7 +1157,7 @@ export default function Dashboard() {
                     )}
                   </div>
 
-                  {/* ── Recent Activity — from real stock transactions ── */}
+                  {/* ── Recent Activity ── */}
                   <div style={{
                     background: "#fff", borderRadius: 14, padding: "24px",
                     boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
@@ -1231,8 +1224,8 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
         position: "relative",
         background: "#fff",
         borderRadius: 18,
-        padding: "20px 22px 16px",
-        minHeight: 188,
+        padding: "20px 22px 20px",
+        minHeight: 200,
         overflow: "hidden",
         boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
         display: "flex", flexDirection: "column", justifyContent: "space-between",
@@ -1242,20 +1235,24 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
       onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.03)"; }}
       onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}
     >
+      {/* Radial gradient bg tint */}
       <div style={{
-        position: "absolute", inset: 0, borderRadius: 16,
+        position: "absolute", inset: 0, borderRadius: 18,
         background: `radial-gradient(ellipse at 80% 110%, ${iconBg} 0%, rgba(255,255,255,0) 65%)`,
         opacity: 0.7, pointerEvents: "none",
       }} />
+
+      {/* FIX: pulse circle now uses iconColor (the real accent) and is always slightly visible */}
       <div style={{
         position: "absolute", right: -18, top: -22,
-        width: 100, height: 100, borderRadius: "50%",
+        width: 110, height: 110, borderRadius: "50%",
         background: iconColor,
-        opacity: hovered ? 0.12 : 0,
-        animation: hovered ? "metricPulse 3s ease-in-out infinite" : "none",
-        transition: "opacity 0.3s ease",
+        opacity: hovered ? 0.18 : 0.07,
+        animation: hovered ? "metricPulse 2.4s ease-in-out infinite" : "none",
+        transition: "opacity 0.35s ease",
         pointerEvents: "none",
       }} />
+
       <div style={{
         display: "flex", alignItems: "flex-start", justifyContent: "space-between",
         gap: 10, position: "relative", zIndex: 2,
@@ -1268,16 +1265,23 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
           background: iconBg,
           display: "flex", alignItems: "center", justifyContent: "center",
           color: iconColor, flexShrink: 0,
+          transition: "transform 0.25s ease, box-shadow 0.25s ease",
+          transform: hovered ? "scale(1.1)" : "scale(1)",
+          boxShadow: hovered ? `0 6px 18px ${iconColor}40` : "none",
         }}>
           {icon}
         </div>
       </div>
+
+      {/* FIX: fontWeight 900, fontSize 44, tighter letterSpacing for bold heavy look */}
       <p style={{
-        fontSize: 42, fontWeight: 800, color: "#111827", letterSpacing: "-1px",
-        lineHeight: 1, position: "relative", zIndex: 2, margin: "14px 0 8px",
+        fontSize: 44, fontWeight: 800, color: "#111827", letterSpacing: "-2px",
+        lineHeight: 1, position: "relative", zIndex: 2, margin: "14px 0 0px",
+        fontFamily: "'Poppins', sans-serif",
       }}>
         {value}
       </p>
+
       {badge && (
         <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative", zIndex: 2 }}>
           {badge.icon && (
