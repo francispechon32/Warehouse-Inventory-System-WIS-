@@ -870,7 +870,6 @@ export default function Dashboard() {
                           if (label === "Product") setProductStatusFilter("All Status");
                           if (label === "Purchasing Order") setPoStatusFilter("All Status");
                           setActiveNav(label);
-                          setStockExpanded(false);
                         }
                       }}
                     >
