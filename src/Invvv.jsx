@@ -24,27 +24,12 @@ import {
   sumEndingInventoryValue,
   formatCompactPHP,
 } from "./inventoryUtils";
-
-/* ─── SHARED STOCK TRANSACTION DATA (source of truth) ───── */
-const INITIAL_STOCK_IN = [
-  { id: 1, sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33", date: "2026-05-12", qty: 500,  vendor: "Steel Asia Corp"  },
-  { id: 2, sku: "DRB052", description: "Deformed Round Bar, 16mm x 6M g40", date: "2026-05-13", qty: 200,  vendor: "Dragon Steel"     },
-  { id: 3, sku: "MSP010", description: "MS Plate, 6mm x 4' x 8'",           date: "2026-05-14", qty: 150,  vendor: "Pag-asa Steel"    },
-  { id: 4, sku: "SHPT2",  description: "Sheet Pile T2 x 12M",               date: "2026-05-15", qty: 80,   vendor: "Steel Asia Corp"  },
-  { id: 5, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-16", qty: 320,  vendor: "Dragon Steel"     },
-  { id: 6, sku: "WF016",  description: "Wide Flange, 8 x 4 x 10# x 6M",    date: "2026-05-17", qty: 100,  vendor: "Pag-asa Steel"    },
-  { id: 7, sku: "DRB007", description: "Deformed Round Bar, 10mm x 6M g33", date: "2026-05-18", qty: 260,  vendor: "Steel Asia Corp"  },
-];
-
-const INITIAL_STOCK_OUT = [
-  { id: 1, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-12", qty: 120,  customer: "Michael Santiago",   totalPrice: 25200  },
-  { id: 2, sku: "SHPT2",  description: "Sheet Pile T2 x 12M",               date: "2026-05-13", qty: 80,   customer: "RCM Builders",       totalPrice: 16640  },
-  { id: 3, sku: "DRB052", description: "Deformed Round Bar, 16mm x 6M g40", date: "2026-05-14", qty: 60,   customer: "Prime Builders Corp.",totalPrice: 12720  },
-  { id: 4, sku: "MSP010", description: "MS Plate, 6mm x 4' x 8'",           date: "2026-05-15", qty: 50,   customer: "GW Construction",    totalPrice: 9800   },
-  { id: 5, sku: "SHPT3",  description: "Sheet Pile T3 x 12M",               date: "2026-05-16", qty: 40,   customer: "RCM Builders",       totalPrice: 190000 },
-  { id: 6, sku: "DRB051", description: "Deformed Round Bar, 12mm x 6M g40", date: "2026-05-17", qty: 1,    customer: "Michael Santiago",   totalPrice: 186    },
-  { id: 7, sku: "DRB050", description: "Deformed Round Bar, 10mm x 6M g40", date: "2026-05-18", qty: 290,  customer: "Metro Builders Inc.", totalPrice: 58000  },
-];
+import {
+  SEED_STOCK_IN,
+  SEED_STOCK_OUT,
+  toDashboardStockIn,
+  toDashboardStockOut,
+} from "./stockTransactionSeeds";
 
 /* ─── ICONS ─────────────────────────────────────────────── */
 function IconHome({ size = 22 }) {
@@ -359,10 +344,18 @@ function buildTopReleasedItems(stockOut, products) {
   });
 }
 
-// Last 6 activity entries (most recent stock-in + stock-out combined)
-function buildRecentActivity(stockIn, stockOut, limit = 6) {
-  const ins  = stockIn.map(t  => ({ text: `${t.description} – ${t.qty} units received`, time: t.date, type: "in"  }));
-  const outs = stockOut.map(t => ({ text: `${t.description} – ${t.qty} units released`, time: t.date, type: "out" }));
+// Recent stock-in + stock-out combined (dashboard shows 12 by default)
+function buildRecentActivity(stockIn, stockOut, limit = 12) {
+  const ins  = stockIn.map(t  => ({
+    text: `${t.sku} · ${t.description} — ${t.qty.toLocaleString()} pcs in (${t.vendor})`,
+    time: t.date,
+    type: "in",
+  }));
+  const outs = stockOut.map(t => ({
+    text: `${t.sku} · ${t.description} — ${t.qty.toLocaleString()} pcs out (${t.customer})`,
+    time: t.date,
+    type: "out",
+  }));
   return [...ins, ...outs]
     .sort((a, b) => b.time.localeCompare(a.time))
     .slice(0, limit)
@@ -421,8 +414,10 @@ export default function Dashboard() {
 
   // ── Shared data lifted here ──────────────────────────────
   const [products, setProducts]   = useState(() => syncProductsStatus(INITIAL_PRODUCTS));
-  const [stockIn,  setStockIn]    = useState(INITIAL_STOCK_IN);
-  const [stockOut, setStockOut]   = useState(INITIAL_STOCK_OUT);
+  const [stockInRows, setStockInRows] = useState(SEED_STOCK_IN);
+  const [stockOutRows, setStockOutRows] = useState(SEED_STOCK_OUT);
+  const stockIn = useMemo(() => toDashboardStockIn(stockInRows), [stockInRows]);
+  const stockOut = useMemo(() => toDashboardStockOut(stockOutRows), [stockOutRows]);
   const [purchaseOrders, setPurchaseOrders] = useState(INITIAL_PURCHASE_ORDERS);
   const [endingInventory, setEndingInventory] = useState(() =>
     buildInitialEndingInventory(INITIAL_ENDING_INVENTORY),
@@ -456,8 +451,8 @@ export default function Dashboard() {
   const lowStockAll      = getLowStockProducts(products);
   const stockAlerts      = getUniqueStockAlerts(products);
   const topReleasedItems = buildTopReleasedItems(stockOut, products);
-  const recentActivity        = buildRecentActivity(stockIn, stockOut);
-  const notificationActivity  = buildRecentActivity(stockIn, stockOut, 12);
+  const recentActivity        = buildRecentActivity(stockIn, stockOut, 30);
+  const notificationActivity  = buildRecentActivity(stockIn, stockOut, 20);
   const notificationCount     = stockAlerts.length + notificationActivity.length;
   const chartData = dateRange === "Last 7 Days"
     ? buildLast7DaysChart(stockIn, stockOut)
@@ -944,7 +939,12 @@ export default function Dashboard() {
                 setInventoryData={setEndingInventory}
               />
             ) : activeNav === "Stock Sheets" ? (
-              <StockSheetsPage />
+              <StockSheetsPage
+                stockInData={stockInRows}
+                setStockInData={setStockInRows}
+                stockOutData={stockOutRows}
+                setStockOutData={setStockOutRows}
+              />
             ) : activeNav === "Purchasing Order" ? (
               <PurchasingOrderPage
                 initialStatusFilter={poStatusFilter}
@@ -1204,6 +1204,13 @@ export default function Dashboard() {
                             {a.text}
                           </span>
                           <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6, flexShrink: 0,
+                            background: a.type === "in" ? "#dcfce7" : "#fee2e2",
+                            color: a.type === "in" ? "#16a34a" : "#dc2626",
+                          }}>
+                            {a.type === "in" ? "IN" : "OUT"}
+                          </span>
                         </div>
                         ))}
                       </div>

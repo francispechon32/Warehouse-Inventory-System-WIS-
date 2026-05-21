@@ -1,13 +1,24 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import PageToolbar from "./PageToolbar";
+import { SEED_STOCK_IN, SEED_STOCK_OUT } from "./stockTransactionSeeds";
 
-const RECENT_SKUS = ["DRB007", "DRB052", "SHPT2", "MSP010", "WF10833"];
+const RECENT_SKUS = [
+  "DRB007", "DRB050", "DRB052", "DRB051", "SHPT2", "SHPT3",
+  "MSP010", "MSP018", "JINXI", "WF016", "WF10833", "DRB008",
+];
 
 const SKU_CATALOG = {
   DRB007: { desc: "Deformed Round Bar, 10mm x 6M g33", weight: "3.696 kg/pc" },
+  DRB008: { desc: "Deformed Round Bar, 12mm x 6M g33", weight: "5.328 kg/pc" },
+  DRB050: { desc: "Deformed Round Bar, 10mm x 6M g40", weight: "3.696 kg/pc" },
+  DRB051: { desc: "Deformed Round Bar, 12mm x 6M g40", weight: "5.328 kg/pc" },
   DRB052: { desc: "Deformed Round Bar, 16mm x 6M g40", weight: "14.80 kg/pc" },
   SHPT2: { desc: "Sheet Pile T2, 400mm x 100mm x 10.5mm", weight: "576 kg/pc" },
+  SHPT3: { desc: "Sheet Pile T3, 400mm x 125mm x 13mm x 12M", weight: "720 kg/pc" },
   MSP010: { desc: "MS Plate, 6mm x 4' x 8'", weight: "—" },
+  MSP018: { desc: "MS Plate, 12mm x 4' x 8'", weight: "—" },
+  JINXI: { desc: "Sheet Pile, Z-Pile 770mm W x 354mm H x 12M", weight: "878.40 kg/pc" },
+  WF016: { desc: "Wide Flange, 8 x 4 x 10# x 6M", weight: "—" },
   WF10833: { desc: "Wide Flange, 10 x 8 x 33# x 6M", weight: "—" },
 };
 
@@ -22,18 +33,6 @@ const STOCK_OUT_COLS = [
   "SUMMARY OF TDT BDR#", "TDT SI#", "QTY OUT", "UNIT COST", "TOTAL PRICE",
   "SERIES 1 — QTY / DATE", "SERIES 2 — QTY / DATE", "SERIES 3 — QTY / DATE",
   "RUNNING QTY", "RUNNING VALUE", "REMARKS",
-];
-
-const SEED_STOCK_IN = [
-  { id: 1, transNo: "IN-001", date: "2026-03-02", tdtPo: "PO-2026-0142", tdtPoDate: "2026-03-01", vendorNo: "V-8821", vendorName: "Steel Asia Corp", customerDr: "—", tdtWo: "WO-4401", acceptDate: "2026-03-05", qty: 500, costKilo: 52.4, costUnit: 193.68, totalPurchase: 96840, runningQty: 500, avgUnitCost: 193.68, totalValue: 96840, remark: "" },
-  { id: 2, transNo: "IN-002", date: "2026-03-10", tdtPo: "PO-2026-0150", tdtPoDate: "2026-03-08", vendorNo: "V-9012", vendorName: "Dragon Steel", customerDr: "RCM Builders", tdtWo: "WO-4410", acceptDate: "2026-03-12", qty: 200, costKilo: 51.8, costUnit: 191.45, totalPurchase: 38290, runningQty: 700, avgUnitCost: 193.05, totalValue: 135130, remark: "Partial" },
-  { id: 3, transNo: "IN-003", date: "2026-03-18", tdtPo: "PO-2026-0155", tdtPoDate: "2026-03-15", vendorNo: "V-9100", vendorName: "Pag-asa Steel", customerDr: "—", tdtWo: "WO-4422", acceptDate: "2026-03-20", qty: 150, costKilo: 53.1, costUnit: 196.26, totalPurchase: 29439, runningQty: 850, avgUnitCost: 193.62, totalValue: 164569, remark: "" },
-];
-
-const SEED_STOCK_OUT = [
-  { id: 1, transNo: "OUT-001", dispatchDate: "2026-03-06", tdtWo: "WO-5501", customer: "Michael Santiago", tdtDr: "DR1589415", branch: "Manila", bdrSummary: "BDR-2201", tdtSi: "SI-88421", qtyOut: 120, unitCost: 210, totalPrice: 25200, s1: "40 / Mar 5", s2: "40 / Mar 6", s3: "40 / Mar 6", runningQty: 380, runningValue: 79800, remarks: "" },
-  { id: 2, transNo: "OUT-002", dispatchDate: "2026-03-14", tdtWo: "WO-5510", customer: "RCM Builders", tdtDr: "DR1589600", branch: "Manila", bdrSummary: "BDR-2210", tdtSi: "SI-88488", qtyOut: 80, unitCost: 208, totalPrice: 16640, s1: "80 / Mar 14", s2: "—", s3: "—", runningQty: 300, runningValue: 62400, remarks: "Delivered" },
-  { id: 3, transNo: "OUT-003", dispatchDate: "2026-03-22", tdtWo: "WO-5520", customer: "Prime Builders Corp.", tdtDr: "DR1589722", branch: "Cebu", bdrSummary: "BDR-2220", tdtSi: "SI-88510", qtyOut: 60, unitCost: 212, totalPrice: 12720, s1: "30 / Mar 21", s2: "30 / Mar 22", s3: "—", runningQty: 240, runningValue: 50880, remarks: "" },
 ];
 
 const PAGE_SIZE = 8;
@@ -76,11 +75,10 @@ function Pagination({ currentPage, totalPages, onPage }) {
 function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination }) {
   return (
     <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px 0", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px 12px", flexWrap: "wrap", gap: 10 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: "#374151", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 14px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>{title}</span>
-        {pagination}
       </div>
-      <div style={{ overflowX: "auto", padding: "12px 0 0" }}>
+      <div style={{ overflowX: "auto", padding: "0" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
           <thead>
             <tr style={{ background: "#1c2235" }}>
@@ -96,6 +94,11 @@ function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination }) 
           </tbody>
         </table>
       </div>
+      {pagination && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "14px 20px", borderTop: "1px solid #f3f4f6", background: "#fafafa" }}>
+          {pagination}
+        </div>
+      )}
     </div>
   );
 }
@@ -206,14 +209,23 @@ function importStockSheets(file, onInDone, onOutDone, onError) {
   reader.readAsArrayBuffer(file);
 }
 
-export default function StockSheetsPage() {
+export default function StockSheetsPage({
+  stockInData: propStockIn,
+  setStockInData: setPropStockIn,
+  stockOutData: propStockOut,
+  setStockOutData: setPropStockOut,
+}) {
   const xlsxReady = useSheetJS();
   const [searchSku, setSearchSku] = useState("DRB007");
   const [activeTab, setActiveTab] = useState("all");
   const [inPage, setInPage] = useState(1);
   const [outPage, setOutPage] = useState(1);
-  const [stockInData, setStockInData] = useState(SEED_STOCK_IN);
-  const [stockOutData, setStockOutData] = useState(SEED_STOCK_OUT);
+  const [localStockIn, setLocalStockIn] = useState(SEED_STOCK_IN);
+  const [localStockOut, setLocalStockOut] = useState(SEED_STOCK_OUT);
+  const stockInData = propStockIn ?? localStockIn;
+  const setStockInData = setPropStockIn ?? setLocalStockIn;
+  const stockOutData = propStockOut ?? localStockOut;
+  const setStockOutData = setPropStockOut ?? setLocalStockOut;
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
   const importRef = useRef(null);
@@ -224,13 +236,13 @@ export default function StockSheetsPage() {
   const skuInfo = SKU_CATALOG[skuKey] || { desc: "—", weight: "—" };
 
   const stockInRows = useMemo(() => {
-    if (!skuKey || skuKey === "DRB007") return stockInData;
-    return stockInData.filter((_, i) => i < 1);
+    if (!skuKey) return stockInData;
+    return stockInData.filter((r) => r.sku === skuKey);
   }, [skuKey, stockInData]);
 
   const stockOutRows = useMemo(() => {
-    if (!skuKey || skuKey === "DRB007") return stockOutData;
-    return stockOutData.filter((_, i) => i < 1);
+    if (!skuKey) return stockOutData;
+    return stockOutData.filter((r) => r.sku === skuKey);
   }, [skuKey, stockOutData]);
 
   const inTotalPages = Math.max(1, Math.ceil(stockInRows.length / PAGE_SIZE));
@@ -402,10 +414,7 @@ export default function StockSheetsPage() {
         />
       )}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, paddingTop: 4 }}>
-        <span style={{ fontSize: 12, color: "#6b7280" }}>All Transactions — March 2026</span>
-        <Pagination currentPage={outPage} totalPages={outTotalPages} onPage={setOutPage} />
-      </div>
+
 
       {toast && (
         <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type === "error" ? "#dc2626" : "#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>

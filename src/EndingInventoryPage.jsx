@@ -166,7 +166,6 @@ function StartInventoryModal({ data, onClose, onSave }) {
     data.reduce((acc, r) => {
       acc[r.no] = {
         lastAcceptanceDate: r.lastAcceptanceDate || "",
-        qtyAsPerWis: r.qtyAsPerWis,
         avgUnitCost: r.avgUnitCost,
         qtyAsPerCounting: r.qtyAsPerCounting,
         remarks: r.remarks || "",
@@ -190,7 +189,7 @@ function StartInventoryModal({ data, onClose, onSave }) {
         <div style={modalHeaderStyle}>
           <div>
             <h2 style={modalTitleStyle}>Start Ending Inventory</h2>
-            <p style={modalSubtitleStyle}>Fill in the highlighted fields below. Total cost and variances update automatically.</p>
+            <p style={modalSubtitleStyle}>Enter counting quantities and costs below. Qty as per WIS comes from your WIS import and cannot be edited here.</p>
           </div>
           <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close"><IconX size={18} /></button>
         </div>
@@ -210,7 +209,7 @@ function StartInventoryModal({ data, onClose, onSave }) {
             <tbody>
               {data.map((row, idx) => {
                 const ed = edits[row.no] || {};
-                const qty = parseFloat(ed.qtyAsPerWis) || 0;
+                const qty = parseFloat(row.qtyAsPerWis) || 0;
                 const avg = parseFloat(ed.avgUnitCost) || 0;
                 const totalCost = qty * avg;
                 const counting = parseFloat(ed.qtyAsPerCounting) || 0;
@@ -225,9 +224,9 @@ function StartInventoryModal({ data, onClose, onSave }) {
                     <td style={{ padding: "6px 8px" }}>
                       <input type="date" value={ed.lastAcceptanceDate||""} onChange={e => setField(row.no, "lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
                     </td>
-                    {/* EDITABLE: Qty as per WIS */}
-                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      <input type="number" min={0} value={ed.qtyAsPerWis ?? ""} onChange={e => setField(row.no, "qtyAsPerWis", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
+                    {/* READ-ONLY: Qty as per WIS (from WIS import) */}
+                    <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 700, fontSize: 11 }}>
+                      {qty.toLocaleString()}
                     </td>
                     {/* AUTO: Total Cost */}
                     <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 600, fontSize: 11 }}>{totalCost > 0 ? fmtPHP(totalCost) : "—"}</td>
@@ -290,9 +289,9 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
       <td style={{ padding: "6px 10px" }}>
         <input type="date" value={draft.lastAcceptanceDate||""} onChange={e => set("lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
       </td>
-      {/* EDITABLE: Qty as per WIS */}
-      <td style={{ padding: "6px 10px", textAlign: "right" }}>
-        <input type="number" min={0} value={draft.qtyAsPerWis ?? ""} onChange={e => set("qtyAsPerWis", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
+      {/* READ-ONLY: Qty as per WIS */}
+      <td style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, color: "#374151", fontSize: 11 }}>
+        {(parseFloat(draft.qtyAsPerWis) || 0).toLocaleString()}
       </td>
       {/* AUTO: Total Unit Cost */}
       <td style={{ padding: "8px 16px", textAlign: "right", color: "#374151", fontSize: 11 }}>{fmtPHP(draft.totalUnitCost)}</td>
@@ -397,7 +396,7 @@ export default function EndingInventoryPage({
     setInventoryData(d => d.map(r => {
       const ed = edits[r.no];
       if (!ed) return r;
-      const qtyWis = parseFloat(ed.qtyAsPerWis) || 0;
+      const qtyWis = parseFloat(r.qtyAsPerWis) || 0;
       const avg = parseFloat(ed.avgUnitCost) || 0;
       const qtyCounting = parseFloat(ed.qtyAsPerCounting) || 0;
       return {
