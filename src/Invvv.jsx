@@ -422,7 +422,7 @@ const inventoryDataByRange = {
 };
 
 /* ─── MAIN DASHBOARD ─────────────────────────────────────── */
-export default function Dashboard() {
+export default function Dashboard({ onLogout }) {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(false);
   const [dateRange, setDateRange]         = useState("Last 7 Days");
