@@ -423,7 +423,7 @@ const inventoryDataByRange = {
 };
 
 /* ─── MAIN DASHBOARD ─────────────────────────────────────── */
-export default function Dashboard() {
+export default function Dashboard({ onLogout }) {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(false);
   const [dateRange, setDateRange]         = useState("Last 7 Days");
@@ -1470,7 +1470,10 @@ export default function Dashboard() {
         <SystemModal
           type={activeModal}
           onClose={() => setActiveModal(null)}
-          onAction={(msg, type) => showToast(msg, type)}
+          onAction={(msg, type) => {
+            if (msg === "Logged out successfully!") { onLogout?.(); return; }
+            showToast(msg, type);
+          }}
           drbLimit={drbLimit}
           setDrbLimit={setDrbLimit}
           pileLimit={pileLimit}
