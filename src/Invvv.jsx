@@ -1148,19 +1148,19 @@ export default function Dashboard({ onLogout }) {
                               </span>
                             </div>
                             {/* Two-tone progress bar: orange fill + dark gray remainder */}
-                            <div style={{ display: "flex", height: 9, borderRadius: 5, overflow: "hidden", background: "transparent", gap: 0 }}>
+                            <div style={{ display: "flex", height: 9, borderRadius: 0, overflow: "hidden", background: "transparent", gap: 0 }}>
                               <div style={{
                                 width: `${item.pct}%`,
                                 height: "100%",
                                 background: "#e87c27",
-                                borderRadius: item.pct >= 100 ? 5 : "5px 0 0 5px",
+                                borderRadius: item.pct >= 100 ? 0 : "0px 0 0 0px",
                                 flexShrink: 0,
                               }} />
                               <div style={{
                                 flex: 1,
                                 height: "100%",
                                 background: "#1e2330",
-                                borderRadius: item.pct <= 0 ? 5 : "0 5px 5px 0",
+                                borderRadius: item.pct <= 0 ? 0 : "0 0px 0px 0",
                               }} />
                             </div>
                           </div>
