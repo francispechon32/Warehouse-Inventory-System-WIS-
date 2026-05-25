@@ -127,7 +127,7 @@ function IconBox({ size = 22 }) {
 function IconTruck({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" />
       <circle cx="5.5" cy="18.5" r="2.5" />
       <circle cx="18.5" cy="18.5" r="2.5" />
@@ -137,7 +137,7 @@ function IconTruck({ size = 22 }) {
 function IconBarChart({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="20" x2="18" y2="10" />
       <line x1="12" y1="20" x2="12" y2="4" />
       <line x1="6"  y1="20" x2="6"  y2="14" />
@@ -148,7 +148,7 @@ function IconBarChart({ size = 22 }) {
 function IconBag({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18" />
       <path d="M16 10a4 4 0 01-8 0" />
     </svg>
@@ -366,21 +366,22 @@ function buildTopReleasedItems(stockOut, products) {
   });
 }
 
+// Recent stock-in + stock-out combined (dashboard shows 12 by default)
 function buildRecentActivity(stockIn, stockOut, limit = 12) {
   const ins  = stockIn.map(t  => ({
-    text: `${t.description} — ${t.qty.toLocaleString()} units received`,
+    text: `${t.sku} · ${t.description} — ${t.qty.toLocaleString()} pcs in (${t.vendor})`,
     time: t.date,
     type: "in",
   }));
   const outs = stockOut.map(t => ({
-    text: `${t.description} — ${t.qty.toLocaleString()} units released`,
+    text: `${t.sku} · ${t.description} — ${t.qty.toLocaleString()} pcs out (${t.customer})`,
     time: t.date,
     type: "out",
   }));
   return [...ins, ...outs]
     .sort((a, b) => b.time.localeCompare(a.time))
     .slice(0, limit)
-    .map(a => ({ ...a, time: new Date(a.time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) }));
+    .map(a => ({ ...a, time: new Date(a.time).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) }));
 }
 
 const inventoryDataByRange = {
@@ -422,7 +423,7 @@ const inventoryDataByRange = {
 };
 
 /* ─── MAIN DASHBOARD ─────────────────────────────────────── */
-export default function Dashboard({ onLogout }) {
+export default function Dashboard({ onLogout, userName }) {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(false);
   const [dateRange, setDateRange]         = useState("Last 7 Days");
@@ -447,6 +448,8 @@ export default function Dashboard({ onLogout }) {
     setTimeout(() => setToast(null), 3500);
   };
   const lowStockPromptChecked = useRef(false);
+  const displayName = userName || "Admin User";
+  const firstName = displayName.split(" ")[0];
 
   const [products, setProducts]   = useState(() => syncProductsStatus(INITIAL_PRODUCTS));
   const [stockInRows, setStockInRows] = useState(SEED_STOCK_IN);
@@ -512,8 +515,10 @@ export default function Dashboard({ onLogout }) {
   useEffect(() => {
     if (lowStockPromptChecked.current || stockAlerts.length === 0) return;
     lowStockPromptChecked.current = true;
+
     const userId = null;
     if (!shouldShowLowStockPrompt(userId)) return;
+
     setNotificationTab("stock");
     setNotificationsOpen(true);
     markLowStockPromptShown(userId);
@@ -525,6 +530,7 @@ export default function Dashboard({ onLogout }) {
         if (profileMenuOpen) setProfileMenuOpen(false);
       }
     };
+
     document.addEventListener("mousedown", handleDocumentClick);
     return () => document.removeEventListener("mousedown", handleDocumentClick);
   }, [profileMenuOpen]);
@@ -540,6 +546,8 @@ export default function Dashboard({ onLogout }) {
     { label: "Purchasing Order", Icon: IconPO,     hasChildren: false },
     { label: "Stock Sheets",     Icon: IconSheets, hasChildren: false },
   ];
+
+  const isAnyStockSubActive = stockSubItems.some(s => s.label === activeNav);
 
   return (
     <>
@@ -564,7 +572,10 @@ export default function Dashboard({ onLogout }) {
           border-radius: 0;
           justify-content: center;
         }
-        .nav-btn.expanded { padding: 11px 20px; justify-content: flex-start; }
+        .nav-btn.expanded {
+          padding: 11px 20px;
+          justify-content: flex-start;
+        }
         .nav-btn:hover { background: rgba(255,255,255,0.05); color: #c8cdd6; }
         .nav-btn.active {
           border-left: 3px solid #e87c27;
@@ -591,7 +602,13 @@ export default function Dashboard({ onLogout }) {
 
         .sidebar-transition {
           transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-          overflow-x: hidden; overflow-y: hidden;
+          overflow-x: hidden;
+          overflow-y: hidden;
+        }
+        .label-fade {
+          transition: opacity 0.15s ease, width 0.25s ease;
+          white-space: nowrap;
+          overflow: hidden;
         }
         .toggle-btn {
           display: flex; align-items: center; justify-content: center;
@@ -602,35 +619,87 @@ export default function Dashboard({ onLogout }) {
         }
         .toggle-btn:hover { background: #e87c27; border-color: #e87c27; color: #fff; }
 
-        /* ── Alert rows ── */
-      
-.alert-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px;
-  text-align: left;
-          border-bottom: 1px solid #f3f4f6;
+        .alert-row {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 12px 16px; background: #fafafa;
+          border-radius: 10; border: 1px solid #f3f4f6;
           cursor: pointer;
-          transition: background 0.15s ease;
+          transition: background 0.15s ease, box-shadow 0.15s ease;
+          border-radius: 10px;
         }
-        .alert-row:last-child { border-bottom: none; }
-        .alert-row:hover { background: #fffbf5; }
+        .alert-row:hover {
+          background: #fff7ed;
+          box-shadow: 0 2px 8px rgba(232,124,39,0.12);
+          border-color: #fde68a;
+        }
         .alert-row:hover .alert-arrow { opacity: 1; transform: translateX(2px); }
         .alert-arrow {
           opacity: 0;
           transition: opacity 0.15s ease, transform 0.15s ease;
           color: #e87c27;
-          display: flex; align-items: center;
+          display: flex;
+          align-items: center;
         }
 
-        /* ── Scroll panels ── */
         .dashboard-scroll-panel {
-          flex: 1; overflow-y: auto; overflow-x: hidden;
+          max-height: 320px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding-right: 4px;
+          margin-right: -4px;
         }
-        .dashboard-scroll-panel::-webkit-scrollbar { width: 4px; }
-        .dashboard-scroll-panel::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 2px; }
+        .dashboard-scroll-panel::-webkit-scrollbar { width: 6px; }
+        .dashboard-scroll-panel::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 3px;
+        }
+        .dashboard-scroll-panel::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
         .dashboard-scroll-panel::-webkit-scrollbar-track { background: transparent; }
 
-        /* ── Profile & notification dropdowns ── */
+        .dashboard-pair-card {
+          background: #fff;
+          border-radius: 14px;
+          padding: 16px 18px;
+          box-shadow: 0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05);
+          display: flex;
+          flex-direction: column;
+          min-height: 400px;
+          height: 100%;
+        }
+        .dashboard-pair-chart {
+          flex: 1;
+          min-height: 280px;
+          width: 100%;
+        }
+        .dashboard-pair-list {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          gap: 4px;
+          min-height: 280px;
+        }
+        .dashboard-pair-list-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex: 1;
+        }
+        .dashboard-pair-bar-track {
+          height: 14px;
+          background: #f3f4f6;
+          border-radius: 0;
+          overflow: hidden;
+        }
+        .dashboard-pair-bar-fill {
+          height: 100%;
+          border-radius: 0;
+        }
+
+        .notif-backdrop {
+          position: fixed; inset: 0; z-index: 1999; background: transparent;
+        }
         .profile-dropdown {
           position: absolute; top: calc(100% + 10px); right: 0;
           width: 220px;
@@ -640,6 +709,42 @@ export default function Dashboard({ onLogout }) {
           z-index: 2000;
           display: flex; flex-direction: column; overflow: hidden;
           animation: slideDown 0.15s ease;
+        }
+        .sidebar-dropdown {
+          position: absolute;
+          width: 190px;
+          background: #141c25;
+          border: 1px solid #1e2a38;
+          border-radius: 10px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+          z-index: 2000;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          animation: slideRight 0.15s ease;
+        }
+        @keyframes slideRight {
+          from { opacity: 0; transform: translateX(-8px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        .sidebar-dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          border: none;
+          background: none;
+          width: 100%;
+          text-align: left;
+          cursor: pointer;
+          font-size: 13px;
+          color: #9ca3af;
+          font-weight: 500;
+          transition: background 0.15s, color 0.15s;
+        }
+        .sidebar-dropdown-item:hover {
+          background: #1e2a38;
+          color: #fff;
         }
         .notif-panel {
           position: absolute; top: calc(100% + 10px); right: 0;
@@ -679,29 +784,23 @@ export default function Dashboard({ onLogout }) {
           transition: opacity 0.15s ease;
         }
         .notif-footer-btn:hover { opacity: 0.9; }
-        .notif-footer-primary { flex: 1; background: #e87c27; color: #fff; }
-        .notif-footer-secondary { flex: 1; background: #fff; color: #374151; border: 1px solid #e5e7eb; }
+        .notif-footer-primary {
+          flex: 1; background: #e87c27; color: #fff;
+        }
+        .notif-footer-secondary {
+          flex: 1; background: #fff; color: #374151; border: 1px solid #e5e7eb;
+        }
 
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+
+        /* ── FIXED: metric card pulse uses iconColor properly ── */
         @keyframes metricPulse {
           0%, 100% { transform: scale(1); opacity: 0.15; }
           50% { transform: scale(1.15); opacity: 0.25; }
         }
-
-        /* ── Activity rows ── */
-       .activity-row {
-          display: flex; align-items: center; gap: 14px;
-          padding: 13px 0;
-          border-bottom: 1px solid #f3f4f6;
-          cursor: pointer;
-          transition: background 0.12s;
-          text-align: left;
-        }
-        .activity-row:last-child { border-bottom: none; }
-        .activity-row:hover { background: #fafafa; }
       `}</style>
 
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
@@ -726,11 +825,11 @@ export default function Dashboard({ onLogout }) {
                 style={{ width: "170px", height: "auto", display: "block", flexShrink: 0 }} />
             )}
             <button className="toggle-btn" onClick={() => {
-              setSidebarOpen(v => {
-                if (v) { setSettingsOpen(false); setHelpOpen(false); }
-                return !v;
-              });
-            }}
+                setSidebarOpen(v => {
+                  if (v) { setSettingsOpen(false); setHelpOpen(false); }
+                  return !v;
+                });
+              }}
               title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}>
               {sidebarOpen ? <IconChevronLeft size={14} /> : <IconChevronRight size={14} />}
             </button>
@@ -748,16 +847,22 @@ export default function Dashboard({ onLogout }) {
 
           <nav style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 20 }}>
             {menuItems.map(({ label, Icon, hasChildren }) => {
-              const isActive = activeNav === label;
+              const isActive      = activeNav === label;
+              const isItemActive  = isActive;
+
               return (
                 <div key={label}>
                   <NavTooltip label={label} show={!sidebarOpen}>
                     <button
-                      className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${isActive ? "active" : ""}`}
+                      className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${isItemActive ? "active" : ""}`}
                       onClick={() => {
                         if (hasChildren) {
-                          if (sidebarOpen) { setStockExpanded(v => !v); }
-                          else { setSidebarOpen(true); setStockExpanded(true); }
+                          if (sidebarOpen) {
+                            setStockExpanded(v => !v);
+                          } else {
+                            setSidebarOpen(true);
+                            setStockExpanded(true);
+                          }
                           setActiveNav(label);
                         } else {
                           if (label === "Product") setProductStatusFilter("All Status");
@@ -816,8 +921,12 @@ export default function Dashboard({ onLogout }) {
                   type="button"
                   className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${activeNav === "Settings" ? "active" : ""}`}
                   onClick={() => {
-                    if (!sidebarOpen) { setSidebarOpen(true); setSettingsOpen(true); }
-                    else { setSettingsOpen(c => !c); }
+                    if (!sidebarOpen) {
+                      setSidebarOpen(true);
+                      setSettingsOpen(true);
+                    } else {
+                      setSettingsOpen((current) => !current);
+                    }
                     setActiveNav("Settings");
                   }}
                 >
@@ -825,22 +934,37 @@ export default function Dashboard({ onLogout }) {
                   {sidebarOpen && (
                     <>
                       <span style={{ flex: 1 }}>Settings</span>
-                      <span style={{ display: "flex", transform: settingsOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .22s ease", opacity: 0.6 }}>
+                      <span style={{
+                        display: "flex",
+                        transform: settingsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                        transition: "transform .22s ease", opacity: 0.6,
+                      }}>
                         <IconChevronDown size={13} />
                       </span>
                     </>
                   )}
                 </button>
               </NavTooltip>
+
               {settingsOpen && sidebarOpen && (
                 <div>
-                  <button type="button" className={`sub-btn ${activeNav === "user-management" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("user-management"); setActiveModal("user-management"); }}>
-                    <IconUser size={15} /> User management
+                  <button type="button"
+                    className={`sub-btn ${activeNav === "user-management" ? "active" : ""}`}
+                    onClick={() => {
+                      setActiveNav("user-management");
+                      setActiveModal("user-management");
+                    }}>
+                    <IconUser size={15} />
+                    User management
                   </button>
-                  <button type="button" className={`sub-btn ${activeNav === "stock-limits" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("stock-limits"); setActiveModal("stock-limits"); }}>
-                    <IconShield size={15} /> Stock limits
+                  <button type="button"
+                    className={`sub-btn ${activeNav === "stock-limits" ? "active" : ""}`}
+                    onClick={() => {
+                      setActiveNav("stock-limits");
+                      setActiveModal("stock-limits");
+                    }}>
+                    <IconShield size={15} />
+                    Stock limits
                   </button>
                 </div>
               )}
@@ -852,8 +976,12 @@ export default function Dashboard({ onLogout }) {
                   type="button"
                   className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${activeNav === "Help" ? "active" : ""}`}
                   onClick={() => {
-                    if (!sidebarOpen) { setSidebarOpen(true); setHelpOpen(true); }
-                    else { setHelpOpen(c => !c); }
+                    if (!sidebarOpen) {
+                      setSidebarOpen(true);
+                      setHelpOpen(true);
+                    } else {
+                      setHelpOpen((current) => !current);
+                    }
                     setActiveNav("Help");
                   }}
                 >
@@ -861,23 +989,52 @@ export default function Dashboard({ onLogout }) {
                   {sidebarOpen && (
                     <>
                       <span style={{ flex: 1 }}>Help</span>
-                      <span style={{ display: "flex", transform: helpOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .22s ease", opacity: 0.6 }}>
+                      <span style={{
+                        display: "flex",
+                        transform: helpOpen ? "rotate(180deg)" : "rotate(0deg)",
+                        transition: "transform .22s ease", opacity: 0.6,
+                      }}>
                         <IconChevronDown size={13} />
                       </span>
                     </>
                   )}
                 </button>
               </NavTooltip>
+
               {helpOpen && sidebarOpen && (
                 <div>
-                  <button type="button" className={`sub-btn ${activeNav === "user-guide" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("user-guide"); setActiveModal("user-guide"); }}>User guide</button>
-                  <button type="button" className={`sub-btn ${activeNav === "faqs" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("faqs"); setActiveModal("faqs"); }}>FAQs</button>
-                  <button type="button" className={`sub-btn ${activeNav === "about" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("about"); setActiveModal("about"); }}>About system</button>
-                  <button type="button" className={`sub-btn ${activeNav === "contact" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("contact"); setActiveModal("contact"); }}>Contact support</button>
+                  <button type="button"
+                    className={`sub-btn ${activeNav === "user-guide" ? "active" : ""}`}
+                    onClick={() => {
+                      setActiveNav("user-guide");
+                      setActiveModal("user-guide");
+                    }}>
+                    User guide
+                  </button>
+                  <button type="button"
+                    className={`sub-btn ${activeNav === "faqs" ? "active" : ""}`}
+                    onClick={() => {
+                      setActiveNav("faqs");
+                      setActiveModal("faqs");
+                    }}>
+                    FAQs
+                  </button>
+                  <button type="button"
+                    className={`sub-btn ${activeNav === "about" ? "active" : ""}`}
+                    onClick={() => {
+                      setActiveNav("about");
+                      setActiveModal("about");
+                    }}>
+                    About system
+                  </button>
+                  <button type="button"
+                    className={`sub-btn ${activeNav === "contact" ? "active" : ""}`}
+                    onClick={() => {
+                      setActiveNav("contact");
+                      setActiveModal("contact");
+                    }}>
+                    Contact support
+                  </button>
                 </div>
               )}
             </div>
@@ -897,29 +1054,32 @@ export default function Dashboard({ onLogout }) {
           }}>
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
-                {activeNav === "Product"               ? "List of SKU"
-                  : activeNav === "Ending Inventory"   ? "Ending Inventory"
-                  : activeNav === "Stock Sheets"       ? "Stock Sheets"
-                  : activeNav === "Purchasing Order"   ? "Purchasing Orders"
-                  : activeNav === "Backload Inventory" ? "Backload Inventory"
-                  : activeNav === "Advance Customer PO"? "Advance Customer PO"
-                  : activeNav === "Return"             ? "Returns"
-                  : "Welcome Back, Chelsea!"}
+                {activeNav === "Product"              ? "List of SKU"
+                  : activeNav === "Ending Inventory"  ? "Ending Inventory"
+                  : activeNav === "Stock Sheets"      ? "Stock Sheets"
+                  : activeNav === "Purchasing Order"  ? "Purchasing Orders"
+                  : activeNav === "Backload Inventory"? "Backload Inventory"
+                  : activeNav === "Advance Customer PO"?"Advance Customer PO"
+                  : activeNav === "Return"            ? "Returns"
+                  : `Welcome Back, ${firstName}!`}
               </h1>
-              {activeNav === "Product"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
-              {activeNav === "Ending Inventory"       && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>}
-              {activeNav === "Stock Sheets"           && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>}
-              {activeNav === "Purchasing Order"       && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>}
-              {activeNav === "Backload Inventory"     && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Track backloaded inventory</p>}
-              {activeNav === "Advance Customer PO"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Advance customer purchase orders</p>}
-              {activeNav === "Return"                 && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
+              {activeNav === "Product"               && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
+              {activeNav === "Ending Inventory"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>}
+              {activeNav === "Stock Sheets"          && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>}
+              {activeNav === "Purchasing Order"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>}
+              {activeNav === "Backload Inventory"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Track backloaded inventory</p>}
+              {activeNav === "Advance Customer PO"   && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Advance customer purchase orders</p>}
+              {activeNav === "Return"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
               <div style={{ position: "relative", zIndex: notificationsOpen ? 2001 : undefined }}>
                 <button
                   type="button"
-                  onClick={() => { setNotificationTab("all"); setNotificationsOpen(v => !v); }}
+                  onClick={() => {
+                    setNotificationTab("all");
+                    setNotificationsOpen((v) => !v);
+                  }}
                   title="Notifications"
                   aria-expanded={notificationsOpen}
                   aria-haspopup="dialog"
@@ -950,7 +1110,10 @@ export default function Dashboard({ onLogout }) {
                   lowStockRowCount={lowStockAll.length}
                   recentActivity={notificationActivity}
                   onViewLowStock={goToLowStock}
-                  onViewStockSheets={() => { setNotificationsOpen(false); goToStockSheets(); }}
+                  onViewStockSheets={() => {
+                    setNotificationsOpen(false);
+                    goToStockSheets();
+                  }}
                 />
               </div>
               <div
@@ -958,22 +1121,24 @@ export default function Dashboard({ onLogout }) {
                 onClick={() => setProfileMenuOpen(v => !v)}
                 style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", position: "relative" }}
               >
-                <div style={{ width: 42, height: 42, borderRadius: "50%", overflow: "hidden", border: "2px solid #e5e7eb", flexShrink: 0 }}>
+                <div style={{
+                  width: 42, height: 42, borderRadius: "50%",
+                  overflow: "hidden", border: "2px solid #e5e7eb", flexShrink: 0,
+                }}>
                   <img
-                    src="https://ui-avatars.com/api/?name=Chelsea+Lopez&background=d1d5db&color=374151&size=42"
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=d1d5db&color=374151&size=42`}
                     alt="CL"
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={e => { e.target.style.display = "none"; }}
                   />
                 </div>
-                <span style={{ fontSize: 15, fontWeight: 600, color: "#374151" }}>Chelsea Lopez</span>
-                <span style={{ color: "#9ca3af", display: "flex", transform: profileMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                  <IconChevronDown size={15} />
-                </span>
+                <span style={{ fontSize: 15, fontWeight: 600, color: "#374151" }}>{displayName}</span>
+                <span style={{ color: "#9ca3af", display: "flex", transform: profileMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><IconChevronDown size={15} /></span>
+
                 {profileMenuOpen && (
                   <div className="profile-dropdown" onClick={e => e.stopPropagation()}>
                     <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#111827" }}>Chelsea Lopez</p>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#111827" }}>{displayName}</p>
                       <p style={{ margin: "2px 0 0", fontSize: 11, color: "#6b7280" }}>chelsea.lopez@tdt.com</p>
                     </div>
                     <button
@@ -988,7 +1153,8 @@ export default function Dashboard({ onLogout }) {
                       onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
                       onMouseLeave={e => e.currentTarget.style.background = "none"}
                     >
-                      <IconLogOut size={16} /> Log out
+                      <IconLogOut size={16} />
+                      Log out
                     </button>
                   </div>
                 )}
@@ -997,15 +1163,35 @@ export default function Dashboard({ onLogout }) {
           </header>
 
           {/* ── Scrollable Content ── */}
-          <main id="scroll-area" style={{ flex: 1, overflowY: "auto", background: "#f0f2f5", display: "flex", flexDirection: "column" }}>
+          <main id="scroll-area" style={{
+            flex: 1, overflowY: "auto",
+            background: "#f0f2f5",
+            display: "flex", flexDirection: "column",
+          }}>
             {activeNav === "Product" ? (
-              <ProductPage products={products} setProducts={setProducts} initialStatusFilter={productStatusFilter} />
+              <ProductPage
+                products={products}
+                setProducts={setProducts}
+                initialStatusFilter={productStatusFilter}
+              />
             ) : activeNav === "Ending Inventory" ? (
-              <EndingInventoryPage inventoryData={endingInventory} setInventoryData={setEndingInventory} />
+              <EndingInventoryPage
+                inventoryData={endingInventory}
+                setInventoryData={setEndingInventory}
+              />
             ) : activeNav === "Stock Sheets" ? (
-              <StockSheetsPage stockInData={stockInRows} setStockInData={setStockInRows} stockOutData={stockOutRows} setStockOutData={setStockOutRows} />
+              <StockSheetsPage
+                stockInData={stockInRows}
+                setStockInData={setStockInRows}
+                stockOutData={stockOutRows}
+                setStockOutData={setStockOutRows}
+              />
             ) : activeNav === "Purchasing Order" ? (
-              <PurchasingOrderPage initialStatusFilter={poStatusFilter} orders={purchaseOrders} setOrders={setPurchaseOrders} />
+              <PurchasingOrderPage
+                initialStatusFilter={poStatusFilter}
+                orders={purchaseOrders}
+                setOrders={setPurchaseOrders}
+              />
             ) : activeNav === "Backload Inventory" ? (
               <BackloadInventoryPage />
             ) : activeNav === "Advance Customer PO" ? (
@@ -1013,22 +1199,20 @@ export default function Dashboard({ onLogout }) {
             ) : activeNav === "Return" ? (
               <ReturnPage />
             ) : (
+              /* ══ HOME DASHBOARD ══ */
+              <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
-              /* ══════════════════════════════════════
-                 HOME DASHBOARD
-              ══════════════════════════════════════ */
-              <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 20 }}>
-
-                {/* ── Metric Cards (UNCHANGED) ── */}
+                {/* Metric Cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
+                  {/* FIX: iconColor changed from #000000 to real accent colors */}
                   <MetricCard
-                    icon={<IconBox size={34} />} iconBg="#F95B02" iconColor="#ffffff"
+                    icon={<IconBox size={34} />} iconBg="#f0f4ff" iconColor="#3b5bdb"
                     label="Total List of SKU" value={products.length.toString()}
                     badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
                     onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
                   />
                   <MetricCard
-                    icon={<IconTruck size={28} />} iconBg="#F95B02" iconColor="#ffffff"
+                    icon={<IconTruck size={32} />} iconBg="#fff7ed" iconColor="#e87c27"
                     label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
                     badge={{
                       text: pendingDeliveryCount > 0
@@ -1041,13 +1225,13 @@ export default function Dashboard({ onLogout }) {
                     onClick={goToPendingDeliveries}
                   />
                   <MetricCard
-                    icon={<IconBarChart size={30} />} iconBg="#F95B02" iconColor="#ffffff"
+                    icon={<IconBarChart size={32} />} iconBg="#f0fdf4" iconColor="#16a34a"
                     label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
                     badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
                     onClick={goToEndingInventory}
                   />
                   <MetricCard
-                    icon={<IconBag size={30} />} iconBg="#F95B02" iconColor="#ffffff"
+                    icon={<IconBag size={32} />} iconBg="#fdf4ff" iconColor="#9333ea"
                     label="Transactions Today" value={String(transactionsToday)}
                     badge={{
                       text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
@@ -1058,31 +1242,12 @@ export default function Dashboard({ onLogout }) {
                   />
                 </div>
 
-                {/* ── Row 2: Chart (65%) + Top Released Items (35%) ── */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "stretch" }}>
-
-                  {/* Inventory Movement Chart */}
-                  <div style={{
-                    background: "#fff", borderRadius: 16, padding: "22px 24px 18px",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
-                    display: "flex", flexDirection: "column",
-                  }}>
-                    {/* Card header */}
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
-                      <div>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>
-                          Inventory Movement – {dateRange}
-                        </p>
-                        <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-                          {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
-                            <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
-                              <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
-                              {l}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 6 }}>
+                {/* Chart + Top Released Items */}
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(300px, 34%)", gap: 18, alignItems: "stretch" }}>
+                  <div className="dashboard-pair-card">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
+                      <div style={{ display: "flex", gap: 8 }}>
                         {["Last 7 Days"].map(r => (
                           <button key={r} onClick={() => setDateRange(r)} style={{
                             padding: "4px 10px", fontSize: 11, fontWeight: 600,
@@ -1094,8 +1259,15 @@ export default function Dashboard({ onLogout }) {
                         ))}
                       </div>
                     </div>
-                    {/* Chart */}
-                    <div style={{ flex: 1, minHeight: 260 }}>
+                    <div style={{ display: "flex", gap: 16, marginBottom: 10, flexShrink: 0 }}>
+                      {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
+                        <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
+                          <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
+                          {l}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="dashboard-pair-chart">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={chartData}
@@ -1107,21 +1279,17 @@ export default function Dashboard({ onLogout }) {
                           <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                           <YAxis domain={[0, chartYMax]} tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} width={38} />
                           <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
-                          <Bar dataKey="stockIn"  fill="#e87c27" radius={[3, 3, 0, 0]} maxBarSize={36} />
-                          <Bar dataKey="stockOut" fill="#52c4b0" radius={[3, 3, 0, 0]} maxBarSize={36} />
+                          <Bar dataKey="stockIn"  fill="#e87c27" radius={0} maxBarSize={40} />
+                          <Bar dataKey="stockOut" fill="#52c4b0" radius={0} maxBarSize={40} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
                   {/* Top Released Items */}
-                  <div style={{
-                    background: "#fff", borderRadius: 16, padding: "22px 24px",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
-                    display: "flex", flexDirection: "column",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: 0 }}>Top Released Items</p>
+                  <div className="dashboard-pair-card">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Top Released Items</p>
                       <button onClick={goToStockSheets} style={{
                         fontSize: 11, color: "#e87c27", background: "none", border: "none",
                         cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
@@ -1129,170 +1297,193 @@ export default function Dashboard({ onLogout }) {
                         View all <IconArrowRight size={12} />
                       </button>
                     </div>
-
                     {topReleasedItems.length === 0 ? (
                       <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No stock-out data yet</p>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1, justifyContent: "space-between" }}>
+                      <div className="dashboard-pair-list">
                         {topReleasedItems.map((item, i) => (
-                          <div key={i}>
-                            {/* Name row */}
-                            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
-                              <div style={{ minWidth: 0 }}>
-                                <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>
-                                  {item.name}
-                                </p>
+                          <div key={i} className="dashboard-pair-list-row">
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {item.name}
+                              </p>
+                              <p style={{ fontSize: 10, color: "#9ca3af", marginBottom: 6 }}>{item.sku}</p>
+                              <div className="dashboard-pair-bar-track">
+                                <div
+                                  className="dashboard-pair-bar-fill"
+                                  style={{
+                                    width: `${item.pct}%`,
+                                    background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
+                                    minWidth: item.pct > 0 ? 4 : 0,
+                                  }}
+                                />
                               </div>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: "#111827", flexShrink: 0, marginLeft: 12 }}>
-                                {item.value}
-                              </span>
                             </div>
-                            {/* Two-tone progress bar: orange fill + dark gray remainder */}
-                            <div style={{ display: "flex", height: 9, borderRadius: 0, overflow: "hidden", background: "transparent", gap: 0 }}>
-                              <div style={{
-                                width: `${item.pct}%`,
-                                height: "100%",
-                                background: "#e87c27",
-                                borderRadius: item.pct >= 100 ? 0 : "0px 0 0 0px",
-                                flexShrink: 0,
-                              }} />
-                              <div style={{
-                                flex: 1,
-                                height: "100%",
-                                background: "#1e2330",
-                                borderRadius: item.pct <= 0 ? 0 : "0 0px 0px 0",
-                              }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* ── Row 3: Stock Alerts + Recently Activity ── */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-
-                  {/* Stock Alerts */}
-                  <div style={{
-                    background: "#fff", borderRadius: 16,
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
-                    display: "flex", flexDirection: "column", overflow: "hidden",
-                  }}>
-                    {/* Header */}
-                    <div style={{ padding: "20px 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>
-                        Stocks alerts
-                        {lowStockAll.length > 0 && (
-                          <span style={{
-                            marginLeft: 8, fontSize: 11, fontWeight: 700,
-                            background: "#fef3c7", color: "#d97706",
-                            padding: "2px 8px", borderRadius: 20,
-                          }}>
-                            {stockAlerts.length}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Alert list */}
-                    {stockAlerts.length === 0 ? (
-                      <div style={{ textAlign: "center", padding: "32px 24px" }}>
-                        <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
-                      </div>
-                    ) : (
-                      <div className="dashboard-scroll-panel" style={{ maxHeight: 320 }}>
-                        {stockAlerts.map((a) => (
-                          <div key={a.sku} className="alert-row" onClick={goToLowStock}>
-               
-<div style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
-  <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {a.description.length > 30 ? a.description.slice(0, 30) + "…" : a.description}
-                              </p>
-                              <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>
-                                SKU: {a.sku} — {a.stock} unit{a.stock !== 1 ? "s" : ""} left
-                              </p>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 12 }}>
-                              <span style={{
-                                fontSize: 11, fontWeight: 700, padding: "5px 14px", borderRadius: 20,
-                                background: "#fff7ed", color: "#e87c27",
-                                border: "1.5px solid #fcd9b0",
-                              }}>
-                                Low stock
-                              </span>
-                              <span className="alert-arrow"><IconArrowRight size={13} /></span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Recently Activity */}
-                  <div style={{
-                    background: "#fff", borderRadius: 16,
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
-                    display: "flex", flexDirection: "column", overflow: "hidden",
-                  }}>
-                    {/* Header */}
-                    <div style={{ padding: "20px 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>Recently activity</p>
-                      <button onClick={goToStockSheets} style={{
-                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
-                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
-                      }}>
-                        View all <IconArrowRight size={12} />
-                      </button>
-                    </div>
-
-                    {recentActivity.length === 0 ? (
-                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "32px 24px" }}>No recent transactions</p>
-                    ) : (
-                      <div className="dashboard-scroll-panel" style={{ maxHeight: 320, paddingLeft: 24, paddingRight: 24 }}>
-                        {recentActivity.map((a, i) => (
-                          <div
-                            key={i}
-                            className="activity-row"
-                            onClick={goToStockSheets}
-                          >
-                            {/* Colored dot */}
-                            <div style={{
-                              width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-                              background: a.type === "in" ? "#22c55e" : "#ef4444",
-                            }} />
-                            {/* Text */}
-                                             
-                    <span style={{ fontSize: 12.5, color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
-                      {a.text}
-                    </span>
-                            {/* Time */}
-                            <span style={{ fontSize: 12, color: "#9ca3af", flexShrink: 0, marginLeft: 8 }}>
-                              {a.time}
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#111827", flexShrink: 0, minWidth: 52, textAlign: "right" }}>
+                              {item.value}
                             </span>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
-
                 </div>
+
+                {/* Alerts + Activity */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+
+                  {/* ── Stock Alerts ── */}
+                  <div style={{
+                    background: "#fff", borderRadius: 14, padding: "24px",
+                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+                    display: "flex", flexDirection: "column", minHeight: 0,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>
+                        Stock Alerts
+                        {lowStockAll.length > 0 && (
+                          <span style={{
+                            marginLeft: 8, fontSize: 11, fontWeight: 700,
+                            background: "#fef3c7", color: "#d97706",
+                            padding: "2px 8px", borderRadius: 20,
+                          }} title={lowStockAll.length !== stockAlerts.length ? `${lowStockAll.length} rows, ${stockAlerts.length} unique SKUs` : undefined}>
+                            {stockAlerts.length}
+                            {lowStockAll.length !== stockAlerts.length ? ` (${lowStockAll.length} rows)` : ""}
+                          </span>
+                        )}
+                      </p>
+                      <button onClick={goToLowStock} style={{
+                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+                      }}>
+                        View all <IconArrowRight size={12} />
+                      </button>
+                    </div>
+
+                    {stockAlerts.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "24px 0" }}>
+                        <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
+                      </div>
+                    ) : (
+                      <div className="dashboard-scroll-panel" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {stockAlerts.map((a) => (
+                          <div
+                            key={a.sku}
+                            className="alert-row"
+                            onClick={goToLowStock}
+                            title={`Click to view ${a.sku} in Product page`}
+                          >
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {a.description.length > 36 ? a.description.slice(0, 36) + "…" : a.description}
+                              </p>
+                              <p style={{ fontSize: 11, color: "#9ca3af" }}>
+                                SKU: {a.sku} — {a.stock} unit{a.stock !== 1 ? "s" : ""} left
+                              </p>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 10 }}>
+                              <span style={{
+                                fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
+                                background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
+                              }}>
+                                Low stock
+                              </span>
+                              <span className="alert-arrow">
+                                <IconArrowRight size={14} />
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {stockAlerts.length > 0 && (
+                      <p style={{ fontSize: 10, color: "#d97706", marginTop: 12, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                        <span>↑</span> Click any alert to go to Product page
+                      </p>
+                    )}
+                  </div>
+
+                  {/* ── Recent Activity ── */}
+                  <div style={{
+                    background: "#fff", borderRadius: 14, padding: "24px",
+                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+                    display: "flex", flexDirection: "column", minHeight: 0,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Recent Activity</p>
+                      <button onClick={goToStockSheets} style={{
+                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+                      }}>
+                        View all <IconArrowRight size={12} />
+                      </button>
+                    </div>
+                    {recentActivity.length === 0 ? (
+                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No recent transactions</p>
+                    ) : (
+                      <div className="dashboard-scroll-panel">
+                        {recentActivity.map((a, i) => (
+                        <div
+                          key={i}
+                          role="button"
+                          tabIndex={0}
+                          onClick={goToStockSheets}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") goToStockSheets(); }}
+                          style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          padding: "11px 0",
+                          borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
+                          cursor: "pointer",
+                        }}>
+                          <div style={{
+                            width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                            background: a.type === "in" ? "#22c55e" : "#ef4444",
+                          }} />
+                          <span style={{ fontSize: 12, color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {a.text}
+                          </span>
+                          <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6, flexShrink: 0,
+                            background: a.type === "in" ? "#dcfce7" : "#fee2e2",
+                            color: a.type === "in" ? "#16a34a" : "#dc2626",
+                          }}>
+                            {a.type === "in" ? "IN" : "OUT"}
+                          </span>
+                        </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
               </div>
             )}
           </main>
         </div>
       </div>
 
+      {/* Backdrops */}
+      {/* Dropdown menus are closed by clicking outside via document listener; no full-screen backdrop needed. */}
+
       {/* Custom Modal */}
       {activeModal && (
         <SystemModal
           type={activeModal}
           onClose={() => setActiveModal(null)}
-          onAction={(msg, type) => showToast(msg, type)}
-          drbLimit={drbLimit} setDrbLimit={setDrbLimit}
-          pileLimit={pileLimit} setPileLimit={setPileLimit}
-          plateLimit={plateLimit} setPlateLimit={setPlateLimit}
-          faqExpanded={faqExpanded} setFaqExpanded={setFaqExpanded}
+          onAction={(msg, type) => {
+            if (msg === "Logged out successfully!") { setActiveModal(null); setTimeout(() => onLogout?.(), 100); return; }
+            showToast(msg, type);
+          }}
+          drbLimit={drbLimit}
+          setDrbLimit={setDrbLimit}
+          pileLimit={pileLimit}
+          setPileLimit={setPileLimit}
+          plateLimit={plateLimit}
+          setPlateLimit={setPlateLimit}
+          faqExpanded={faqExpanded}
+          setFaqExpanded={setFaqExpanded}
         />
       )}
 
@@ -1312,9 +1503,7 @@ export default function Dashboard({ onLogout }) {
   );
 }
 
-/* ══════════════════════════════════════
-   METRIC CARD  (UNCHANGED)
-══════════════════════════════════════ */
+/* ── METRIC CARD ─────────────────────────────────────────── */
 function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
   const [hovered, setHovered] = useState(false);
 
@@ -1324,139 +1513,189 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
       style={{
         position: "relative",
         background: "#fff",
-        borderRadius: 16,
-        padding: "22px 22px 18px",
-        minHeight: 160,
+        borderRadius: 18,
+        padding: "20px 22px 20px",
+        minHeight: 200,
         overflow: "hidden",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)",
+        boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
         display: "flex", flexDirection: "column", justifyContent: "space-between",
         cursor: onClick ? "pointer" : "default",
-        border: "1px solid #f0f0f0",
-        borderTop: "5px solid #F95B02",   // ← ADD THIS
-
-        transition: "transform 0.25s ease, box-shadow 0.25s ease",
+        transition: "transform 0.4s cubic-bezier(0.15, 0.83, 0.66, 1)",
       }}
-      onMouseEnter={e => {
-        setHovered(true);
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.08), 0 12px 32px rgba(0,0,0,0.1)";
-      }}
-      onMouseLeave={e => {
-        setHovered(false);
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)";
-      }}
+      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.03)"; }}
+      onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}
     >
-      {/* Subtle bg tint */}
-      
-      {/* Top row: label + icon */}
-     <div style={{
-  display: "flex", alignItems: "center",
-  justifyContent: "space-between", gap: 12,
-  position: "relative", zIndex: 2,
-}}>
-  <p style={{
-    fontSize: 14.5, fontWeight: 610, color: "#6b7280",
-    lineHeight: 1.4, margin: 0, textAlign: "left",
-  }}>
-    {label}
-  </p>
+      {/* Radial gradient bg tint */}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: 18,
+        background: `radial-gradient(ellipse at 80% 110%, ${iconBg} 0%, rgba(255,255,255,0) 65%)`,
+        opacity: 0.7, pointerEvents: "none",
+      }} />
+
+      {/* FIX: pulse circle now uses iconColor (the real accent) and is always slightly visible */}
+      <div style={{
+        position: "absolute", right: -18, top: -22,
+        width: 110, height: 110, borderRadius: "50%",
+        background: iconColor,
+        opacity: hovered ? 0.18 : 0.07,
+        animation: hovered ? "metricPulse 2.4s ease-in-out infinite" : "none",
+        transition: "opacity 0.35s ease",
+        pointerEvents: "none",
+      }} />
+
+      <div style={{
+        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+        gap: 10, position: "relative", zIndex: 2,
+      }}>
+        <p style={{ fontSize: 15, fontWeight: 700, color: "#6b7280", lineHeight: 1.35, flex: 1, paddingRight: 4 }}>
+          {label}
+        </p>
         <div style={{
-          width: 44, height: 44, borderRadius: 12,
-          background: iconBg, flexShrink: 0,
+          width: 48, height: 48, borderRadius: 12,
+          background: iconBg,
           display: "flex", alignItems: "center", justifyContent: "center",
-            color: iconColor,          // ← now uses the prop
-          transition: "transform 0.2s ease",
-          transform: hovered ? "scale(1.08)" : "scale(1)",
+          color: iconColor, flexShrink: 0,
+          transition: "transform 0.25s ease, box-shadow 0.25s ease",
+          transform: hovered ? "scale(1.1)" : "scale(1)",
+          boxShadow: hovered ? `0 6px 18px ${iconColor}40` : "none",
         }}>
           {icon}
         </div>
       </div>
 
-      {/* Value */}
+      {/* FIX: fontWeight 900, fontSize 44, tighter letterSpacing for bold heavy look */}
       <p style={{
-        fontSize: 36, fontWeight: 700, color: "#111827",
-        letterSpacing: "-1.5px", lineHeight: 1,
-        position: "relative", zIndex: 2,
-        margin: "14px 0 12px", textAlign: "left",
+        fontSize: 44, fontWeight: 800, color: "#111827", letterSpacing: "-2px",
+        lineHeight: 1, position: "relative", zIndex: 2, margin: "14px 0 0px",
         fontFamily: "'Poppins', sans-serif",
       }}>
         {value}
       </p>
 
-      {/* Badge */}
-    {/* Badge */}
-{/* Badge */}
-{badge && (
-  <div style={{
-    display: "flex", alignItems: "center", gap: 6,
-    position: "relative", zIndex: 2, alignSelf: "flex-start",
-  }}>
-    {badge.icon && (
-      <span style={{
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        width: 20, height: 20, borderRadius: "50%", background: "#f59e0b",
-        flexShrink: 0,
-      }}>
-        {badge.icon}
-      </span>
-    )}
-    <span style={{
-      fontSize: 11, fontWeight: 600,
-      color: badge.color,
-      letterSpacing: "0.01em",
-    }}>
-      {badge.text}
-    </span>
-  </div>
-)}
+      {badge && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative", zIndex: 2 }}>
+          {badge.icon && (
+            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: "#f59e0b" }}>
+              {badge.icon}
+            </span>
+          )}
+          <span style={{
+            fontSize: 12, fontWeight: 600, color: badge.color,
+            background: badge.bg !== "transparent" ? badge.bg : "transparent",
+            padding: badge.bg !== "transparent" ? "2px 8px" : "0",
+            borderRadius: 20,
+          }}>
+            {badge.text}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
-/* ══════════════════════════════════════
-   SYSTEM MODAL
-══════════════════════════════════════ */
+
+/* ── SYSTEM MODAL ────────────────────────────────────────── */
 function SystemModal({
-  type, onClose, onAction,
-  drbLimit, setDrbLimit,
-  pileLimit, setPileLimit,
-  plateLimit, setPlateLimit,
-  faqExpanded, setFaqExpanded
+  type,
+  onClose,
+  onAction,
+  drbLimit,
+  setDrbLimit,
+  pileLimit,
+  setPileLimit,
+  plateLimit,
+  setPlateLimit,
+  faqExpanded,
+  setFaqExpanded
 }) {
+  // Local state for interactive elements
+  // 1. User Management State
   const [users, setUsers] = useState([
-    { id: 1, name: "Francis Pechon",  email: "francis@wis.com",           role: "Administrator",    status: "Active"   },
-    { id: 2, name: "Chelsea Lopez",   email: "chelsea.lopez@tdt.com",      role: "Warehouse Manager",status: "Active"   },
-    { id: 3, name: "Jane Smith",      email: "jane@wis.com",               role: "Staff",            status: "Active"   },
-    { id: 4, name: "Alex Jones",      email: "alex.jones@wis.com",         role: "Staff",            status: "Inactive" },
+    { id: 1, name: "Francis Pechon", email: "francis@wis.com", role: "Administrator", status: "Active" },
+    { id: 2, name: "Chelsea Lopez", email: "chelsea.lopez@tdt.com", role: "Warehouse Manager", status: "Active" },
+    { id: 3, name: "Jane Smith", email: "jane@wis.com", role: "Staff", status: "Active" },
+    { id: 4, name: "Alex Jones", email: "alex.jones@wis.com", role: "Staff", status: "Inactive" },
   ]);
-  const [showAddUser, setShowAddUser]   = useState(false);
-  const [newUserName, setNewUserName]   = useState("");
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserRole, setNewUserRole]   = useState("Staff");
-  const [localDrb, setLocalDrb]     = useState(drbLimit);
-  const [localPile, setLocalPile]   = useState(pileLimit);
+  const [newUserRole, setNewUserRole] = useState("Staff");
+
+  // 2. Stock Limits State
+  const [localDrb, setLocalDrb] = useState(drbLimit);
+  const [localPile, setLocalPile] = useState(pileLimit);
   const [localPlate, setLocalPlate] = useState(plateLimit);
-  const [guideTab, setGuideTab]     = useState("getting-started");
-  const [localFaqs, setLocalFaqs]   = useState({});
-  const [contactName, setContactName]       = useState("Chelsea Lopez");
-  const [contactEmail, setContactEmail]     = useState("chelsea.lopez@tdt.com");
-  const [contactTopic, setContactTopic]     = useState("Question");
+
+  // 3. User Guide State
+  const [guideTab, setGuideTab] = useState("getting-started");
+
+  // 4. FAQ State (Local)
+  const [localFaqs, setLocalFaqs] = useState({});
+
+  // 5. Contact Support State
+  const [contactName, setContactName] = useState("Chelsea Lopez");
+  const [contactEmail, setContactEmail] = useState("chelsea.lopez@tdt.com");
+  const [contactTopic, setContactTopic] = useState("Question");
   const [contactMessage, setContactMessage] = useState("");
 
   const handleAddUser = (e) => {
     e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) { onAction("Please fill in all fields", "error"); return; }
-    setUsers([...users, { id: users.length + 1, name: newUserName, email: newUserEmail, role: newUserRole, status: "Active" }]);
-    setNewUserName(""); setNewUserEmail(""); setNewUserRole("Staff"); setShowAddUser(false);
+    if (!newUserName.trim() || !newUserEmail.trim()) {
+      onAction("Please fill in all fields", "error");
+      return;
+    }
+    const newUser = {
+      id: users.length + 1,
+      name: newUserName,
+      email: newUserEmail,
+      role: newUserRole,
+      status: "Active"
+    };
+    setUsers([...users, newUser]);
+    setNewUserName("");
+    setNewUserEmail("");
+    setNewUserRole("Staff");
+    setShowAddUser(false);
     onAction(`User ${newUserName} added successfully!`, "success");
   };
-  const toggleUserStatus = (id) => { setUsers(users.map(u => u.id === id ? { ...u, status: u.status === "Active" ? "Inactive" : "Active" } : u)); onAction("User status updated!", "success"); };
-  const deleteUser = (id, name) => { setUsers(users.filter(u => u.id !== id)); onAction(`User ${name} deleted successfully!`, "success"); };
-  const changeUserRole = (id, newRole) => { setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u)); onAction("User role updated!", "success"); };
-  const handleSaveLimits = () => { setDrbLimit(Number(localDrb)); setPileLimit(Number(localPile)); setPlateLimit(Number(localPlate)); onAction("Stock limits saved successfully!", "success"); onClose(); };
-  const handleContactSubmit = (e) => { e.preventDefault(); if (!contactMessage.trim()) { onAction("Please type a message before submitting.", "error"); return; } onAction("Support ticket sent! We'll reply within 24 hours.", "success"); onClose(); };
-  const toggleFaq = (index) => setLocalFaqs(prev => ({ ...prev, [index]: !prev[index] }));
 
+  const toggleUserStatus = (id) => {
+    setUsers(users.map(u => u.id === id ? { ...u, status: u.status === "Active" ? "Inactive" : "Active" } : u));
+    onAction("User status updated!", "success");
+  };
+
+  const deleteUser = (id, name) => {
+    setUsers(users.filter(u => u.id !== id));
+    onAction(`User ${name} deleted successfully!`, "success");
+  };
+
+  const changeUserRole = (id, newRole) => {
+    setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u));
+    onAction("User role updated!", "success");
+  };
+
+  const handleSaveLimits = () => {
+    setDrbLimit(Number(localDrb));
+    setPileLimit(Number(localPile));
+    setPlateLimit(Number(localPlate));
+    onAction("Stock limits saved successfully!", "success");
+    onClose();
+  };
+
+  const handleContactSubmit = (e) => {
+    e.preventDefault();
+    if (!contactMessage.trim()) {
+      onAction("Please type a message before submitting.", "error");
+      return;
+    }
+    onAction("Support ticket sent! We'll reply within 24 hours.", "success");
+    onClose();
+  };
+
+  const toggleFaq = (index) => {
+    setLocalFaqs(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  // Determine width based on type
   let modalWidth = 460;
   if (type === "user-management") modalWidth = 720;
   if (type === "user-guide") modalWidth = 820;
@@ -1464,33 +1703,76 @@ function SystemModal({
 
   return (
     <div style={{
-      position: "fixed", inset: 0, background: "rgba(17, 24, 39, 0.45)",
-      backdropFilter: "blur(6px)", zIndex: 9999,
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+      position: "fixed",
+      inset: 0,
+      background: "rgba(17, 24, 39, 0.45)",
+      backdropFilter: "blur(6px)",
+      zIndex: 9999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
     }} onClick={onClose}>
       <div style={{
-        background: "#ffffff", borderRadius: 16,
-        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.18)", border: "1px solid #e5e7eb",
-        width: "100%", maxWidth: modalWidth, maxHeight: "88vh",
-        display: "flex", flexDirection: "column", overflow: "hidden",
+        background: "#ffffff",
+        borderRadius: 16,
+        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.18)",
+        border: "1px solid #e5e7eb",
+        width: "100%",
+        maxWidth: modalWidth,
+        maxHeight: "88vh",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
         animation: "modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
       }} onClick={e => e.stopPropagation()}>
+        {/* Style block for animations */}
         <style>{`
-          @keyframes modalFadeIn { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-          .modal-tab-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; border: none; background: none; border-radius: 8px; cursor: pointer; text-align: left; font-size: 13px; font-weight: 600; color: #4b5563; transition: all 0.2s; }
-          .modal-tab-btn.active { background: #fff; color: #e87c27; box-shadow: 0 4px 12px rgba(232, 124, 39, 0.1); }
-          .modal-input { width: 100%; padding: 10px 12px; font-size: 13px; font-weight: 500; border: 1px solid #d1d5db; border-radius: 8px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; }
-          .modal-input:focus { border-color: #e87c27; box-shadow: 0 0 0 3px rgba(232, 124, 39, 0.18); }
-          .modal-btn-sec { padding: 9px 18px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; color: #374151; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; transition: background 0.15s; }
+          @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(12px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          .modal-tab-btn {
+            display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px;
+            border: none; background: none; border-radius: 8px; cursor: pointer; text-align: left;
+            font-size: 13px; font-weight: 600; color: #4b5563; transition: all 0.2s;
+          }
+          .modal-tab-btn.active {
+            background: #fff; color: #e87c27; box-shadow: 0 4px 12px rgba(232, 124, 39, 0.1);
+          }
+          .modal-input {
+            width: 100%; padding: 10px 12px; font-size: 13px; font-weight: 500; border: 1px solid #d1d5db;
+            border-radius: 8px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box;
+          }
+          .modal-input:focus {
+            border-color: #e87c27; box-shadow: 0 0 0 3px rgba(232, 124, 39, 0.18);
+          }
+          .modal-btn-sec {
+            padding: 9px 18px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;
+            color: #374151; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; transition: background 0.15s;
+          }
           .modal-btn-sec:hover { background: #f9fafb; }
-          .modal-btn-pri { padding: 9px 18px; border: none; border-radius: 8px; background: #e87c27; color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit; transition: opacity 0.15s; }
+          .modal-btn-pri {
+            padding: 9px 18px; border: none; border-radius: 8px; background: #e87c27;
+            color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit; transition: opacity 0.15s;
+          }
           .modal-btn-pri:hover { opacity: 0.9; }
-          .modal-btn-danger { padding: 9px 18px; border: none; border-radius: 8px; background: #dc2626; color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit; transition: opacity 0.15s; }
+          .modal-btn-danger {
+            padding: 9px 18px; border: none; border-radius: 8px; background: #dc2626;
+            color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit; transition: opacity 0.15s;
+          }
           .modal-btn-danger:hover { opacity: 0.9; }
         `}</style>
 
         {/* Modal Header */}
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{
+          padding: "20px 24px",
+          borderBottom: "1px solid #f3f4f6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexShrink: 0,
+        }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
               {type === "logout" && "Confirm Logout"}
@@ -1511,17 +1793,25 @@ function SystemModal({
               {type === "contact" && "Send a ticket to support engineers"}
             </p>
           </div>
-          <button onClick={onClose} style={{ background: "#f3f4f6", border: "none", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#4b5563", transition: "background 0.2s" }}
-            onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"} onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>✕</button>
+          <button onClick={onClose} style={{
+            background: "#f3f4f6", border: "none", borderRadius: "50%",
+            width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "#4b5563", transition: "background 0.2s"
+          }} onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"} onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
+            ✕
+          </button>
         </div>
 
         {/* Modal Body */}
         <div style={{ padding: "24px", overflowY: "auto", flex: 1, minHeight: 0 }}>
-
-          {/* 1. LOGOUT */}
+          {/* 1. CONFIRM LOGOUT */}
           {type === "logout" && (
             <div style={{ textAlign: "center" }}>
-              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626", margin: "0 auto 16px" }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: "50%", background: "#fee2e2",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#dc2626", margin: "0 auto 16px"
+              }}>
                 <IconLogOut size={26} />
               </div>
               <p style={{ margin: "0 0 24px", fontSize: 14, color: "#4b5563", lineHeight: 1.5 }}>
@@ -1529,7 +1819,9 @@ function SystemModal({
               </p>
               <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
                 <button className="modal-btn-sec" onClick={onClose}>Cancel</button>
-                <button className="modal-btn-danger" onClick={() => { onAction("Logged out successfully!", "success"); onClose(); }}>Yes, Log Out</button>
+                <button className="modal-btn-danger" onClick={() => { onAction("Logged out successfully!", "success"); onClose(); }}>
+                  Yes, Log Out
+                </button>
               </div>
             </div>
           )}
@@ -1538,13 +1830,20 @@ function SystemModal({
           {type === "user-management" && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#374151" }}>Active System Accounts ({users.length})</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#374151" }}>
+                  Active System Accounts ({users.length})
+                </p>
                 <button className="modal-btn-pri" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setShowAddUser(!showAddUser)}>
                   {showAddUser ? "Cancel" : "+ Add User"}
                 </button>
               </div>
+
+              {/* Add User Form */}
               {showAddUser && (
-                <form onSubmit={handleAddUser} style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 18, animation: "modalFadeIn 0.2s ease" }}>
+                <form onSubmit={handleAddUser} style={{
+                  background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10,
+                  padding: 16, marginBottom: 18, animation: "modalFadeIn 0.2s ease"
+                }}>
                   <p style={{ margin: "0 0 12px 0", fontSize: 13, fontWeight: 700, color: "#111827" }}>Register New Account</p>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
                     <div>
@@ -1569,6 +1868,8 @@ function SystemModal({
                   </div>
                 </form>
               )}
+
+              {/* Users Table */}
               <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
                   <thead>
@@ -1587,19 +1888,43 @@ function SystemModal({
                           <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>{u.email}</p>
                         </td>
                         <td style={{ padding: "12px" }}>
-                          <select value={u.role} onChange={e => changeUserRole(u.id, e.target.value)} style={{ border: "none", background: "none", fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer", outline: "none" }}>
+                          <select
+                            value={u.role}
+                            onChange={e => changeUserRole(u.id, e.target.value)}
+                            style={{
+                              border: "none", background: "none", fontSize: 12, fontWeight: 600,
+                              color: "#374151", cursor: "pointer", outline: "none"
+                            }}
+                          >
                             <option value="Administrator">Admin</option>
                             <option value="Warehouse Manager">Manager</option>
                             <option value="Staff">Staff</option>
                           </select>
                         </td>
                         <td style={{ padding: "12px" }}>
-                          <span onClick={() => toggleUserStatus(u.id)} style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: u.status === "Active" ? "#dcfce7" : "#fee2e2", color: u.status === "Active" ? "#16a34a" : "#dc2626", cursor: "pointer", display: "inline-block" }}>
+                          <span
+                            onClick={() => toggleUserStatus(u.id)}
+                            style={{
+                              fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+                              background: u.status === "Active" ? "#dcfce7" : "#fee2e2",
+                              color: u.status === "Active" ? "#16a34a" : "#dc2626",
+                              cursor: "pointer", display: "inline-block"
+                            }}
+                          >
                             {u.status}
                           </span>
                         </td>
                         <td style={{ padding: "12px", textAlign: "right" }}>
-                          <button disabled={u.id === 1} onClick={() => deleteUser(u.id, u.name)} style={{ border: "none", background: "none", color: u.id === 1 ? "#d1d5db" : "#dc2626", fontSize: 11, fontWeight: 600, cursor: u.id === 1 ? "not-allowed" : "pointer" }}>Remove</button>
+                          <button
+                            disabled={u.id === 1}
+                            onClick={() => deleteUser(u.id, u.name)}
+                            style={{
+                              border: "none", background: "none", color: u.id === 1 ? "#d1d5db" : "#dc2626",
+                              fontSize: 11, fontWeight: 600, cursor: u.id === 1 ? "not-allowed" : "pointer"
+                            }}
+                          >
+                            Remove
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1615,28 +1940,96 @@ function SystemModal({
               <p style={{ margin: "0 0 20px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.45 }}>
                 Configure low-stock alert thresholds. When the on-hand stock for a product falls at or below these quantities, low stock warning badges will appear.
               </p>
+
               <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 26 }}>
-                {[
-                  { label: "Deformed Rebars (DRB)", sub: "Standard reinforcing bars", val: localDrb, set: setLocalDrb },
-                  { label: "Steel Piles (Pile)", sub: "Structural steel support piles", val: localPile, set: setLocalPile },
-                  { label: "Steel Plates (Plate)", sub: "Heavy duty structural steel plates", val: localPlate, set: setLocalPlate },
-                ].map(({ label, sub, val, set }) => (
-                  <div key={label} style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>{label}</span>
-                        <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>{sub}</p>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => set(Math.max(0, val - 1))}>-</button>
-                        <input type="number" className="modal-input" style={{ width: 52, textAlign: "center", padding: "6px" }} value={val} onChange={e => set(Math.max(0, parseInt(e.target.value) || 0))} />
-                        <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => set(val + 1)}>+</button>
-                      </div>
+                {/* Limit Item 1 */}
+                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Deformed Rebars (DRB)</span>
+                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Standard reinforcing bars</p>
                     </div>
-                    <input type="range" min="1" max="100" style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }} value={val} onChange={e => set(parseInt(e.target.value))} />
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalDrb(Math.max(0, localDrb - 1))}>-</button>
+                      <input
+                        type="number"
+                        className="modal-input"
+                        style={{ width: 52, textAlign: "center", padding: "6px" }}
+                        value={localDrb}
+                        onChange={e => setLocalDrb(Math.max(0, parseInt(e.target.value) || 0))}
+                      />
+                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalDrb(localDrb + 1)}>+</button>
+                    </div>
                   </div>
-                ))}
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
+                    value={localDrb}
+                    onChange={e => setLocalDrb(parseInt(e.target.value))}
+                  />
+                </div>
+
+                {/* Limit Item 2 */}
+                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Steel Piles (Pile)</span>
+                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Structural steel support piles</p>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPile(Math.max(0, localPile - 1))}>-</button>
+                      <input
+                        type="number"
+                        className="modal-input"
+                        style={{ width: 52, textAlign: "center", padding: "6px" }}
+                        value={localPile}
+                        onChange={e => setLocalPile(Math.max(0, parseInt(e.target.value) || 0))}
+                      />
+                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPile(localPile + 1)}>+</button>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
+                    value={localPile}
+                    onChange={e => setLocalPile(parseInt(e.target.value))}
+                  />
+                </div>
+
+                {/* Limit Item 3 */}
+                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Steel Plates (Plate)</span>
+                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Heavy duty structural steel plates</p>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPlate(Math.max(0, localPlate - 1))}>-</button>
+                      <input
+                        type="number"
+                        className="modal-input"
+                        style={{ width: 52, textAlign: "center", padding: "6px" }}
+                        value={localPlate}
+                        onChange={e => setLocalPlate(Math.max(0, parseInt(e.target.value) || 0))}
+                      />
+                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPlate(localPlate + 1)}>+</button>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
+                    value={localPlate}
+                    onChange={e => setLocalPlate(parseInt(e.target.value))}
+                  />
+                </div>
               </div>
+
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
                 <button className="modal-btn-sec" onClick={onClose}>Cancel</button>
                 <button className="modal-btn-pri" onClick={handleSaveLimits}>Save Thresholds</button>
@@ -1647,16 +2040,30 @@ function SystemModal({
           {/* 4. USER GUIDE */}
           {type === "user-guide" && (
             <div style={{ display: "flex", gap: 20 }}>
+              {/* Sidebar Tabs */}
               <div style={{ width: 200, display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                {[["getting-started","🚀 Getting Started"],["stock","📋 Stock Sheets"],["ending","📦 Ending Inventory"],["po","🛒 Purchase Orders"]].map(([k,lbl]) => (
-                  <button key={k} className={`modal-tab-btn ${guideTab === k ? "active" : ""}`} onClick={() => setGuideTab(k)}>{lbl}</button>
-                ))}
+                <button className={`modal-tab-btn ${guideTab === "getting-started" ? "active" : ""}`} onClick={() => setGuideTab("getting-started")}>
+                  🚀 Getting Started
+                </button>
+                <button className={`modal-tab-btn ${guideTab === "stock" ? "active" : ""}`} onClick={() => setGuideTab("stock")}>
+                  📋 Stock Sheets
+                </button>
+                <button className={`modal-tab-btn ${guideTab === "ending" ? "active" : ""}`} onClick={() => setGuideTab("ending")}>
+                  📦 Ending Inventory
+                </button>
+                <button className={`modal-tab-btn ${guideTab === "po" ? "active" : ""}`} onClick={() => setGuideTab("po")}>
+                  🛒 Purchase Orders
+                </button>
               </div>
+
+              {/* Guide Content */}
               <div style={{ flex: 1, background: "#f9fafb", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20 }}>
                 {guideTab === "getting-started" && (
                   <div>
                     <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>System Introduction</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>The Warehouse Inventory System (WIS) is designed to give you instant tracking capability over all steel products, incoming stock-in pipelines, and outbound stock-out deliveries.</p>
+                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
+                      The Warehouse Inventory System (WIS) is designed to give you instant tracking capability over all steel products, incoming stock-in pipelines, and outbound stock-out deliveries.
+                    </p>
                     <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Workflow Steps:</h5>
                     <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
                       <li style={{ marginBottom: 4 }}><strong>Check Dashboard Alerts:</strong> Monitor indicators at home for stock alert warnings.</li>
@@ -1668,7 +2075,9 @@ function SystemModal({
                 {guideTab === "stock" && (
                   <div>
                     <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Managing Stock Sheets</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>Stock Sheets store the permanent record of transactional movements. Entries are separated into Stock In (replenishing) and Stock Out (releasing).</p>
+                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
+                      Stock Sheets store the permanent record of transactional movements. Entries are separated into **Stock In** (replenishing) and **Stock Out** (releasing).
+                    </p>
                     <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Key Capabilities:</h5>
                     <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
                       <li style={{ marginBottom: 4 }}><strong>Table Footer Navigation:</strong> Use the pagination menu at the bottom-right of each table card to navigate entries.</li>
@@ -1680,10 +2089,12 @@ function SystemModal({
                 {guideTab === "ending" && (
                   <div>
                     <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Ending Inventory</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>Ending Inventory provides an overview of currently available stock on-hand. All counts are generated programmatically and checked against configured category limits.</p>
+                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
+                      Ending Inventory provides an overview of currently available stock on-hand. All counts are generated programmatically and checked against configured category limits.
+                    </p>
                     <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Active Tools:</h5>
                     <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Return Entry:</strong> Handle customer returns by recording a dynamic return card.</li>
+                      <li style={{ marginBottom: 4 }}><strong>Return Entry:</strong> Handle customer returns by recording a dynamic return card which injects the items back to active shelf count.</li>
                       <li style={{ marginBottom: 4 }}><strong>Backload Tracking:</strong> Keep record of surplus project backloads for reference.</li>
                     </ul>
                   </div>
@@ -1691,11 +2102,13 @@ function SystemModal({
                 {guideTab === "po" && (
                   <div>
                     <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Purchase Order Logistics</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>Track supplier procurements in the pipeline. Status states include Draft, Pending Approval, Shipped, and Delivered.</p>
+                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
+                      Track supplier procurements in the pipeline. Status states include **Draft**, **Pending Approval**, **Shipped**, and **Delivered**.
+                    </p>
                     <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Logistics Actions:</h5>
                     <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
                       <li style={{ marginBottom: 4 }}><strong>Create PO Drafts:</strong> Add details, products, and target supplier coordinates.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Approve Shipped Orders:</strong> Mark orders as delivered to automatically increment Ending Inventory levels.</li>
+                      <li style={{ marginBottom: 4 }}><strong>Approve Shipped Orders:</strong> Upon arrival at warehouse gates, mark orders as delivered to automatically increment Ending Inventory levels.</li>
                     </ul>
                   </div>
                 )}
@@ -1707,14 +2120,36 @@ function SystemModal({
           {type === "faqs" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
-                { q: "How are stock alert levels determined?", a: "Stock alerts are triggered when the quantity of a product falls below the threshold set in Settings → Stock Limits. These limits are updated dynamically in real-time." },
-                { q: "Can I undo a Stock Out transaction?", a: "Yes. You can record a corrective entry in the Stock Sheets to balance the ledger, or register it as a customer Return using the dedicated Returns inventory panel." },
-                { q: "How do I add new system operator accounts?", a: "Administrators can navigate to Settings → User Management, click 'Add User', and fill out the name, email and role. The operator is immediately added to the list." },
-                { q: "Where do I track pending supplier deliveries?", a: "Go to the Purchasing Order page or check the home dashboard metrics widget, where clicking 'Pending Deliveries' filters the list automatically." },
-                { q: "Is there an auto-backup feature enabled?", a: "Yes. The Warehouse Inventory System performs continuous cloud sync and writes local state backups every 24 hours to secure local data." },
+                {
+                  q: "How are stock alert levels determined?",
+                  a: "Stock alerts are triggered when the quantity of a product falls below the threshold set in Settings -> Stock Limits. These limits are updated dynamically in real-time."
+                },
+                {
+                  q: "Can I undo a Stock Out transaction?",
+                  a: "Yes. You can record a corrective entry in the Stock Sheets to balance the ledger, or register it as a customer Return using the dedicated Returns inventory panel."
+                },
+                {
+                  q: "How do I add new system operator accounts?",
+                  a: "Administrators can navigate to Settings -> User Management, click 'Add User', and fill out the name, email and role. The operator is immediately added to the list."
+                },
+                {
+                  q: "Where do I track pending supplier deliveries?",
+                  a: "Go to the Purchasing Order page or check the home dashboard metrics widget, where clicking 'Pending Deliveries' filters the list automatically."
+                },
+                {
+                  q: "Is there an auto-backup feature enabled?",
+                  a: "Yes. The Warehouse Inventory System performs continuous cloud sync and writes local state backups every 24 hours to secure local data."
+                }
               ].map((faq, i) => (
                 <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-                  <button onClick={() => toggleFaq(i)} style={{ width: "100%", padding: "14px 18px", background: "#f9fafb", border: "none", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 700, color: "#374151" }}>
+                  <button
+                    onClick={() => toggleFaq(i)}
+                    style={{
+                      width: "100%", padding: "14px 18px", background: "#f9fafb", border: "none",
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 700, color: "#374151"
+                    }}
+                  >
                     <span>{faq.q}</span>
                     <span style={{ color: "#9ca3af", transform: localFaqs[i] ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
                   </button>
@@ -1728,38 +2163,60 @@ function SystemModal({
             </div>
           )}
 
-          {/* 6. ABOUT */}
+          {/* 6. ABOUT SYSTEM */}
           {type === "about" && (
             <div style={{ textAlign: "center" }}>
-              <div style={{ width: 68, height: 68, borderRadius: "50%", background: "linear-gradient(135deg, #e87c27 0%, #1a1f2e 100%)", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 24, fontWeight: 800, boxShadow: "0 8px 24px rgba(232,124,39,0.25)" }}>
+              <div style={{
+                width: 68, height: 68, borderRadius: "50%", background: "linear-gradient(135deg, #e87c27 0%, #1a1f2e 100%)",
+                margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#fff", fontSize: 24, fontWeight: 800, boxShadow: "0 8px 24px rgba(232,124,39,0.25)"
+              }}>
                 WIS
               </div>
               <h4 style={{ margin: "0 0 4px 0", fontSize: 16, color: "#111827", fontWeight: 800 }}>Warehouse Inventory System (WIS)</h4>
               <p style={{ margin: "0 0 16px 0", fontSize: 12, color: "#e87c27", fontWeight: 700 }}>Version 2.4.0 (Enterprise Premium)</p>
-              <div style={{ background: "#f9fafb", borderRadius: 12, border: "1px solid #e5e7eb", padding: 16, textAlign: "left", fontSize: 12, display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-                {[["Developer Partner:", "TDT Steel Corp. Engineering"],["Technical Platform:", "React 19.0 + Vite 8 + ES Modules"],["Build Stamp:", "2026-05-21-PRM"]].map(([k,v]) => (
-                  <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "#6b7280", fontWeight: 500 }}>{k}</span>
-                    <span style={{ color: "#111827", fontWeight: 600 }}>{v}</span>
-                  </div>
-                ))}
+
+              <div style={{
+                background: "#f9fafb", borderRadius: 12, border: "1px solid #e5e7eb",
+                padding: 16, textAlign: "left", fontSize: 12, display: "flex", flexDirection: "column", gap: 10,
+                marginBottom: 20
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Developer Partner:</span>
+                  <span style={{ color: "#111827", fontWeight: 600 }}>TDT Steel Corp. Engineering</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Technical Platform:</span>
+                  <span style={{ color: "#111827", fontWeight: 600 }}>React 19.0 + Vite 8 + ES Modules</span>
+                </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "#6b7280", fontWeight: 500 }}>Database Status:</span>
                   <span style={{ color: "#16a34a", fontWeight: 700 }}>● SECURE & SYNCED</span>
                 </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Build Stamp:</span>
+                  <span style={{ color: "#111827", fontWeight: 600 }}>2026-05-21-PRM</span>
+                </div>
               </div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#dcfce7", color: "#15803d", padding: "6px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a" }} /> ALL SYSTEMS OPERATIONAL
+
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                background: "#dcfce7", color: "#15803d", padding: "6px 12px",
+                borderRadius: 20, fontSize: 11, fontWeight: 700
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a" }} />
+                ALL SYSTEMS OPERATIONAL
               </div>
             </div>
           )}
 
-          {/* 7. CONTACT */}
+          {/* 7. CONTACT SUPPORT */}
           {type === "contact" && (
             <form onSubmit={handleContactSubmit}>
               <p style={{ margin: "0 0 16px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.45 }}>
                 Experiencing technical difficulties or need system adjustments? Submit a help ticket below, and our development engineers will respond shortly.
               </p>
+
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
@@ -1771,6 +2228,7 @@ function SystemModal({
                     <input type="email" className="modal-input" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required />
                   </div>
                 </div>
+
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Inquiry Category</label>
                   <select className="modal-input" style={{ padding: "8px 10px" }} value={contactTopic} onChange={e => setContactTopic(e.target.value)}>
@@ -1780,11 +2238,21 @@ function SystemModal({
                     <option value="Other">Other Topic</option>
                   </select>
                 </div>
+
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Inquiry / Issue Message</label>
-                  <textarea className="modal-input" rows={4} style={{ fontFamily: "inherit", resize: "none" }} placeholder="Provide a detailed description of your issue or request..." value={contactMessage} onChange={e => setContactMessage(e.target.value)} required />
+                  <textarea
+                    className="modal-input"
+                    rows={4}
+                    style={{ fontFamily: "inherit", resize: "none" }}
+                    placeholder="Provide a detailed description of your issue or request..."
+                    value={contactMessage}
+                    onChange={e => setContactMessage(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
+
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
                 <button type="button" className="modal-btn-sec" onClick={onClose}>Cancel</button>
                 <button type="submit" className="modal-btn-pri">Submit Support Ticket</button>

@@ -538,7 +538,8 @@ function SignUpForm({ onSwitch, onLoginSuccess }) {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      onLoginSuccess?.(name);
+      setToast({ msg: "Account created! Please sign in.", type: "success" });
+      setTimeout(() => onSwitch?.(), 1800);
     }, 1600);
   };
 
