@@ -368,20 +368,20 @@ function buildTopReleasedItems(stockOut, products) {
 
 // Recent stock-in + stock-out combined (dashboard shows 12 by default)
 function buildRecentActivity(stockIn, stockOut, limit = 12) {
-  const ins  = stockIn.map(t  => ({
-    text: `${t.sku} · ${t.description} — ${t.qty.toLocaleString()} pcs in (${t.vendor})`,
+  const ins  = stockIn.map(t => ({
+    text: `${t.description} — ${t.qty.toLocaleString()} units received`,
     time: t.date,
     type: "in",
   }));
   const outs = stockOut.map(t => ({
-    text: `${t.sku} · ${t.description} — ${t.qty.toLocaleString()} pcs out (${t.customer})`,
+    text: `${t.description} — ${t.qty.toLocaleString()} units released`,
     time: t.date,
     type: "out",
   }));
   return [...ins, ...outs]
     .sort((a, b) => b.time.localeCompare(a.time))
     .slice(0, limit)
-    .map(a => ({ ...a, time: new Date(a.time).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) }));
+    .map(a => ({ ...a, time: new Date(a.time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) }));
 }
 
 const inventoryDataByRange = {
@@ -619,42 +619,43 @@ export default function Dashboard({ onLogout, userName }) {
         }
         .toggle-btn:hover { background: #e87c27; border-color: #e87c27; color: #fff; }
 
-        .alert-row {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 12px 16px; background: #fafafa;
-          border-radius: 10; border: 1px solid #f3f4f6;
-          cursor: pointer;
-          transition: background 0.15s ease, box-shadow 0.15s ease;
-          border-radius: 10px;
-        }
-        .alert-row:hover {
-          background: #fff7ed;
-          box-shadow: 0 2px 8px rgba(232,124,39,0.12);
-          border-color: #fde68a;
-        }
-        .alert-row:hover .alert-arrow { opacity: 1; transform: translateX(2px); }
-        .alert-arrow {
-          opacity: 0;
-          transition: opacity 0.15s ease, transform 0.15s ease;
-          color: #e87c27;
-          display: flex;
-          align-items: center;
-        }
+       /* Replace existing .alert-row styles with: */
+.alert-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.alert-row:last-child { border-bottom: none; }
+.alert-row:hover { background: #fffbf5; }
+.alert-row:hover .alert-arrow { opacity: 1; transform: translateX(2px); }
+.alert-arrow {
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  color: #e87c27;
+  display: flex; align-items: center;
+}
 
-        .dashboard-scroll-panel {
-          max-height: 320px;
-          overflow-y: auto;
-          overflow-x: hidden;
-          padding-right: 4px;
-          margin-right: -4px;
-        }
-        .dashboard-scroll-panel::-webkit-scrollbar { width: 6px; }
-        .dashboard-scroll-panel::-webkit-scrollbar-thumb {
-          background: #d1d5db;
-          border-radius: 3px;
-        }
-        .dashboard-scroll-panel::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-        .dashboard-scroll-panel::-webkit-scrollbar-track { background: transparent; }
+/* Add new .activity-row */
+.activity-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 0;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background 0.12s;
+  text-align: left;
+}
+.activity-row:last-child { border-bottom: none; }
+.activity-row:hover { background: #fafafa; }
+
+.dashboard-scroll-panel {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+}
+.dashboard-scroll-panel::-webkit-scrollbar { width: 4px; }
+.dashboard-scroll-panel::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 2px; }
+.dashboard-scroll-panel::-webkit-scrollbar-track { background: transparent; }
 
         .dashboard-pair-card {
           background: #fff;
@@ -1205,258 +1206,237 @@ export default function Dashboard({ onLogout, userName }) {
                 {/* Metric Cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
                   {/* FIX: iconColor changed from #000000 to real accent colors */}
-                  <MetricCard
-                    icon={<IconBox size={34} />} iconBg="#f0f4ff" iconColor="#3b5bdb"
-                    label="Total List of SKU" value={products.length.toString()}
-                    badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
-                    onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
-                  />
-                  <MetricCard
-                    icon={<IconTruck size={32} />} iconBg="#fff7ed" iconColor="#e87c27"
-                    label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
-                    badge={{
-                      text: pendingDeliveryCount > 0
-                        ? `${pendingDeliveryCount} pending order${pendingDeliveryCount === 1 ? "" : "s"}`
-                        : "No pending orders",
-                      color: "#d97706",
-                      bg: pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
-                      icon: pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
-                    }}
-                    onClick={goToPendingDeliveries}
-                  />
-                  <MetricCard
-                    icon={<IconBarChart size={32} />} iconBg="#f0fdf4" iconColor="#16a34a"
-                    label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
-                    badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
-                    onClick={goToEndingInventory}
-                  />
-                  <MetricCard
-                    icon={<IconBag size={32} />} iconBg="#fdf4ff" iconColor="#9333ea"
-                    label="Transactions Today" value={String(transactionsToday)}
-                    badge={{
-                      text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
-                      color: transactionsToday > 0 ? "#e87c27" : "#6b7280",
-                      bg: "transparent",
-                    }}
-                    onClick={goToStockSheets}
-                  />
+                <MetricCard
+  icon={<IconBox size={34} />} iconBg="#F95B02" iconColor="#ffffff"
+  label="Total List of SKU" value={products.length.toString()}
+  badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
+  onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
+/>
+<MetricCard
+  icon={<IconTruck size={28} />} iconBg="#F95B02" iconColor="#ffffff"
+  label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
+  badge={{
+    text: pendingDeliveryCount > 0
+      ? `${pendingDeliveryCount} pending order${pendingDeliveryCount === 1 ? "" : "s"}`
+      : "No pending orders",
+    color: "#d97706",
+    bg: pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
+    icon: pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
+  }}
+  onClick={goToPendingDeliveries}
+/>
+<MetricCard
+  icon={<IconBarChart size={30} />} iconBg="#F95B02" iconColor="#ffffff"
+  label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
+  badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
+  onClick={goToEndingInventory}
+/>
+<MetricCard
+  icon={<IconBag size={30} />} iconBg="#F95B02" iconColor="#ffffff"
+  label="Transactions Today" value={String(transactionsToday)}
+  badge={{
+    text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
+    color: transactionsToday > 0 ? "#e87c27" : "#6b7280",
+    bg: "transparent",
+  }}
+  onClick={goToStockSheets}
+/>
                 </div>
 
-                {/* Chart + Top Released Items */}
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(300px, 34%)", gap: 18, alignItems: "stretch" }}>
-                  <div className="dashboard-pair-card">
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {["Last 7 Days"].map(r => (
-                          <button key={r} onClick={() => setDateRange(r)} style={{
-                            padding: "4px 10px", fontSize: 11, fontWeight: 600,
-                            borderRadius: 6, cursor: "pointer",
-                            border: dateRange === r ? "1px solid #e87c27" : "1px solid #e5e7eb",
-                            background: dateRange === r ? "#fff7ed" : "#fff",
-                            color: dateRange === r ? "#e87c27" : "#6b7280",
-                          }}>{r.replace("Last ", "")}</button>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 16, marginBottom: 10, flexShrink: 0 }}>
-                      {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
-                        <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
-                          <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
-                          {l}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="dashboard-pair-chart">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={chartData}
-                          barCategoryGap="22%"
-                          barGap={5}
-                          margin={{ top: 8, right: 10, left: -6, bottom: 4 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                          <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                          <YAxis domain={[0, chartYMax]} tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} width={38} />
-                          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
-                          <Bar dataKey="stockIn"  fill="#e87c27" radius={0} maxBarSize={40} />
-                          <Bar dataKey="stockOut" fill="#52c4b0" radius={0} maxBarSize={40} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
+               {/* ── Row 2: Chart (flex) + Top Released Items (380px) ── */}
+<div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "stretch" }}>
 
-                  {/* Top Released Items */}
-                  <div className="dashboard-pair-card">
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Top Released Items</p>
-                      <button onClick={goToStockSheets} style={{
-                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
-                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
-                      }}>
-                        View all <IconArrowRight size={12} />
-                      </button>
-                    </div>
-                    {topReleasedItems.length === 0 ? (
-                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No stock-out data yet</p>
-                    ) : (
-                      <div className="dashboard-pair-list">
-                        {topReleasedItems.map((item, i) => (
-                          <div key={i} className="dashboard-pair-list-row">
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {item.name}
-                              </p>
-                              <p style={{ fontSize: 10, color: "#9ca3af", marginBottom: 6 }}>{item.sku}</p>
-                              <div className="dashboard-pair-bar-track">
-                                <div
-                                  className="dashboard-pair-bar-fill"
-                                  style={{
-                                    width: `${item.pct}%`,
-                                    background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
-                                    minWidth: item.pct > 0 ? 4 : 0,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "#111827", flexShrink: 0, minWidth: 52, textAlign: "right" }}>
-                              {item.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+  {/* Inventory Movement Chart */}
+  <div style={{
+    background: "#fff", borderRadius: 16, padding: "22px 24px 18px",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
+    display: "flex", flexDirection: "column",
+  }}>
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+      <div>
+        <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>
+          Inventory Movement – {dateRange}
+        </p>
+        <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+          {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
+            <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
+              <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
+              {l}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        {["Last 7 Days"].map(r => (
+          <button key={r} onClick={() => setDateRange(r)} style={{
+            padding: "4px 10px", fontSize: 11, fontWeight: 600,
+            borderRadius: 6, cursor: "pointer",
+            border: dateRange === r ? "1px solid #e87c27" : "1px solid #e5e7eb",
+            background: dateRange === r ? "#fff7ed" : "#fff",
+            color: dateRange === r ? "#e87c27" : "#6b7280",
+          }}>{r.replace("Last ", "")}</button>
+        ))}
+      </div>
+    </div>
+    <div style={{ flex: 1, minHeight: 260 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={chartData}
+          barCategoryGap="22%"
+          barGap={5}
+          margin={{ top: 8, right: 10, left: -6, bottom: 4 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+          <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+          <YAxis domain={[0, chartYMax]} tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} width={38} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
+          <Bar dataKey="stockIn"  fill="#e87c27" radius={[3, 3, 0, 0]} maxBarSize={36} />
+          <Bar dataKey="stockOut" fill="#52c4b0" radius={[3, 3, 0, 0]} maxBarSize={36} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  </div>
 
-                {/* Alerts + Activity */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+  {/* Top Released Items */}
+  <div style={{
+    background: "#fff", borderRadius: 16, padding: "22px 24px",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
+    display: "flex", flexDirection: "column",
+  }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <p style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: 0 }}>Top Released Items</p>
+      <button onClick={goToStockSheets} style={{
+        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+      }}>
+        View all <IconArrowRight size={12} />
+      </button>
+    </div>
+    {topReleasedItems.length === 0 ? (
+      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No stock-out data yet</p>
+    ) : (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1, justifyContent: "space-between" }}>
+        {topReleasedItems.map((item, i) => (
+          <div key={i}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>
+                {item.name}
+              </p>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#111827", flexShrink: 0, marginLeft: 12 }}>
+                {item.value}
+              </span>
+            </div>
+            <div style={{ display: "flex", height: 9, overflow: "hidden" }}>
+              <div style={{
+                width: `${item.pct}%`, height: "100%",
+                background: "#e87c27", flexShrink: 0,
+              }} />
+              <div style={{ flex: 1, height: "100%", background: "#1e2330" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+</div>
 
-                  {/* ── Stock Alerts ── */}
-                  <div style={{
-                    background: "#fff", borderRadius: 14, padding: "24px",
-                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
-                    display: "flex", flexDirection: "column", minHeight: 0,
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>
-                        Stock Alerts
-                        {lowStockAll.length > 0 && (
-                          <span style={{
-                            marginLeft: 8, fontSize: 11, fontWeight: 700,
-                            background: "#fef3c7", color: "#d97706",
-                            padding: "2px 8px", borderRadius: 20,
-                          }} title={lowStockAll.length !== stockAlerts.length ? `${lowStockAll.length} rows, ${stockAlerts.length} unique SKUs` : undefined}>
-                            {stockAlerts.length}
-                            {lowStockAll.length !== stockAlerts.length ? ` (${lowStockAll.length} rows)` : ""}
-                          </span>
-                        )}
-                      </p>
-                      <button onClick={goToLowStock} style={{
-                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
-                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
-                      }}>
-                        View all <IconArrowRight size={12} />
-                      </button>
-                    </div>
+ {/* ── Row 3: Stock Alerts + Recent Activity ── */}
+<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
 
-                    {stockAlerts.length === 0 ? (
-                      <div style={{ textAlign: "center", padding: "24px 0" }}>
-                        <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
-                      </div>
-                    ) : (
-                      <div className="dashboard-scroll-panel" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {stockAlerts.map((a) => (
-                          <div
-                            key={a.sku}
-                            className="alert-row"
-                            onClick={goToLowStock}
-                            title={`Click to view ${a.sku} in Product page`}
-                          >
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {a.description.length > 36 ? a.description.slice(0, 36) + "…" : a.description}
-                              </p>
-                              <p style={{ fontSize: 11, color: "#9ca3af" }}>
-                                SKU: {a.sku} — {a.stock} unit{a.stock !== 1 ? "s" : ""} left
-                              </p>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 10 }}>
-                              <span style={{
-                                fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
-                                background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
-                              }}>
-                                Low stock
-                              </span>
-                              <span className="alert-arrow">
-                                <IconArrowRight size={14} />
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+  {/* Stock Alerts */}
+  <div style={{
+    background: "#fff", borderRadius: 16,
+    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
+    display: "flex", flexDirection: "column", overflow: "hidden",
+  }}>
+    <div style={{ padding: "20px 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+      <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>
+        Stock Alerts
+        {lowStockAll.length > 0 && (
+          <span style={{
+            marginLeft: 8, fontSize: 11, fontWeight: 700,
+            background: "#fef3c7", color: "#d97706",
+            padding: "2px 8px", borderRadius: 20,
+          }}>
+            {stockAlerts.length}
+            {lowStockAll.length !== stockAlerts.length ? ` (${lowStockAll.length} rows)` : ""}
+          </span>
+        )}
+      </p>
+    </div>
+    {stockAlerts.length === 0 ? (
+      <div style={{ textAlign: "center", padding: "32px 24px" }}>
+        <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
+      </div>
+    ) : (
+      <div className="dashboard-scroll-panel" style={{ maxHeight: 320 }}>
+        {stockAlerts.map((a) => (
+          <div key={a.sku} className="alert-row" onClick={goToLowStock}>
+            <div style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {a.description.length > 30 ? a.description.slice(0, 30) + "…" : a.description}
+              </p>
+              <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>
+                SKU: {a.sku} — {a.stock} unit{a.stock !== 1 ? "s" : ""} left
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 12 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: "5px 14px", borderRadius: 20,
+                background: "#fff7ed", color: "#e87c27",
+                border: "1.5px solid #fcd9b0",
+              }}>
+                Low stock
+              </span>
+              <span className="alert-arrow"><IconArrowRight size={13} /></span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
 
-                    {stockAlerts.length > 0 && (
-                      <p style={{ fontSize: 10, color: "#d97706", marginTop: 12, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                        <span>↑</span> Click any alert to go to Product page
-                      </p>
-                    )}
-                  </div>
-
-                  {/* ── Recent Activity ── */}
-                  <div style={{
-                    background: "#fff", borderRadius: 14, padding: "24px",
-                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
-                    display: "flex", flexDirection: "column", minHeight: 0,
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Recent Activity</p>
-                      <button onClick={goToStockSheets} style={{
-                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
-                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
-                      }}>
-                        View all <IconArrowRight size={12} />
-                      </button>
-                    </div>
-                    {recentActivity.length === 0 ? (
-                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No recent transactions</p>
-                    ) : (
-                      <div className="dashboard-scroll-panel">
-                        {recentActivity.map((a, i) => (
-                        <div
-                          key={i}
-                          role="button"
-                          tabIndex={0}
-                          onClick={goToStockSheets}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") goToStockSheets(); }}
-                          style={{
-                          display: "flex", alignItems: "center", gap: 12,
-                          padding: "11px 0",
-                          borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
-                          cursor: "pointer",
-                        }}>
-                          <div style={{
-                            width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-                            background: a.type === "in" ? "#22c55e" : "#ef4444",
-                          }} />
-                          <span style={{ fontSize: 12, color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {a.text}
-                          </span>
-                          <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6, flexShrink: 0,
-                            background: a.type === "in" ? "#dcfce7" : "#fee2e2",
-                            color: a.type === "in" ? "#16a34a" : "#dc2626",
-                          }}>
-                            {a.type === "in" ? "IN" : "OUT"}
-                          </span>
-                        </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+  {/* Recent Activity */}
+  <div style={{
+    background: "#fff", borderRadius: 16,
+    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
+    display: "flex", flexDirection: "column", overflow: "hidden",
+  }}>
+    <div style={{ padding: "20px 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+      <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>Recent Activity</p>
+      <button onClick={goToStockSheets} style={{
+        fontSize: 11, color: "#e87c27", background: "none", border: "none",
+        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
+      }}>
+        View all <IconArrowRight size={12} />
+      </button>
+    </div>
+    {recentActivity.length === 0 ? (
+      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "32px 24px" }}>No recent transactions</p>
+    ) : (
+      <div className="dashboard-scroll-panel" style={{ maxHeight: 320, paddingLeft: 24, paddingRight: 24 }}>
+        {recentActivity.map((a, i) => (
+          <div
+            key={i}
+            className="activity-row"
+            onClick={goToStockSheets}
+          >
+            <div style={{
+              width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+              background: a.type === "in" ? "#22c55e" : "#ef4444",
+            }} />
+            <span style={{ fontSize: 12.5, color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
+              {a.text}
+            </span>
+            <span style={{ fontSize: 12, color: "#9ca3af", flexShrink: 0, marginLeft: 8 }}>
+              {a.time}
+            </span>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+</div>
 
               </div>
             )}
@@ -1503,7 +1483,6 @@ export default function Dashboard({ onLogout, userName }) {
   );
 }
 
-/* ── METRIC CARD ─────────────────────────────────────────── */
 function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
   const [hovered, setHovered] = useState(false);
 
@@ -1513,77 +1492,79 @@ function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
       style={{
         position: "relative",
         background: "#fff",
-        borderRadius: 18,
-        padding: "20px 22px 20px",
-        minHeight: 200,
+        borderRadius: 16,
+        padding: "22px 22px 18px",
+        minHeight: 160,
         overflow: "hidden",
-        boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)",
         display: "flex", flexDirection: "column", justifyContent: "space-between",
         cursor: onClick ? "pointer" : "default",
-        transition: "transform 0.4s cubic-bezier(0.15, 0.83, 0.66, 1)",
+        border: "1px solid #f0f0f0",
+        borderTop: "5px solid #F95B02",
+        transition: "transform 0.25s ease, box-shadow 0.25s ease",
       }}
-      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.03)"; }}
-      onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}
+      onMouseEnter={e => {
+        setHovered(true);
+        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.08), 0 12px 32px rgba(0,0,0,0.1)";
+      }}
+      onMouseLeave={e => {
+        setHovered(false);
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)";
+      }}
     >
-      {/* Radial gradient bg tint */}
       <div style={{
-        position: "absolute", inset: 0, borderRadius: 18,
-        background: `radial-gradient(ellipse at 80% 110%, ${iconBg} 0%, rgba(255,255,255,0) 65%)`,
-        opacity: 0.7, pointerEvents: "none",
-      }} />
-
-      {/* FIX: pulse circle now uses iconColor (the real accent) and is always slightly visible */}
-      <div style={{
-        position: "absolute", right: -18, top: -22,
-        width: 110, height: 110, borderRadius: "50%",
-        background: iconColor,
-        opacity: hovered ? 0.18 : 0.07,
-        animation: hovered ? "metricPulse 2.4s ease-in-out infinite" : "none",
-        transition: "opacity 0.35s ease",
-        pointerEvents: "none",
-      }} />
-
-      <div style={{
-        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-        gap: 10, position: "relative", zIndex: 2,
+        display: "flex", alignItems: "center",
+        justifyContent: "space-between", gap: 12,
+        position: "relative", zIndex: 2,
       }}>
-        <p style={{ fontSize: 15, fontWeight: 700, color: "#6b7280", lineHeight: 1.35, flex: 1, paddingRight: 4 }}>
+        <p style={{
+          fontSize: 14.5, fontWeight: 610, color: "#6b7280",
+          lineHeight: 1.4, margin: 0, textAlign: "left",
+        }}>
           {label}
         </p>
         <div style={{
-          width: 48, height: 48, borderRadius: 12,
-          background: iconBg,
+          width: 44, height: 44, borderRadius: 12,
+          background: "#F95B02", flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-          color: iconColor, flexShrink: 0,
-          transition: "transform 0.25s ease, box-shadow 0.25s ease",
-          transform: hovered ? "scale(1.1)" : "scale(1)",
-          boxShadow: hovered ? `0 6px 18px ${iconColor}40` : "none",
+          color: "#ffffff",
+          transition: "transform 0.2s ease",
+          transform: hovered ? "scale(1.08)" : "scale(1)",
         }}>
           {icon}
         </div>
       </div>
 
-      {/* FIX: fontWeight 900, fontSize 44, tighter letterSpacing for bold heavy look */}
       <p style={{
-        fontSize: 44, fontWeight: 800, color: "#111827", letterSpacing: "-2px",
-        lineHeight: 1, position: "relative", zIndex: 2, margin: "14px 0 0px",
+        fontSize: 36, fontWeight: 700, color: "#111827",
+        letterSpacing: "-1.5px", lineHeight: 1,
+        position: "relative", zIndex: 2,
+        margin: "14px 0 12px", textAlign: "left",
         fontFamily: "'Poppins', sans-serif",
       }}>
         {value}
       </p>
 
       {badge && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative", zIndex: 2 }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          position: "relative", zIndex: 2, alignSelf: "flex-start",
+        }}>
           {badge.icon && (
-            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: "#f59e0b" }}>
+            <span style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              width: 20, height: 20, borderRadius: "50%", background: "#f59e0b",
+              flexShrink: 0,
+            }}>
               {badge.icon}
             </span>
           )}
           <span style={{
-            fontSize: 12, fontWeight: 600, color: badge.color,
-            background: badge.bg !== "transparent" ? badge.bg : "transparent",
-            padding: badge.bg !== "transparent" ? "2px 8px" : "0",
-            borderRadius: 20,
+            fontSize: 11, fontWeight: 600,
+            color: badge.color,
+            letterSpacing: "0.01em",
           }}>
             {badge.text}
           </span>
@@ -1697,9 +1678,10 @@ function SystemModal({
 
   // Determine width based on type
   let modalWidth = 460;
-  if (type === "user-management") modalWidth = 720;
+  if (type === "user-management") modalWidth = 750;
   if (type === "user-guide") modalWidth = 820;
   if (type === "faqs") modalWidth = 660;
+if (type === "stock-limits") modalWidth = 860;  // ← add this
 
   return (
     <div style={{
@@ -1826,216 +1808,271 @@ function SystemModal({
             </div>
           )}
 
-          {/* 2. USER MANAGEMENT */}
-          {type === "user-management" && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#374151" }}>
-                  Active System Accounts ({users.length})
-                </p>
-                <button className="modal-btn-pri" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setShowAddUser(!showAddUser)}>
-                  {showAddUser ? "Cancel" : "+ Add User"}
-                </button>
-              </div>
+         {/* 2. USER MANAGEMENT */}
+{type === "user-management" && (
+  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    {/* Toolbar */}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 12px", border: "1px solid #e5e7eb",
+        borderRadius: 8, background: "#f9fafb", flex: 1, maxWidth: 280,
+      }}>
+        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input
+          type="text"
+          placeholder="Search users..."
+          value={newUserEmail} // reuse as search state
+          onChange={e => setNewUserEmail(e.target.value)}
+          style={{
+            border: "none", background: "none", outline: "none",
+            fontSize: 13, color: "#111827", width: "100%", fontFamily: "inherit",
+          }}
+        />
+      </div>
+      <button className="modal-btn-pri" style={{ padding: "8px 14px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+        onClick={() => setShowAddUser(v => !v)}>
+        {showAddUser ? "✕ Cancel" : "+ Add new user"}
+      </button>
+    </div>
 
-              {/* Add User Form */}
-              {showAddUser && (
-                <form onSubmit={handleAddUser} style={{
-                  background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10,
-                  padding: 16, marginBottom: 18, animation: "modalFadeIn 0.2s ease"
-                }}>
-                  <p style={{ margin: "0 0 12px 0", fontSize: 13, fontWeight: 700, color: "#111827" }}>Register New Account</p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Full Name</label>
-                      <input type="text" className="modal-input" placeholder="Francis Pechon" value={newUserName} onChange={e => setNewUserName(e.target.value)} required />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Email Address</label>
-                      <input type="email" className="modal-input" placeholder="name@wis.com" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} required />
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                    <div style={{ width: "170px" }}>
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Access Role</label>
-                      <select className="modal-input" style={{ padding: "8px 10px" }} value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
-                        <option value="Administrator">Administrator</option>
-                        <option value="Warehouse Manager">Warehouse Manager</option>
-                        <option value="Staff">Staff</option>
-                      </select>
-                    </div>
-                    <button type="submit" className="modal-btn-pri">Register User</button>
-                  </div>
-                </form>
-              )}
+    {/* Add User Form */}
+    {showAddUser && (
+      <div style={{
+        background: "#f9fafb", border: "1px solid #e5e7eb",
+        borderRadius: 10, padding: 16,
+      }}>
+        <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "#111827" }}>New user</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Full name</label>
+            <input type="text" className="modal-input" placeholder="e.g. Maria Santos"
+              value={newUserName} onChange={e => setNewUserName(e.target.value)} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Assign role</label>
+            <select className="modal-input" style={{ padding: "9px 10px" }}
+              value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
+              <option value="Administrator">Administrator</option>
+              <option value="Warehouse Manager">Warehouse Manager</option>
+              <option value="Staff">Staff</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button className="modal-btn-sec" onClick={() => { setShowAddUser(false); setNewUserName(""); }}>Cancel</button>
+          <button className="modal-btn-pri" onClick={() => {
+            if (!newUserName.trim()) { onAction("Please enter a full name", "error"); return; }
+            const autoEmail = newUserName.trim().toLowerCase().replace(/\s+/g, ".") + "@wis.com";
+            setUsers(prev => [...prev, {
+              id: Date.now(), name: newUserName.trim(),
+              email: autoEmail, role: newUserRole, status: "Active",
+            }]);
+            onAction(`User ${newUserName.trim()} added successfully!`, "success");
+            setNewUserName(""); setNewUserRole("Staff"); setShowAddUser(false);
+          }}>Save</button>
+        </div>
+      </div>
+    )}
 
-              {/* Users Table */}
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
-                  <thead>
-                    <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                      <th style={{ padding: "10px 12px", color: "#6b7280", fontWeight: 600 }}>Name / Email</th>
-                      <th style={{ padding: "10px 12px", color: "#6b7280", fontWeight: 600 }}>Role</th>
-                      <th style={{ padding: "10px 12px", color: "#6b7280", fontWeight: 600 }}>Status</th>
-                      <th style={{ padding: "10px 12px", color: "#6b7280", fontWeight: 600, textAlign: "right" }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(u => (
-                      <tr key={u.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                        <td style={{ padding: "12px" }}>
-                          <p style={{ margin: 0, fontWeight: 600, color: "#111827" }}>{u.name}</p>
-                          <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>{u.email}</p>
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <select
-                            value={u.role}
-                            onChange={e => changeUserRole(u.id, e.target.value)}
-                            style={{
-                              border: "none", background: "none", fontSize: 12, fontWeight: 600,
-                              color: "#374151", cursor: "pointer", outline: "none"
-                            }}
-                          >
-                            <option value="Administrator">Admin</option>
-                            <option value="Warehouse Manager">Manager</option>
-                            <option value="Staff">Staff</option>
-                          </select>
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <span
-                            onClick={() => toggleUserStatus(u.id)}
-                            style={{
-                              fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
-                              background: u.status === "Active" ? "#dcfce7" : "#fee2e2",
-                              color: u.status === "Active" ? "#16a34a" : "#dc2626",
-                              cursor: "pointer", display: "inline-block"
-                            }}
-                          >
-                            {u.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: "12px", textAlign: "right" }}>
-                          <button
-                            disabled={u.id === 1}
-                            onClick={() => deleteUser(u.id, u.name)}
-                            style={{
-                              border: "none", background: "none", color: u.id === 1 ? "#d1d5db" : "#dc2626",
-                              fontSize: 11, fontWeight: 600, cursor: u.id === 1 ? "not-allowed" : "pointer"
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+    {/* Users Table */}
+    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+        <thead>
+          <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>Name</th>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>Role</th>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>Last active</th>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</th>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users
+            .filter(u => !newUserEmail || u.name.toLowerCase().includes(newUserEmail.toLowerCase()) || u.email.toLowerCase().includes(newUserEmail.toLowerCase()))
+            .map((u, i) => {
+              const avatarColors = [["#E6F1FB","#0C447C"],["#EAF3DE","#3B6D11"],["#FAEEDA","#854F0B"],["#FAECE7","#993C1D"],["#EEEDFE","#3C3489"]];
+              const [avatarBg, avatarFg] = avatarColors[i % avatarColors.length];
+              const initials = u.name.split(" ").slice(0,2).map(w => w[0]).join("").toUpperCase();
+              const lastActiveMap = { 1: "Active now", 2: "Active now", 3: "2 hours ago", 4: "Yesterday" };
+              const lastActive = lastActiveMap[u.id] || "Recently";
+              const isNow = lastActive === "Active now";
+              return (
+                <tr key={u.id} style={{ borderBottom: "1px solid #f3f4f6" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
+                  onMouseLeave={e => e.currentTarget.style.background = ""}>
+                  <td style={{ padding: "12px 14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: "50%",
+                        background: avatarBg, color: avatarFg,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 700, flexShrink: 0,
+                      }}>{initials}</div>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 600, color: "#111827", fontSize: 13 }}>{u.name}</p>
+                        <p style={{ margin: "2px 0 0", fontSize: 11, color: "#9ca3af" }}>{u.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <select value={u.role} onChange={e => changeUserRole(u.id, e.target.value)}
+                      style={{ border: "none", background: "none", fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer", outline: "none", fontFamily: "inherit" }}>
+                      <option value="Administrator">Administrator</option>
+                      <option value="Warehouse Manager">Warehouse Manager</option>
+                      <option value="Staff">Staff</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <span style={{ fontSize: 12, color: isNow ? "#16a34a" : "#9ca3af", display: "flex", alignItems: "center", gap: 5 }}>
+                      {isNow && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />}
+                      {lastActive}
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    <span onClick={() => toggleUserStatus(u.id)} style={{
+                      fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
+                      background: u.status === "Active" ? "#dcfce7" : "#fee2e2",
+                      color: u.status === "Active" ? "#16a34a" : "#dc2626",
+                      cursor: "pointer", display: "inline-block",
+                    }}>{u.status}</span>
+                  </td>
+                  <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                    <button
+                      disabled={u.id === 1}
+                      onClick={() => deleteUser(u.id, u.name)}
+                      style={{
+                        border: "1px solid #e5e7eb", borderRadius: 6, background: "none",
+                        padding: "5px 10px", fontSize: 12, fontWeight: 600,
+                        color: u.id === 1 ? "#d1d5db" : "#374151",
+                        cursor: u.id === 1 ? "not-allowed" : "pointer",
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        fontFamily: "inherit",
+                      }}>
+                    
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
 
           {/* 3. STOCK LIMITS */}
-          {type === "stock-limits" && (
-            <div>
-              <p style={{ margin: "0 0 20px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.45 }}>
-                Configure low-stock alert thresholds. When the on-hand stock for a product falls at or below these quantities, low stock warning badges will appear.
-              </p>
+{type === "stock-limits" && (
+  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+    <p style={{ margin: "0 0 16px", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
+      Manage minimum and maximum inventory thresholds for each SKU. Warning level triggers a low-stock alert; target max is the reorder ceiling.
+    </p>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 26 }}>
-                {/* Limit Item 1 */}
-                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Deformed Rebars (DRB)</span>
-                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Standard reinforcing bars</p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalDrb(Math.max(0, localDrb - 1))}>-</button>
-                      <input
-                        type="number"
-                        className="modal-input"
-                        style={{ width: 52, textAlign: "center", padding: "6px" }}
-                        value={localDrb}
-                        onChange={e => setLocalDrb(Math.max(0, parseInt(e.target.value) || 0))}
-                      />
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalDrb(localDrb + 1)}>+</button>
-                    </div>
-                  </div>
+    {/* Search */}
+    <div style={{
+      display: "flex", alignItems: "center", gap: 8,
+      padding: "8px 12px", border: "1px solid #e5e7eb",
+      borderRadius: 8, background: "#f9fafb", maxWidth: 280, marginBottom: 16,
+    }}>
+      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input
+        type="text"
+        placeholder="Search SKU or description..."
+        id="stock-search-input"
+        style={{ border: "none", background: "none", outline: "none", fontSize: 13, color: "#111827", width: "100%", fontFamily: "inherit" }}
+      />
+    </div>
+
+    {/* Table */}
+    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left" }}>SKU code</th>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left" }}>Item description</th>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>Current stock</th>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>Warning level</th>
+            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>Target max</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            { sku: "DRB-10MM", desc: "Deformed Rebar 10mm",   current: localDrb,   warnKey: "drb",   maxKey: "drbMax",   warn: localDrb,   max: 200 },
+            { sku: "DRB-12MM", desc: "Deformed Rebar 12mm",   current: 6,          warnKey: "drb12", maxKey: "drb12Max", warn: 10,         max: 200 },
+            { sku: "PILE-H250",desc: "H-Pile 250×250",        current: localPile,  warnKey: "pile",  maxKey: "pileMax",  warn: localPile,  max: 60  },
+            { sku: "PLT-6MM",  desc: "Steel Plate 6mm",       current: localPlate, warnKey: "plate", maxKey: "plateMax", warn: localPlate, max: 150 },
+            { sku: "ANGLE-50", desc: "Angle Bar 50×50×5",     current: 91,         warnKey: "angle", maxKey: "angleMax", warn: 20,         max: 400 },
+          ].map((row, i) => {
+            const isLow = row.current <= row.warn;
+            return (
+              <tr key={row.sku} style={{ borderBottom: "1px solid #f3f4f6" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
+                onMouseLeave={e => e.currentTarget.style.background = ""}>
+                <td style={{ padding: "11px 14px", fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{row.sku}</td>
+                <td style={{ padding: "11px 14px", color: "#111827", fontWeight: 500 }}>{row.desc}</td>
+                <td style={{ padding: "11px 14px", textAlign: "center" }}>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    fontWeight: 700, fontSize: 13,
+                    color: isLow ? "#dc2626" : "#16a34a",
+                  }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: isLow ? "#dc2626" : "#16a34a", display: "inline-block" }} />
+                    {row.current}
+                  </span>
+                </td>
+                <td style={{ padding: "11px 14px", textAlign: "center" }}>
                   <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
-                    value={localDrb}
-                    onChange={e => setLocalDrb(parseInt(e.target.value))}
+                    type="number"
+                    defaultValue={row.warn}
+                    min={0}
+                    onChange={e => {
+                      if (row.warnKey === "drb") setLocalDrb(Math.max(0, parseInt(e.target.value) || 0));
+                      if (row.warnKey === "pile") setLocalPile(Math.max(0, parseInt(e.target.value) || 0));
+                      if (row.warnKey === "plate") setLocalPlate(Math.max(0, parseInt(e.target.value) || 0));
+                    }}
+                    style={{
+                      width: 68, textAlign: "center", padding: "6px 8px",
+                      border: "1px solid #d1d5db", borderRadius: 6,
+                      fontSize: 12, fontFamily: "inherit", outline: "none",
+                      color: "#111827", background: "#fff",
+                    }}
+                    onFocus={e => e.target.style.borderColor = "#e87c27"}
+                    onBlur={e => e.target.style.borderColor = "#d1d5db"}
                   />
-                </div>
-
-                {/* Limit Item 2 */}
-                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Steel Piles (Pile)</span>
-                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Structural steel support piles</p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPile(Math.max(0, localPile - 1))}>-</button>
-                      <input
-                        type="number"
-                        className="modal-input"
-                        style={{ width: 52, textAlign: "center", padding: "6px" }}
-                        value={localPile}
-                        onChange={e => setLocalPile(Math.max(0, parseInt(e.target.value) || 0))}
-                      />
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPile(localPile + 1)}>+</button>
-                    </div>
-                  </div>
+                </td>
+                <td style={{ padding: "11px 14px", textAlign: "center" }}>
                   <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
-                    value={localPile}
-                    onChange={e => setLocalPile(parseInt(e.target.value))}
+                    type="number"
+                    defaultValue={row.max}
+                    min={0}
+                    style={{
+                      width: 68, textAlign: "center", padding: "6px 8px",
+                      border: "1px solid #d1d5db", borderRadius: 6,
+                      fontSize: 12, fontFamily: "inherit", outline: "none",
+                      color: "#111827", background: "#fff",
+                    }}
+                    onFocus={e => e.target.style.borderColor = "#e87c27"}
+                    onBlur={e => e.target.style.borderColor = "#d1d5db"}
                   />
-                </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
 
-                {/* Limit Item 3 */}
-                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Steel Plates (Plate)</span>
-                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Heavy duty structural steel plates</p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPlate(Math.max(0, localPlate - 1))}>-</button>
-                      <input
-                        type="number"
-                        className="modal-input"
-                        style={{ width: 52, textAlign: "center", padding: "6px" }}
-                        value={localPlate}
-                        onChange={e => setLocalPlate(Math.max(0, parseInt(e.target.value) || 0))}
-                      />
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPlate(localPlate + 1)}>+</button>
-                    </div>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
-                    value={localPlate}
-                    onChange={e => setLocalPlate(parseInt(e.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                <button className="modal-btn-sec" onClick={onClose}>Cancel</button>
-                <button className="modal-btn-pri" onClick={handleSaveLimits}>Save Thresholds</button>
-              </div>
-            </div>
-          )}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+      <button className="modal-btn-sec" onClick={onClose}>Cancel</button>
+      <button className="modal-btn-pri" onClick={handleSaveLimits}>Save changes</button>
+    </div>
+  </div>
+)}
 
           {/* 4. USER GUIDE */}
           {type === "user-guide" && (
