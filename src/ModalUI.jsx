@@ -55,7 +55,7 @@ export function ModalHeader({
   return (
     <header
       className={`wis-modal-header${center ? " wis-modal-header--center" : ""}`}
-      style={{ background: `linear-gradient(180deg, ${t.soft} 0%, #ffffff 100%)` }}
+      style={{ background: "#ffffff" }}
     >
       <div className="wis-modal-header__main">
         {!hideIcon && t.icon && (

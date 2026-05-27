@@ -27,10 +27,11 @@
   overflow: hidden;
   background: #fff;
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.06),
-    0 32px 80px rgba(15, 23, 42, 0.28);
+    0 0 0 1px rgba(15, 23, 42, 0.04),
+    0 24px 64px rgba(15, 23, 42, 0.18),
+    0 8px 24px rgba(15, 23, 42, 0.08);
   animation: wisModalFrameIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -40,9 +41,7 @@
 }
 
 .wis-modal-accent-bar {
-  height: 5px;
-  flex-shrink: 0;
-  border-radius: 20px 20px 0 0;
+  display: none;
 }
 
 .wis-modal-header {
@@ -51,16 +50,17 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 24px 18px;
+  padding: 28px 28px 22px;
   border-bottom: 1px solid #f0f2f5;
   flex-shrink: 0;
+  background: #fff;
 }
 
 .wis-modal-header--center {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 22px 52px 18px;
+  padding: 28px 52px 22px;
 }
 
 .wis-modal-header--center .wis-modal-header__main {
@@ -71,8 +71,8 @@
 
 .wis-modal-header--center .wis-modal-close {
   position: absolute;
-  top: 16px;
-  right: 18px;
+  top: 18px;
+  right: 20px;
 }
 
 .wis-modal-header__main {
@@ -98,23 +98,23 @@
 
 .wis-modal-header__title {
   margin: 0;
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 800;
   color: #0f172a;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   line-height: 1.15;
 }
 
 .wis-modal-header--center .wis-modal-header__title {
-  font-size: 22px;
+  font-size: 26px;
 }
 
 .wis-modal-header__subtitle {
-  margin: 1px 0 0;
-  font-size: 12px;
+  margin: 4px 0 0;
+  font-size: 13px;
   font-weight: 400;
   color: #64748b;
-  line-height: 1.25;
+  line-height: 1.35;
 }
 
 .wis-modal-close {

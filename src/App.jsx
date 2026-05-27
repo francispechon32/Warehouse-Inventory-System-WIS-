@@ -9,7 +9,6 @@ import {
   MODAL_THEME,
   ModalBackdrop,
   ModalFrame,
-  ModalAccentBar,
   ModalHeader,
   ModalBody,
   ModalFooter,
@@ -27,7 +26,6 @@ function LowStockLoginModal({ onClose, items }) {
   return (
     <ModalBackdrop onClose={onClose}>
       <ModalFrame maxWidth={480}>
-        <ModalAccentBar accent={theme.accent} />
         <ModalHeader
           theme={theme}
           title="Low stock alert"

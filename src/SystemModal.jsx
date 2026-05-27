@@ -3,7 +3,6 @@ import {
   MODAL_THEME,
   ModalBackdrop,
   ModalFrame,
-  ModalAccentBar,
   ModalHeader,
   ModalBody,
   ModalFooter,
@@ -125,7 +124,6 @@ export default function SystemModal({
   return (
     <ModalBackdrop onClose={onClose}>
       <ModalFrame maxWidth={meta.width}>
-        <ModalAccentBar accent={theme.accent} />
         <ModalHeader
           theme={theme}
           title={meta.title}
