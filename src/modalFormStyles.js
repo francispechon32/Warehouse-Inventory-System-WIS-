@@ -23,12 +23,12 @@ export const modalPanelStyle = {
 };
 
 export const modalHeaderStyle = {
-  padding: "20px 24px",
+  padding: "18px 24px",
   borderBottom: "1px solid #e5e7eb",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "space-between",
-  gap: 16,
+  gap: 12,
   flexShrink: 0,
   background: "#fff",
 };
@@ -53,8 +53,8 @@ export const modalTitleStyle = {
 export const modalSubtitleStyle = {
   fontSize: 12,
   color: "#6b7280",
-  margin: "6px 0 0",
-  lineHeight: 1.45,
+  margin: "4px 0 0",
+  lineHeight: 1.35,
 };
 
 export const modalLabelStyle = {
@@ -156,12 +156,15 @@ export const modalCloseBtnStyle = {
   background: "#f3f4f6",
   border: "none",
   borderRadius: 8,
-  width: 36,
-  height: 36,
+  width: 34,
+  height: 34,
   cursor: "pointer",
-  color: "#6b7280",
+  color: "#4b5563",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   flexShrink: 0,
+  marginTop: 0,
+  alignSelf: "flex-start",
+  transition: "background 0.15s",
 };

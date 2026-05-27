@@ -2,6 +2,7 @@
 
 export const LOW_STOCK_THRESHOLD = 50;
 export const MIN_STOCK = 1;
+export const MIN_WARNING_LEVEL = 1;
 
 /** No zero stock in the system — floor at 1. */
 export function normalizeStock(stock) {
@@ -9,27 +10,38 @@ export function normalizeStock(stock) {
   return n < MIN_STOCK ? MIN_STOCK : n;
 }
 
+export function normalizeWarningLevel(level) {
+  const n = Number(level) || LOW_STOCK_THRESHOLD;
+  return n < MIN_WARNING_LEVEL ? MIN_WARNING_LEVEL : n;
+}
+
 /** Derive status from current stock (ignores manual STATUS column on import). */
-export function deriveProductStatus(stock) {
+export function deriveProductStatus(stock, warningLevel = LOW_STOCK_THRESHOLD) {
   const n = normalizeStock(stock);
-  return n <= LOW_STOCK_THRESHOLD ? "Low Stock" : "Active";
+  const warn = normalizeWarningLevel(warningLevel);
+  return n <= warn ? "Low Stock" : "Active";
 }
 
 export function isLowStock(product) {
   if (!product) return false;
   const n = normalizeStock(product.stock);
-  return n >= MIN_STOCK && n <= LOW_STOCK_THRESHOLD;
+  const warn = normalizeWarningLevel(product.warningLevel);
+  return n >= MIN_STOCK && n <= warn;
 }
 
 export function syncProductStatus(product) {
   const stock = normalizeStock(product.stock);
+  const warningLevel = normalizeWarningLevel(product.warningLevel);
+  const targetMax = Math.max(warningLevel, Number(product.targetMax) || warningLevel * 4);
   const avgCost = Number(product.avgCost) || 0;
   const totalValue = Number(product.totalValue) || stock * avgCost;
   return {
     ...product,
     stock,
+    warningLevel,
+    targetMax,
     totalValue,
-    status: deriveProductStatus(stock),
+    status: deriveProductStatus(stock, warningLevel),
   };
 }
 

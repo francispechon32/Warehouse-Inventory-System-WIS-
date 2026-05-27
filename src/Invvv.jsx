@@ -17,6 +17,7 @@ import {
   getLowStockProducts,
   getUniqueStockAlerts,
   syncProductsStatus,
+  normalizeWarningLevel,
 } from "./productUtils";
 import { INITIAL_PRODUCTS } from "./initialProducts";
 import {
@@ -30,8 +31,10 @@ import {
   toDashboardStockIn,
   toDashboardStockOut,
 } from "./stockTransactionSeeds";
+import MetricCard from "./MetricCard";
+import SystemModal from "./SystemModal";
 
-/* ─── ICONS ─────────────────────────────────────────────── */
+/* â”€â”€â”€ ICONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function IconHome({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -264,7 +267,7 @@ function IconShield({ size = 16 }) {
   );
 }
 
-/* ─── CUSTOM TOOLTIP ─────────────────────────────────────── */
+/* â”€â”€â”€ CUSTOM TOOLTIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -292,7 +295,7 @@ const stockSubItems = [
   { label: "Return",              Icon: IconReturn     },
 ];
 
-/* ─── TOOLTIP WRAPPER ────────────────────────────────────── */
+/* â”€â”€â”€ TOOLTIP WRAPPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function NavTooltip({ label, children, show }) {
   const [visible, setVisible] = useState(false);
   if (!show) return children;
@@ -327,7 +330,7 @@ function NavTooltip({ label, children, show }) {
   );
 }
 
-/* ─── HELPERS ────────────────────────────────────────────── */
+/* â”€â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function buildLast7DaysChart(stockIn, stockOut) {
   const days = ["Sun","Mon","Tues","Wed","Thurs","Fri","Sat"];
   const today = new Date();
@@ -356,7 +359,7 @@ function buildTopReleasedItems(stockOut, products) {
   return sorted.map(([sku, qty]) => {
     const p = products.find(p => p.sku === sku);
     const desc = p?.description || sku;
-    const shortName = desc.length > 22 ? desc.slice(0, 22) + "…" : desc;
+    const shortName = desc.length > 22 ? desc.slice(0, 22) + "â€¦" : desc;
     return {
       sku,
       name: shortName,
@@ -369,12 +372,12 @@ function buildTopReleasedItems(stockOut, products) {
 // Recent stock-in + stock-out combined (dashboard shows 12 by default)
 function buildRecentActivity(stockIn, stockOut, limit = 12) {
   const ins  = stockIn.map(t => ({
-    text: `${t.description} — ${t.qty.toLocaleString()} units received`,
+    text: `${t.description} â€” ${t.qty.toLocaleString()} units received`,
     time: t.date,
     type: "in",
   }));
   const outs = stockOut.map(t => ({
-    text: `${t.description} — ${t.qty.toLocaleString()} units released`,
+    text: `${t.description} â€” ${t.qty.toLocaleString()} units released`,
     time: t.date,
     type: "out",
   }));
@@ -422,7 +425,7 @@ const inventoryDataByRange = {
   ],
 };
 
-/* ─── MAIN DASHBOARD ─────────────────────────────────────── */
+/* â”€â”€â”€ MAIN DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function Dashboard({ onLogout, userName }) {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(false);
@@ -436,12 +439,8 @@ export default function Dashboard({ onLogout, userName }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
-  const [drbLimit, setDrbLimit] = useState(10);
   const sidebarRef = useRef(null);
   const profileRef = useRef(null);
-  const [pileLimit, setPileLimit] = useState(5);
-  const [plateLimit, setPlateLimit] = useState(8);
-  const [faqExpanded, setFaqExpanded] = useState({});
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -451,7 +450,16 @@ export default function Dashboard({ onLogout, userName }) {
   const displayName = userName || "Admin User";
   const firstName = displayName.split(" ")[0];
 
-  const [products, setProducts]   = useState(() => syncProductsStatus(INITIAL_PRODUCTS));
+  const [products, setProducts] = useState(() =>
+    syncProductsStatus(INITIAL_PRODUCTS).map((p) => ({
+      ...p,
+      warningLevel: normalizeWarningLevel(p.warningLevel),
+      targetMax: Math.max(
+        normalizeWarningLevel(p.warningLevel),
+        Number(p.targetMax) || normalizeWarningLevel(p.warningLevel) * 4
+      ),
+    }))
+  );
   const [stockInRows, setStockInRows] = useState(SEED_STOCK_IN);
   const [stockOutRows, setStockOutRows] = useState(SEED_STOCK_OUT);
   const stockIn = useMemo(() => toDashboardStockIn(stockInRows), [stockInRows]);
@@ -797,7 +805,7 @@ export default function Dashboard({ onLogout, userName }) {
           to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* ── FIXED: metric card pulse uses iconColor properly ── */
+        /* â”€â”€ FIXED: metric card pulse uses iconColor properly â”€â”€ */
         @keyframes metricPulse {
           0%, 100% { transform: scale(1); opacity: 0.15; }
           50% { transform: scale(1.15); opacity: 0.25; }
@@ -806,7 +814,7 @@ export default function Dashboard({ onLogout, userName }) {
 
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
 
-        {/* ── SIDEBAR ── */}
+        {/* â”€â”€ SIDEBAR â”€â”€ */}
         <aside
           ref={sidebarRef}
           className="sidebar-transition"
@@ -1042,10 +1050,10 @@ export default function Dashboard({ onLogout, userName }) {
           </nav>
         </aside>
 
-        {/* ── MAIN COLUMN ── */}
+        {/* â”€â”€ MAIN COLUMN â”€â”€ */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100vh", overflow: "hidden" }}>
 
-          {/* ── Header ── */}
+          {/* â”€â”€ Header â”€â”€ */}
           <header style={{
             minHeight: 80, background: "#fff",
             borderBottom: "1px solid #e9ecef",
@@ -1163,7 +1171,7 @@ export default function Dashboard({ onLogout, userName }) {
             </div>
           </header>
 
-          {/* ── Scrollable Content ── */}
+          {/* â”€â”€ Scrollable Content â”€â”€ */}
           <main id="scroll-area" style={{
             flex: 1, overflowY: "auto",
             background: "#f0f2f5",
@@ -1200,7 +1208,7 @@ export default function Dashboard({ onLogout, userName }) {
             ) : activeNav === "Return" ? (
               <ReturnPage />
             ) : (
-              /* ══ HOME DASHBOARD ══ */
+              /* â•â• HOME DASHBOARD â•â• */
               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
                 {/* Metric Cards */}
@@ -1243,7 +1251,7 @@ export default function Dashboard({ onLogout, userName }) {
 />
                 </div>
 
-               {/* ── Row 2: Chart (flex) + Top Released Items (380px) ── */}
+               {/* â”€â”€ Row 2: Chart (flex) + Top Released Items (380px) â”€â”€ */}
 <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "stretch" }}>
 
   {/* Inventory Movement Chart */}
@@ -1255,7 +1263,7 @@ export default function Dashboard({ onLogout, userName }) {
     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
       <div>
         <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>
-          Inventory Movement – {dateRange}
+          Inventory Movement â€“ {dateRange}
         </p>
         <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
           {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
@@ -1340,7 +1348,7 @@ export default function Dashboard({ onLogout, userName }) {
   </div>
 </div>
 
- {/* ── Row 3: Stock Alerts + Recent Activity ── */}
+ {/* â”€â”€ Row 3: Stock Alerts + Recent Activity â”€â”€ */}
 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
 
   {/* Stock Alerts */}
@@ -1366,7 +1374,7 @@ export default function Dashboard({ onLogout, userName }) {
     </div>
     {stockAlerts.length === 0 ? (
       <div style={{ textAlign: "center", padding: "32px 24px" }}>
-        <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
+        <p style={{ fontSize: 13, color: "#9ca3af" }}>âœ“ All items are well-stocked</p>
       </div>
     ) : (
       <div className="dashboard-scroll-panel" style={{ maxHeight: 320 }}>
@@ -1374,10 +1382,10 @@ export default function Dashboard({ onLogout, userName }) {
           <div key={a.sku} className="alert-row" onClick={goToLowStock}>
             <div style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {a.description.length > 30 ? a.description.slice(0, 30) + "…" : a.description}
+                {a.description.length > 30 ? a.description.slice(0, 30) + "â€¦" : a.description}
               </p>
               <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>
-                SKU: {a.sku} — {a.stock} unit{a.stock !== 1 ? "s" : ""} left
+                SKU: {a.sku} â€” {a.stock} unit{a.stock !== 1 ? "s" : ""} left
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 12 }}>
@@ -1456,14 +1464,8 @@ export default function Dashboard({ onLogout, userName }) {
             if (msg === "Logged out successfully!") { setActiveModal(null); setTimeout(() => onLogout?.(), 100); return; }
             showToast(msg, type);
           }}
-          drbLimit={drbLimit}
-          setDrbLimit={setDrbLimit}
-          pileLimit={pileLimit}
-          setPileLimit={setPileLimit}
-          plateLimit={plateLimit}
-          setPlateLimit={setPlateLimit}
-          faqExpanded={faqExpanded}
-          setFaqExpanded={setFaqExpanded}
+          products={products}
+          setProducts={setProducts}
         />
       )}
 
@@ -1480,824 +1482,5 @@ export default function Dashboard({ onLogout, userName }) {
         </div>
       )}
     </>
-  );
-}
-
-function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        position: "relative",
-        background: "#fff",
-        borderRadius: 16,
-        padding: "22px 22px 18px",
-        minHeight: 160,
-        overflow: "hidden",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)",
-        display: "flex", flexDirection: "column", justifyContent: "space-between",
-        cursor: onClick ? "pointer" : "default",
-        border: "1px solid #f0f0f0",
-        borderTop: "5px solid #F95B02",
-        transition: "transform 0.25s ease, box-shadow 0.25s ease",
-      }}
-      onMouseEnter={e => {
-        setHovered(true);
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.08), 0 12px 32px rgba(0,0,0,0.1)";
-      }}
-      onMouseLeave={e => {
-        setHovered(false);
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)";
-      }}
-    >
-      <div style={{
-        display: "flex", alignItems: "center",
-        justifyContent: "space-between", gap: 12,
-        position: "relative", zIndex: 2,
-      }}>
-        <p style={{
-          fontSize: 14.5, fontWeight: 610, color: "#6b7280",
-          lineHeight: 1.4, margin: 0, textAlign: "left",
-        }}>
-          {label}
-        </p>
-        <div style={{
-          width: 44, height: 44, borderRadius: 12,
-          background: "#F95B02", flexShrink: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "#ffffff",
-          transition: "transform 0.2s ease",
-          transform: hovered ? "scale(1.08)" : "scale(1)",
-        }}>
-          {icon}
-        </div>
-      </div>
-
-      <p style={{
-        fontSize: 36, fontWeight: 700, color: "#111827",
-        letterSpacing: "-1.5px", lineHeight: 1,
-        position: "relative", zIndex: 2,
-        margin: "14px 0 12px", textAlign: "left",
-        fontFamily: "'Poppins', sans-serif",
-      }}>
-        {value}
-      </p>
-
-      {badge && (
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          position: "relative", zIndex: 2, alignSelf: "flex-start",
-        }}>
-          {badge.icon && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              width: 20, height: 20, borderRadius: "50%", background: "#f59e0b",
-              flexShrink: 0,
-            }}>
-              {badge.icon}
-            </span>
-          )}
-          <span style={{
-            fontSize: 11, fontWeight: 600,
-            color: badge.color,
-            letterSpacing: "0.01em",
-          }}>
-            {badge.text}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── SYSTEM MODAL ────────────────────────────────────────── */
-function SystemModal({
-  type,
-  onClose,
-  onAction,
-  drbLimit,
-  setDrbLimit,
-  pileLimit,
-  setPileLimit,
-  plateLimit,
-  setPlateLimit,
-  faqExpanded,
-  setFaqExpanded
-}) {
-  // Local state for interactive elements
-  // 1. User Management State
-  const [users, setUsers] = useState([
-    { id: 1, name: "Francis Pechon", email: "francis@wis.com", role: "Administrator", status: "Active" },
-    { id: 2, name: "Chelsea Lopez", email: "chelsea.lopez@tdt.com", role: "Warehouse Manager", status: "Active" },
-    { id: 3, name: "Jane Smith", email: "jane@wis.com", role: "Staff", status: "Active" },
-    { id: 4, name: "Alex Jones", email: "alex.jones@wis.com", role: "Staff", status: "Inactive" },
-  ]);
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [newUserName, setNewUserName] = useState("");
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserRole, setNewUserRole] = useState("Staff");
-
-  // 2. Stock Limits State
-  const [localDrb, setLocalDrb] = useState(drbLimit);
-  const [localPile, setLocalPile] = useState(pileLimit);
-  const [localPlate, setLocalPlate] = useState(plateLimit);
-
-  // 3. User Guide State
-  const [guideTab, setGuideTab] = useState("getting-started");
-
-  // 4. FAQ State (Local)
-  const [localFaqs, setLocalFaqs] = useState({});
-
-  // 5. Contact Support State
-  const [contactName, setContactName] = useState("Chelsea Lopez");
-  const [contactEmail, setContactEmail] = useState("chelsea.lopez@tdt.com");
-  const [contactTopic, setContactTopic] = useState("Question");
-  const [contactMessage, setContactMessage] = useState("");
-
-  const handleAddUser = (e) => {
-    e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) {
-      onAction("Please fill in all fields", "error");
-      return;
-    }
-    const newUser = {
-      id: users.length + 1,
-      name: newUserName,
-      email: newUserEmail,
-      role: newUserRole,
-      status: "Active"
-    };
-    setUsers([...users, newUser]);
-    setNewUserName("");
-    setNewUserEmail("");
-    setNewUserRole("Staff");
-    setShowAddUser(false);
-    onAction(`User ${newUserName} added successfully!`, "success");
-  };
-
-  const toggleUserStatus = (id) => {
-    setUsers(users.map(u => u.id === id ? { ...u, status: u.status === "Active" ? "Inactive" : "Active" } : u));
-    onAction("User status updated!", "success");
-  };
-
-  const deleteUser = (id, name) => {
-    setUsers(users.filter(u => u.id !== id));
-    onAction(`User ${name} deleted successfully!`, "success");
-  };
-
-  const changeUserRole = (id, newRole) => {
-    setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u));
-    onAction("User role updated!", "success");
-  };
-
-  const handleSaveLimits = () => {
-    setDrbLimit(Number(localDrb));
-    setPileLimit(Number(localPile));
-    setPlateLimit(Number(localPlate));
-    onAction("Stock limits saved successfully!", "success");
-    onClose();
-  };
-
-  const handleContactSubmit = (e) => {
-    e.preventDefault();
-    if (!contactMessage.trim()) {
-      onAction("Please type a message before submitting.", "error");
-      return;
-    }
-    onAction("Support ticket sent! We'll reply within 24 hours.", "success");
-    onClose();
-  };
-
-  const toggleFaq = (index) => {
-    setLocalFaqs(prev => ({ ...prev, [index]: !prev[index] }));
-  };
-
-  // Determine width based on type
-  let modalWidth = 460;
-  if (type === "user-management") modalWidth = 750;
-  if (type === "user-guide") modalWidth = 820;
-  if (type === "faqs") modalWidth = 660;
-if (type === "stock-limits") modalWidth = 860;  // ← add this
-
-  return (
-    <div style={{
-      position: "fixed",
-      inset: 0,
-      background: "rgba(17, 24, 39, 0.45)",
-      backdropFilter: "blur(6px)",
-      zIndex: 9999,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 20,
-    }} onClick={onClose}>
-      <div style={{
-        background: "#ffffff",
-        borderRadius: 16,
-        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.18)",
-        border: "1px solid #e5e7eb",
-        width: "100%",
-        maxWidth: modalWidth,
-        maxHeight: "88vh",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        animation: "modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-      }} onClick={e => e.stopPropagation()}>
-        {/* Style block for animations */}
-        <style>{`
-          @keyframes modalFadeIn {
-            from { opacity: 0; transform: translateY(12px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-          }
-          .modal-tab-btn {
-            display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px;
-            border: none; background: none; border-radius: 8px; cursor: pointer; text-align: left;
-            font-size: 13px; font-weight: 600; color: #4b5563; transition: all 0.2s;
-          }
-          .modal-tab-btn.active {
-            background: #fff; color: #e87c27; box-shadow: 0 4px 12px rgba(232, 124, 39, 0.1);
-          }
-          .modal-input {
-            width: 100%; padding: 10px 12px; font-size: 13px; font-weight: 500; border: 1px solid #d1d5db;
-            border-radius: 8px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box;
-          }
-          .modal-input:focus {
-            border-color: #e87c27; box-shadow: 0 0 0 3px rgba(232, 124, 39, 0.18);
-          }
-          .modal-btn-sec {
-            padding: 9px 18px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;
-            color: #374151; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; transition: background 0.15s;
-          }
-          .modal-btn-sec:hover { background: #f9fafb; }
-          .modal-btn-pri {
-            padding: 9px 18px; border: none; border-radius: 8px; background: #e87c27;
-            color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit; transition: opacity 0.15s;
-          }
-          .modal-btn-pri:hover { opacity: 0.9; }
-          .modal-btn-danger {
-            padding: 9px 18px; border: none; border-radius: 8px; background: #dc2626;
-            color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit; transition: opacity 0.15s;
-          }
-          .modal-btn-danger:hover { opacity: 0.9; }
-        `}</style>
-
-        {/* Modal Header */}
-        <div style={{
-          padding: "20px 24px",
-          borderBottom: "1px solid #f3f4f6",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexShrink: 0,
-        }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
-              {type === "logout" && "Confirm Logout"}
-              {type === "user-management" && "User Management"}
-              {type === "stock-limits" && "Configure Stock Thresholds"}
-              {type === "user-guide" && "WIS Platform User Guide"}
-              {type === "faqs" && "Frequently Asked Questions"}
-              {type === "about" && "About WIS Platform"}
-              {type === "contact" && "Contact Customer Support"}
-            </h3>
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6b7280" }}>
-              {type === "logout" && "Securely exit your active session"}
-              {type === "user-management" && "Manage system administrators and operators"}
-              {type === "stock-limits" && "Set minimum stock alert level warnings per category"}
-              {type === "user-guide" && "Step-by-step instructions for utilizing the system"}
-              {type === "faqs" && "Answers to typical issues and questions"}
-              {type === "about" && "Technical details and software information"}
-              {type === "contact" && "Send a ticket to support engineers"}
-            </p>
-          </div>
-          <button onClick={onClose} style={{
-            background: "#f3f4f6", border: "none", borderRadius: "50%",
-            width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "#4b5563", transition: "background 0.2s"
-          }} onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"} onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
-            ✕
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div style={{ padding: "24px", overflowY: "auto", flex: 1, minHeight: 0 }}>
-          {/* 1. CONFIRM LOGOUT */}
-          {type === "logout" && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: "50%", background: "#fee2e2",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#dc2626", margin: "0 auto 16px"
-              }}>
-                <IconLogOut size={26} />
-              </div>
-              <p style={{ margin: "0 0 24px", fontSize: 14, color: "#4b5563", lineHeight: 1.5 }}>
-                Are you sure you want to log out? Any unsaved edits or pending drafts might be discarded. You will be redirected to the secure login prompt.
-              </p>
-              <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
-                <button className="modal-btn-sec" onClick={onClose}>Cancel</button>
-                <button className="modal-btn-danger" onClick={() => { onAction("Logged out successfully!", "success"); onClose(); }}>
-                  Yes, Log Out
-                </button>
-              </div>
-            </div>
-          )}
-
-         {/* 2. USER MANAGEMENT */}
-{type === "user-management" && (
-  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    {/* Toolbar */}
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "8px 12px", border: "1px solid #e5e7eb",
-        borderRadius: 8, background: "#f9fafb", flex: 1, maxWidth: 280,
-      }}>
-        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-        </svg>
-        <input
-          type="text"
-          placeholder="Search users..."
-          value={newUserEmail} // reuse as search state
-          onChange={e => setNewUserEmail(e.target.value)}
-          style={{
-            border: "none", background: "none", outline: "none",
-            fontSize: 13, color: "#111827", width: "100%", fontFamily: "inherit",
-          }}
-        />
-      </div>
-      <button className="modal-btn-pri" style={{ padding: "8px 14px", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
-        onClick={() => setShowAddUser(v => !v)}>
-        {showAddUser ? "✕ Cancel" : "+ Add new user"}
-      </button>
-    </div>
-
-    {/* Add User Form */}
-    {showAddUser && (
-      <div style={{
-        background: "#f9fafb", border: "1px solid #e5e7eb",
-        borderRadius: 10, padding: 16,
-      }}>
-        <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "#111827" }}>New user</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Full name</label>
-            <input type="text" className="modal-input" placeholder="e.g. Maria Santos"
-              value={newUserName} onChange={e => setNewUserName(e.target.value)} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Assign role</label>
-            <select className="modal-input" style={{ padding: "9px 10px" }}
-              value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
-              <option value="Administrator">Administrator</option>
-              <option value="Warehouse Manager">Warehouse Manager</option>
-              <option value="Staff">Staff</option>
-            </select>
-          </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button className="modal-btn-sec" onClick={() => { setShowAddUser(false); setNewUserName(""); }}>Cancel</button>
-          <button className="modal-btn-pri" onClick={() => {
-            if (!newUserName.trim()) { onAction("Please enter a full name", "error"); return; }
-            const autoEmail = newUserName.trim().toLowerCase().replace(/\s+/g, ".") + "@wis.com";
-            setUsers(prev => [...prev, {
-              id: Date.now(), name: newUserName.trim(),
-              email: autoEmail, role: newUserRole, status: "Active",
-            }]);
-            onAction(`User ${newUserName.trim()} added successfully!`, "success");
-            setNewUserName(""); setNewUserRole("Staff"); setShowAddUser(false);
-          }}>Save</button>
-        </div>
-      </div>
-    )}
-
-    {/* Users Table */}
-    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
-        <thead>
-          <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>Name</th>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>Role</th>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>Last active</th>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</th>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users
-            .filter(u => !newUserEmail || u.name.toLowerCase().includes(newUserEmail.toLowerCase()) || u.email.toLowerCase().includes(newUserEmail.toLowerCase()))
-            .map((u, i) => {
-              const avatarColors = [["#E6F1FB","#0C447C"],["#EAF3DE","#3B6D11"],["#FAEEDA","#854F0B"],["#FAECE7","#993C1D"],["#EEEDFE","#3C3489"]];
-              const [avatarBg, avatarFg] = avatarColors[i % avatarColors.length];
-              const initials = u.name.split(" ").slice(0,2).map(w => w[0]).join("").toUpperCase();
-              const lastActiveMap = { 1: "Active now", 2: "Active now", 3: "2 hours ago", 4: "Yesterday" };
-              const lastActive = lastActiveMap[u.id] || "Recently";
-              const isNow = lastActive === "Active now";
-              return (
-                <tr key={u.id} style={{ borderBottom: "1px solid #f3f4f6" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
-                  onMouseLeave={e => e.currentTarget.style.background = ""}>
-                  <td style={{ padding: "12px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: "50%",
-                        background: avatarBg, color: avatarFg,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 700, flexShrink: 0,
-                      }}>{initials}</div>
-                      <div>
-                        <p style={{ margin: 0, fontWeight: 600, color: "#111827", fontSize: 13 }}>{u.name}</p>
-                        <p style={{ margin: "2px 0 0", fontSize: 11, color: "#9ca3af" }}>{u.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: "12px 14px" }}>
-                    <select value={u.role} onChange={e => changeUserRole(u.id, e.target.value)}
-                      style={{ border: "none", background: "none", fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer", outline: "none", fontFamily: "inherit" }}>
-                      <option value="Administrator">Administrator</option>
-                      <option value="Warehouse Manager">Warehouse Manager</option>
-                      <option value="Staff">Staff</option>
-                    </select>
-                  </td>
-                  <td style={{ padding: "12px 14px" }}>
-                    <span style={{ fontSize: 12, color: isNow ? "#16a34a" : "#9ca3af", display: "flex", alignItems: "center", gap: 5 }}>
-                      {isNow && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />}
-                      {lastActive}
-                    </span>
-                  </td>
-                  <td style={{ padding: "12px 14px" }}>
-                    <span onClick={() => toggleUserStatus(u.id)} style={{
-                      fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
-                      background: u.status === "Active" ? "#dcfce7" : "#fee2e2",
-                      color: u.status === "Active" ? "#16a34a" : "#dc2626",
-                      cursor: "pointer", display: "inline-block",
-                    }}>{u.status}</span>
-                  </td>
-                  <td style={{ padding: "12px 14px", textAlign: "right" }}>
-                    <button
-                      disabled={u.id === 1}
-                      onClick={() => deleteUser(u.id, u.name)}
-                      style={{
-                        border: "1px solid #e5e7eb", borderRadius: 6, background: "none",
-                        padding: "5px 10px", fontSize: 12, fontWeight: 600,
-                        color: u.id === 1 ? "#d1d5db" : "#374151",
-                        cursor: u.id === 1 ? "not-allowed" : "pointer",
-                        display: "inline-flex", alignItems: "center", gap: 4,
-                        fontFamily: "inherit",
-                      }}>
-                    
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-        </tbody>
-      </table>
-    </div>
-  </div>
-)}
-
-          {/* 3. STOCK LIMITS */}
-{type === "stock-limits" && (
-  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-    <p style={{ margin: "0 0 16px", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-      Manage minimum and maximum inventory thresholds for each SKU. Warning level triggers a low-stock alert; target max is the reorder ceiling.
-    </p>
-
-    {/* Search */}
-    <div style={{
-      display: "flex", alignItems: "center", gap: 8,
-      padding: "8px 12px", border: "1px solid #e5e7eb",
-      borderRadius: 8, background: "#f9fafb", maxWidth: 280, marginBottom: 16,
-    }}>
-      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-      </svg>
-      <input
-        type="text"
-        placeholder="Search SKU or description..."
-        id="stock-search-input"
-        style={{ border: "none", background: "none", outline: "none", fontSize: 13, color: "#111827", width: "100%", fontFamily: "inherit" }}
-      />
-    </div>
-
-    {/* Table */}
-    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-        <thead>
-          <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left" }}>SKU code</th>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left" }}>Item description</th>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>Current stock</th>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>Warning level</th>
-            <th style={{ padding: "10px 14px", color: "#6b7280", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>Target max</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[
-            { sku: "DRB-10MM", desc: "Deformed Rebar 10mm",   current: localDrb,   warnKey: "drb",   maxKey: "drbMax",   warn: localDrb,   max: 200 },
-            { sku: "DRB-12MM", desc: "Deformed Rebar 12mm",   current: 6,          warnKey: "drb12", maxKey: "drb12Max", warn: 10,         max: 200 },
-            { sku: "PILE-H250",desc: "H-Pile 250×250",        current: localPile,  warnKey: "pile",  maxKey: "pileMax",  warn: localPile,  max: 60  },
-            { sku: "PLT-6MM",  desc: "Steel Plate 6mm",       current: localPlate, warnKey: "plate", maxKey: "plateMax", warn: localPlate, max: 150 },
-            { sku: "ANGLE-50", desc: "Angle Bar 50×50×5",     current: 91,         warnKey: "angle", maxKey: "angleMax", warn: 20,         max: 400 },
-          ].map((row, i) => {
-            const isLow = row.current <= row.warn;
-            return (
-              <tr key={row.sku} style={{ borderBottom: "1px solid #f3f4f6" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#fafafa"}
-                onMouseLeave={e => e.currentTarget.style.background = ""}>
-                <td style={{ padding: "11px 14px", fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{row.sku}</td>
-                <td style={{ padding: "11px 14px", color: "#111827", fontWeight: 500 }}>{row.desc}</td>
-                <td style={{ padding: "11px 14px", textAlign: "center" }}>
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    fontWeight: 700, fontSize: 13,
-                    color: isLow ? "#dc2626" : "#16a34a",
-                  }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: isLow ? "#dc2626" : "#16a34a", display: "inline-block" }} />
-                    {row.current}
-                  </span>
-                </td>
-                <td style={{ padding: "11px 14px", textAlign: "center" }}>
-                  <input
-                    type="number"
-                    defaultValue={row.warn}
-                    min={0}
-                    onChange={e => {
-                      if (row.warnKey === "drb") setLocalDrb(Math.max(0, parseInt(e.target.value) || 0));
-                      if (row.warnKey === "pile") setLocalPile(Math.max(0, parseInt(e.target.value) || 0));
-                      if (row.warnKey === "plate") setLocalPlate(Math.max(0, parseInt(e.target.value) || 0));
-                    }}
-                    style={{
-                      width: 68, textAlign: "center", padding: "6px 8px",
-                      border: "1px solid #d1d5db", borderRadius: 6,
-                      fontSize: 12, fontFamily: "inherit", outline: "none",
-                      color: "#111827", background: "#fff",
-                    }}
-                    onFocus={e => e.target.style.borderColor = "#e87c27"}
-                    onBlur={e => e.target.style.borderColor = "#d1d5db"}
-                  />
-                </td>
-                <td style={{ padding: "11px 14px", textAlign: "center" }}>
-                  <input
-                    type="number"
-                    defaultValue={row.max}
-                    min={0}
-                    style={{
-                      width: 68, textAlign: "center", padding: "6px 8px",
-                      border: "1px solid #d1d5db", borderRadius: 6,
-                      fontSize: 12, fontFamily: "inherit", outline: "none",
-                      color: "#111827", background: "#fff",
-                    }}
-                    onFocus={e => e.target.style.borderColor = "#e87c27"}
-                    onBlur={e => e.target.style.borderColor = "#d1d5db"}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-
-    <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-      <button className="modal-btn-sec" onClick={onClose}>Cancel</button>
-      <button className="modal-btn-pri" onClick={handleSaveLimits}>Save changes</button>
-    </div>
-  </div>
-)}
-
-          {/* 4. USER GUIDE */}
-          {type === "user-guide" && (
-            <div style={{ display: "flex", gap: 20 }}>
-              {/* Sidebar Tabs */}
-              <div style={{ width: 200, display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                <button className={`modal-tab-btn ${guideTab === "getting-started" ? "active" : ""}`} onClick={() => setGuideTab("getting-started")}>
-                  🚀 Getting Started
-                </button>
-                <button className={`modal-tab-btn ${guideTab === "stock" ? "active" : ""}`} onClick={() => setGuideTab("stock")}>
-                  📋 Stock Sheets
-                </button>
-                <button className={`modal-tab-btn ${guideTab === "ending" ? "active" : ""}`} onClick={() => setGuideTab("ending")}>
-                  📦 Ending Inventory
-                </button>
-                <button className={`modal-tab-btn ${guideTab === "po" ? "active" : ""}`} onClick={() => setGuideTab("po")}>
-                  🛒 Purchase Orders
-                </button>
-              </div>
-
-              {/* Guide Content */}
-              <div style={{ flex: 1, background: "#f9fafb", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20 }}>
-                {guideTab === "getting-started" && (
-                  <div>
-                    <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>System Introduction</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      The Warehouse Inventory System (WIS) is designed to give you instant tracking capability over all steel products, incoming stock-in pipelines, and outbound stock-out deliveries.
-                    </p>
-                    <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Workflow Steps:</h5>
-                    <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Check Dashboard Alerts:</strong> Monitor indicators at home for stock alert warnings.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Log Orders:</strong> Use Purchase Orders to draft, place, and approve supplier steel deliveries.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Update Stock Sheets:</strong> Run entries on Stock Sheets to log real-time additions and releases.</li>
-                    </ol>
-                  </div>
-                )}
-                {guideTab === "stock" && (
-                  <div>
-                    <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Managing Stock Sheets</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      Stock Sheets store the permanent record of transactional movements. Entries are separated into **Stock In** (replenishing) and **Stock Out** (releasing).
-                    </p>
-                    <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Key Capabilities:</h5>
-                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Table Footer Navigation:</strong> Use the pagination menu at the bottom-right of each table card to navigate entries.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Search Filter:</strong> Instantly lookup a delivery by typing in descriptions or SKU query strings.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Bulk Export:</strong> Convert sheets into clean spreadsheets or excel import format.</li>
-                    </ul>
-                  </div>
-                )}
-                {guideTab === "ending" && (
-                  <div>
-                    <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Ending Inventory</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      Ending Inventory provides an overview of currently available stock on-hand. All counts are generated programmatically and checked against configured category limits.
-                    </p>
-                    <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Active Tools:</h5>
-                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Return Entry:</strong> Handle customer returns by recording a dynamic return card which injects the items back to active shelf count.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Backload Tracking:</strong> Keep record of surplus project backloads for reference.</li>
-                    </ul>
-                  </div>
-                )}
-                {guideTab === "po" && (
-                  <div>
-                    <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Purchase Order Logistics</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      Track supplier procurements in the pipeline. Status states include **Draft**, **Pending Approval**, **Shipped**, and **Delivered**.
-                    </p>
-                    <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Logistics Actions:</h5>
-                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Create PO Drafts:</strong> Add details, products, and target supplier coordinates.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Approve Shipped Orders:</strong> Upon arrival at warehouse gates, mark orders as delivered to automatically increment Ending Inventory levels.</li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 5. FAQs */}
-          {type === "faqs" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                {
-                  q: "How are stock alert levels determined?",
-                  a: "Stock alerts are triggered when the quantity of a product falls below the threshold set in Settings -> Stock Limits. These limits are updated dynamically in real-time."
-                },
-                {
-                  q: "Can I undo a Stock Out transaction?",
-                  a: "Yes. You can record a corrective entry in the Stock Sheets to balance the ledger, or register it as a customer Return using the dedicated Returns inventory panel."
-                },
-                {
-                  q: "How do I add new system operator accounts?",
-                  a: "Administrators can navigate to Settings -> User Management, click 'Add User', and fill out the name, email and role. The operator is immediately added to the list."
-                },
-                {
-                  q: "Where do I track pending supplier deliveries?",
-                  a: "Go to the Purchasing Order page or check the home dashboard metrics widget, where clicking 'Pending Deliveries' filters the list automatically."
-                },
-                {
-                  q: "Is there an auto-backup feature enabled?",
-                  a: "Yes. The Warehouse Inventory System performs continuous cloud sync and writes local state backups every 24 hours to secure local data."
-                }
-              ].map((faq, i) => (
-                <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-                  <button
-                    onClick={() => toggleFaq(i)}
-                    style={{
-                      width: "100%", padding: "14px 18px", background: "#f9fafb", border: "none",
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 700, color: "#374151"
-                    }}
-                  >
-                    <span>{faq.q}</span>
-                    <span style={{ color: "#9ca3af", transform: localFaqs[i] ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
-                  </button>
-                  {localFaqs[i] && (
-                    <div style={{ padding: "14px 18px", background: "#fff", borderTop: "1px solid #e5e7eb", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 6. ABOUT SYSTEM */}
-          {type === "about" && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{
-                width: 68, height: 68, borderRadius: "50%", background: "linear-gradient(135deg, #e87c27 0%, #1a1f2e 100%)",
-                margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#fff", fontSize: 24, fontWeight: 800, boxShadow: "0 8px 24px rgba(232,124,39,0.25)"
-              }}>
-                WIS
-              </div>
-              <h4 style={{ margin: "0 0 4px 0", fontSize: 16, color: "#111827", fontWeight: 800 }}>Warehouse Inventory System (WIS)</h4>
-              <p style={{ margin: "0 0 16px 0", fontSize: 12, color: "#e87c27", fontWeight: 700 }}>Version 2.4.0 (Enterprise Premium)</p>
-
-              <div style={{
-                background: "#f9fafb", borderRadius: 12, border: "1px solid #e5e7eb",
-                padding: 16, textAlign: "left", fontSize: 12, display: "flex", flexDirection: "column", gap: 10,
-                marginBottom: 20
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Developer Partner:</span>
-                  <span style={{ color: "#111827", fontWeight: 600 }}>TDT Steel Corp. Engineering</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Technical Platform:</span>
-                  <span style={{ color: "#111827", fontWeight: 600 }}>React 19.0 + Vite 8 + ES Modules</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Database Status:</span>
-                  <span style={{ color: "#16a34a", fontWeight: 700 }}>● SECURE & SYNCED</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Build Stamp:</span>
-                  <span style={{ color: "#111827", fontWeight: 600 }}>2026-05-21-PRM</span>
-                </div>
-              </div>
-
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: "#dcfce7", color: "#15803d", padding: "6px 12px",
-                borderRadius: 20, fontSize: 11, fontWeight: 700
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a" }} />
-                ALL SYSTEMS OPERATIONAL
-              </div>
-            </div>
-          )}
-
-          {/* 7. CONTACT SUPPORT */}
-          {type === "contact" && (
-            <form onSubmit={handleContactSubmit}>
-              <p style={{ margin: "0 0 16px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.45 }}>
-                Experiencing technical difficulties or need system adjustments? Submit a help ticket below, and our development engineers will respond shortly.
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Your Name</label>
-                    <input type="text" className="modal-input" value={contactName} onChange={e => setContactName(e.target.value)} required />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Email Address</label>
-                    <input type="email" className="modal-input" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Inquiry Category</label>
-                  <select className="modal-input" style={{ padding: "8px 10px" }} value={contactTopic} onChange={e => setContactTopic(e.target.value)}>
-                    <option value="Question">General Question</option>
-                    <option value="Bug">Technical Bug Report</option>
-                    <option value="Feature">Feature Customization Request</option>
-                    <option value="Other">Other Topic</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Inquiry / Issue Message</label>
-                  <textarea
-                    className="modal-input"
-                    rows={4}
-                    style={{ fontFamily: "inherit", resize: "none" }}
-                    placeholder="Provide a detailed description of your issue or request..."
-                    value={contactMessage}
-                    onChange={e => setContactMessage(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                <button type="button" className="modal-btn-sec" onClick={onClose}>Cancel</button>
-                <button type="submit" className="modal-btn-pri">Submit Support Ticket</button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }

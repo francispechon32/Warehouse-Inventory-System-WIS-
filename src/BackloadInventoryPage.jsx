@@ -24,6 +24,9 @@ import {
   modalInput,
   modalCellInput,
 } from "./modalFormStyles";
+import { formatCompactPHP } from "./inventoryUtils";
+import MetricCard from "./MetricCard";
+import { IconBox, IconTruck, IconBarChart, IconBag } from "./metricIcons";
 
 /* ─── SEED DATA from Excel BACKLOAD INVENTORY sheet ── */
 const SEED_BACKLOAD = [
@@ -109,11 +112,11 @@ function AddEntryModal({ onClose, onSave }) {
     <div style={modalOverlayStyle}>
       <div style={{ ...modalPanelStyle, width: "min(96vw, 560px)" }}>
         <div style={modalHeaderStyle}>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <h2 style={modalTitleStyle}>Start Backload Inventory</h2>
-            <p style={modalSubtitleStyle}>Add a new backload entry. Fields marked with * are required.</p>
+            <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>Add a new backload entry. Fields marked with * are required.</p>
           </div>
-          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close"><IconX size={18} /></button>
+          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close" onMouseEnter={(e) => { e.currentTarget.style.background = "#e5e7eb"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "#f3f4f6"; }}><IconX size={18} /></button>
         </div>
         <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -331,36 +334,36 @@ export default function BackloadInventoryPage() {
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
-      {/* Summary Cards */}
+      {/* Summary Cards — same style as Home dashboard */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
-        {[
-          { label: "Total Entries",      value: totalEntries,      color: "#3b82f6" },
-          { label: "Pending Release",    value: pending,            color: "#d97706" },
-          { label: "Total Backload Value", value: fmtPHP(totalValue), color: "#e87c27" },
-          { label: "Total Balance Amount", value: fmtPHP(totalBalance), color: "#16a34a" },
-        ].map(c => (
-          <div key={c.label} style={{
-            background: "#fff",
-            borderRadius: 16,
-            padding: "22px 24px",
-            minHeight: 118,
-            border: "1px solid #e5e7eb",
-            boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-          }}>
-            <p style={{ margin: 0, fontSize: 15, color: "#6b7280", fontWeight: 700, lineHeight: 1.35 }}>{c.label}</p>
-            <p style={{
-              margin: "12px 0 0",
-              fontSize: typeof c.value === "number" ? 40 : 32,
-              fontWeight: 800,
-              color: c.color,
-              letterSpacing: "-0.5px",
-              lineHeight: 1.1,
-            }}>{c.value}</p>
-          </div>
-        ))}
+        <MetricCard
+          icon={<IconBox size={34} />}
+          label="Total Entries"
+          value={String(totalEntries)}
+          badge={{ text: "All backload records", color: "#16a34a", bg: "#dcfce7" }}
+        />
+        <MetricCard
+          icon={<IconTruck size={28} />}
+          label="Pending Release"
+          value={String(pending)}
+          badge={{
+            text: pending > 0 ? `${pending} awaiting release` : "No pending releases",
+            color: "#d97706",
+            bg: pending > 0 ? "#fef3c7" : "transparent",
+          }}
+        />
+        <MetricCard
+          icon={<IconBarChart size={30} />}
+          label="Total Backload Value"
+          value={formatCompactPHP(totalValue)}
+          badge={{ text: fmtPHP(totalValue), color: "#e87c27", bg: "transparent" }}
+        />
+        <MetricCard
+          icon={<IconBag size={30} />}
+          label="Total Balance Amount"
+          value={formatCompactPHP(totalBalance)}
+          badge={{ text: fmtPHP(totalBalance), color: "#16a34a", bg: "#dcfce7" }}
+        />
       </div>
 
       <PageToolbar
