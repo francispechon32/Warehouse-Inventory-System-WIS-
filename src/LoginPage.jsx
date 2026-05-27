@@ -83,13 +83,13 @@ function LeftPanel() {
         `,
         zIndex: 1,
       }} />
-      {/* Warehouse image placeholder — steel beams texture */}
+      {/* Steel distributor/supplier imagery */}
       <div style={{
         position: "absolute", inset: 0,
-        backgroundImage: `url("https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=1200&q=80")`,
+        backgroundImage: `url("https://images.unsplash.com/photo-1587293852726-70cdb56c2866?w=1200&q=80")`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        filter: "saturate(0.5) brightness(0.6)",
+        filter: "saturate(0.55) brightness(0.55)",
       }} />
 
       {/* Content over overlay */}
@@ -112,9 +112,9 @@ function LeftPanel() {
           margin: "0 0 16px",
           letterSpacing: "-0.5px",
         }}>
-          Warehouse<br />
-          <span style={{ color: "#e87c27" }}>Inventory</span><br />
-          System
+          Steel<br />
+          <span style={{ color: "#e87c27" }}>Distribution</span><br />
+          & Supply
         </h2>
         <p style={{
           fontFamily: "'Rajdhani', sans-serif",
@@ -125,13 +125,13 @@ function LeftPanel() {
           lineHeight: 1.6,
           maxWidth: 320,
         }}>
-          Real-time stock tracking, purchasing orders,<br />
-          and warehouse operations — all in one place.
+          Manage your steel supply chain, track incoming orders,<br />
+          and monitor stock levels — all in one place.
         </p>
 
         {/* Stats row */}
         <div style={{ display: "flex", gap: 32, marginTop: 40 }}>
-          {[["16+", "SKUs Tracked"], ["₱13M+", "Inventory Value"], ["100%", "Uptime"]].map(([val, label]) => (
+          {[["16+", "SKUs Tracked"], ["₱13M+", "Stock Value"], ["Trusted", "Distributor"]].map(([val, label]) => (
             <div key={label}>
               <div style={{
                 fontFamily: "'Orbitron', sans-serif",
