@@ -10,6 +10,20 @@ import {
   readWorkbookSheet,
 } from "./excelImportUtils";
 
+function Highlight({ text, query }) {
+  if (!query || !text) return <>{String(text)}</>;
+  const idx = String(text).toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{String(text)}</>;
+  const s = String(text);
+  return (
+    <>
+      {s.slice(0, idx)}
+      <mark style={{ background: "#fef08a", color: "#111827", padding: 0, borderRadius: 2 }}>{s.slice(idx, idx + query.length)}</mark>
+      {s.slice(idx + query.length)}
+    </>
+  );
+}
+
 const PAGE_SIZE = 8;
 
 const PLACES = ["All locations", "Manila", "Cebu", "Davao"];
@@ -412,6 +426,8 @@ export default function AdvanceCustomerPOPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
 
   const filtered = useMemo(() => {
     let rows = reservations;
@@ -419,13 +435,19 @@ export default function AdvanceCustomerPOPage() {
       const q = searchSku.toLowerCase();
       rows = rows.filter(
         (r) =>
-          r.customer.toLowerCase().includes(q) ||
-          r.tdtDr.toLowerCase().includes(q) ||
-          r.soWo.toLowerCase().includes(q) ||
-          String(r.transNo).includes(q) ||
-          r.drNo.toLowerCase().includes(q) ||
-          r.lineItems.some(
-            (L) => L.code.toLowerCase().includes(q) || L.desc.toLowerCase().includes(q)
+          (r.customer || "").toLowerCase().includes(q) ||
+          (r.tdtDr || "").toLowerCase().includes(q) ||
+          (r.soWo || "").toLowerCase().includes(q) ||
+          String(r.transNo || "").toLowerCase().includes(q) ||
+          (r.drNo || "").toLowerCase().includes(q) ||
+          (r.resDate || "").toLowerCase().includes(q) ||
+          (r.place || "").toLowerCase().includes(q) ||
+          String(r.reservedQty || "").toLowerCase().includes(q) ||
+          String(r.currentStock || "").toLowerCase().includes(q) ||
+          String(r.estEnding || "").toLowerCase().includes(q) ||
+          (r.approvedBy || "").toLowerCase().includes(q) ||
+          (r.lineItems || []).some(
+            (L) => (L.code || "").toLowerCase().includes(q) || (L.desc || "").toLowerCase().includes(q)
           )
       );
     }
@@ -470,7 +492,7 @@ export default function AdvanceCustomerPOPage() {
         filters={[
           { key: "place", value: place, onChange: (v) => { setPlace(v); setCurrentPage(1); }, options: PLACES, minWidth: 170 },
         ]}
-        primaryAction={{ label: "Create New Reservation", onClick: () => {} }}
+        primaryAction={{ label: "Create New Reservation", onClick: () => setShowCreate(true) }}
         importExport={{
           fileInputRef: importRef,
           onFileChange: (e) => {
@@ -541,7 +563,7 @@ export default function AdvanceCustomerPOPage() {
                     key={h}
                     style={{
                       padding: "14px 10px",
-                      textAlign: ["RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE"].includes(h) ? "right" : "left",
+                      textAlign: ["RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE"].includes(h) ? "right" : "center",
                       color: "#fff",
                       fontWeight: 700,
                       fontSize: 10,
@@ -556,7 +578,11 @@ export default function AdvanceCustomerPOPage() {
             <tbody>
               {paged.length === 0 && (
                 <tr>
-                  <td colSpan={11} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No reservations match your filters.</td>
+                  <td colSpan={11} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af", fontSize: 14 }}>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+                    No results found for <strong style={{ color: "#374151" }}>"{searchSku || "your filters"}"</strong>
+                    <div style={{ fontSize: 12, marginTop: 4 }}>Try a different search term or clear your filters.</div>
+                  </td>
                 </tr>
               )}
               {paged.map((row, idx) => {
@@ -579,16 +605,16 @@ export default function AdvanceCustomerPOPage() {
                       e.currentTarget.style.background = isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
                     }}
                   >
-                    <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600 }}>{row.transNo}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap" }}>{row.resDate}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151" }}>{row.soWo}</td>
-                    <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700 }}>{row.tdtDr}</td>
-                    <td style={{ padding: "12px 10px", color: "#111827", fontWeight: 600, maxWidth: 160 }}>{row.customer}</td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280" }}>{row.place}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 700 }}>{row.reservedQty}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "right" }}>{row.currentStock}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 600 }}>{row.estEnding}</td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280" }}>{row.approvedBy}</td>
+                    <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600 }}><Highlight text={row.transNo} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap" }}><Highlight text={row.resDate} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", color: "#374151" }}><Highlight text={row.soWo} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700 }}><Highlight text={row.tdtDr} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", color: "#111827", fontWeight: 600, maxWidth: 160 }}><Highlight text={row.customer} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", color: "#6b7280" }}><Highlight text={row.place} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 700 }}><Highlight text={row.reservedQty} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", textAlign: "right" }}><Highlight text={row.currentStock} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 600 }}><Highlight text={row.estEnding} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", color: "#6b7280" }}><Highlight text={row.approvedBy} query={searchSku} /></td>
                     <td style={{ padding: "12px 10px" }}>
                       <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>{row.status}</span>
                     </td>
@@ -701,7 +727,7 @@ export default function AdvanceCustomerPOPage() {
                           key={h}
                           style={{
                             padding: "10px 8px",
-                            textAlign: h.includes("Qty") || h.includes("Balance") ? "right" : "left",
+                            textAlign: h.includes("Qty") || h.includes("Balance") ? "right" : "center",
                             fontWeight: 700,
                             color: "#111827",
                             fontSize: 11,
@@ -737,6 +763,79 @@ export default function AdvanceCustomerPOPage() {
               </div>
             </div>
           </aside>
+        </>
+      )}
+
+      {showCreate && (
+        <>
+          <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1100 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#fff", borderRadius: 16, width: "min(560px,95vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>Create New Reservation</h2>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>Fill in the advance customer PO details below</p>
+              </div>
+              <button type="button" onClick={() => setShowCreate(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#4b5563", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+            <div style={{ padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px" }}>
+              {[
+                { label: "Reservation Date", key: "resDate", type: "date" },
+                { label: "SO / WO No.", key: "soWo", type: "text", placeholder: "e.g. SO-1234" },
+                { label: "TDT DR No.", key: "tdtDr", type: "text", placeholder: "e.g. DR26050" },
+                { label: "Customer Name", key: "customer", type: "text", placeholder: "e.g. RCM Builders", full: true },
+                { label: "SKU Code", key: "sku", type: "text", placeholder: "e.g. DRB052" },
+                { label: "Delivery Location", key: "place", type: "text", placeholder: "e.g. Manila" },
+                { label: "Reserved Qty", key: "reservedQty", type: "number", placeholder: "0" },
+                { label: "Current Stock", key: "currentStock", type: "number", placeholder: "0" },
+                { label: "Approved By", key: "approvedBy", type: "text", placeholder: "e.g. J. Santos" },
+              ].map(({ label, key, type, placeholder, full }) => (
+                <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: full ? "1 / -1" : undefined }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
+                  <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
+                    onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
+                    onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
+              <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
+              <button type="button" onClick={() => {
+                if (!createForm.resDate || !createForm.customer || !createForm.sku) {
+                  setToast({ msg: "Please fill in Date, Customer, and SKU.", type: "error" });
+                  setTimeout(() => setToast(null), 3000);
+                  return;
+                }
+                const qty = Number(createForm.reservedQty) || 0;
+                const stock = Number(createForm.currentStock) || 0;
+                const newRes = {
+                  id: reservations.length + 1,
+                  transNo: String(reservations.length + 1).padStart(3, "0"),
+                  resDate: createForm.resDate,
+                  soWo: createForm.soWo,
+                  tdtDr: createForm.tdtDr,
+                  customer: createForm.customer,
+                  place: createForm.place,
+                  sku: createForm.sku.toUpperCase(),
+                  reservedQty: qty,
+                  currentStock: stock,
+                  estEnding: stock - qty,
+                  approvedBy: createForm.approvedBy,
+                  status: "Pending",
+                  lineItems: [{ sku: createForm.sku.toUpperCase(), desc: "", qty, unitCost: 0, totalCost: 0 }],
+                };
+                setReservations(prev => [newRes, ...prev]);
+                setShowCreate(false);
+                setCreateForm({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
+                setToast({ msg: "Reservation created successfully.", type: "success" });
+                setTimeout(() => setToast(null), 3000);
+              }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                Create Reservation
+              </button>
+            </div>
+          </div>
         </>
       )}
     </div>

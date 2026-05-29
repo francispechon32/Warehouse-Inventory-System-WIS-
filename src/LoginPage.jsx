@@ -104,7 +104,7 @@ function LeftPanel() {
           marginBottom: 24,
         }} />
         <h2 style={{
-          fontFamily: "'Rajdhani', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 52,
           fontWeight: 700,
           color: "#fff",
@@ -117,7 +117,7 @@ function LeftPanel() {
           & Supply
         </h2>
         <p style={{
-          fontFamily: "'Rajdhani', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 15,
           color: "rgba(255,255,255,0.5)",
           fontWeight: 400,
@@ -134,13 +134,13 @@ function LeftPanel() {
           {[["16+", "SKUs Tracked"], ["₱13M+", "Stock Value"], ["Trusted", "Distributor"]].map(([val, label]) => (
             <div key={label}>
               <div style={{
-                fontFamily: "'Orbitron', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: 20,
                 fontWeight: 700,
                 color: "#e87c27",
               }}>{val}</div>
               <div style={{
-                fontFamily: "'Rajdhani', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: 11,
                 color: "rgba(255,255,255,0.4)",
                 letterSpacing: "1px",
@@ -163,7 +163,7 @@ function FloatingInput({ label, type = "text", value, onChange, autoComplete, ic
     <div style={{ marginBottom: 12 }}>
       <label style={{
         display: "block",
-        fontFamily: "'Rajdhani', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: 11, fontWeight: 700,
         color: focused ? "#e87c27" : "rgba(255,255,255,0.4)",
         letterSpacing: "0.08em", textTransform: "uppercase",
@@ -208,7 +208,7 @@ function FloatingInput({ label, type = "text", value, onChange, autoComplete, ic
             border: "none",
             outline: "none",
             color: "#f3f4f6",
-            fontFamily: "'Rajdhani', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 15,
             fontWeight: 500,
             boxSizing: "border-box",
@@ -234,7 +234,7 @@ function OrDivider() {
     <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
       <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
       <span style={{
-        fontFamily: "'Rajdhani', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: 12, fontWeight: 600,
         color: "rgba(255,255,255,0.25)",
         letterSpacing: "2px",
@@ -262,7 +262,7 @@ function GoogleButton({ onClick, label }) {
         borderRadius: 10,
         cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-        fontFamily: "'Rajdhani', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: 14, fontWeight: 600,
         color: "rgba(255,255,255,0.75)",
         transition: "background 0.2s, border-color 0.2s",
@@ -302,10 +302,10 @@ function PrimaryButton({ children, onClick, loading }) {
         borderRadius: 10,
         cursor: loading ? "not-allowed" : "pointer",
         color: "#fff",
-        fontFamily: "'Orbitron', sans-serif",
-        fontSize: 13,
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 14,
         fontWeight: 700,
-        letterSpacing: "1.5px",
+        letterSpacing: "0.5px",
         textTransform: "uppercase",
         transition: "all 0.2s",
         boxShadow: hovered && !loading
@@ -383,7 +383,7 @@ function Toast({ message, type }) {
       background: type === "error" ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)",
       border: `1px solid ${type === "error" ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`,
       color: type === "error" ? "#fca5a5" : "#86efac",
-      fontFamily: "'Rajdhani', sans-serif",
+      fontFamily: "'Inter', sans-serif",
       fontSize: 13,
       fontWeight: 500,
       marginBottom: 16,
@@ -420,7 +420,7 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
     <div style={{ animation: "slideIn 0.35s ease" }}>
       <div style={{ marginBottom: 20 }}>
         <h1 style={{
-          fontFamily: "'Rajdhani', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 32, fontWeight: 700,
           color: "#f9fafb", margin: "0 0 6px",
           letterSpacing: "-0.3px",
@@ -428,7 +428,7 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
           Welcome back
         </h1>
         <p style={{
-          fontFamily: "'Rajdhani', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 14, color: "rgba(255,255,255,0.4)",
           fontWeight: 400, letterSpacing: "0.2px",
         }}>
@@ -455,7 +455,7 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <label style={{
           display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-          fontFamily: "'Rajdhani', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 13, color: "rgba(255,255,255,0.45)", fontWeight: 500,
         }}>
           <div
@@ -477,7 +477,7 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
           type="button"
           style={{
             background: "none", border: "none", cursor: "pointer",
-            fontFamily: "'Rajdhani', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13, color: "#e87c27", fontWeight: 600,
             letterSpacing: "0.2px",
           }}
@@ -487,7 +487,7 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
       </div>
 
       <PrimaryButton onClick={handleLogin} loading={loading}>
-        Sign In →
+        Sign In
       </PrimaryButton>
 
       <OrDivider />
@@ -496,7 +496,7 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
 
       <p style={{
         textAlign: "center", marginTop: 24,
-        fontFamily: "'Rajdhani', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: 13, color: "rgba(255,255,255,0.35)", fontWeight: 500,
       }}>
         Don't have an account?{" "}
@@ -505,7 +505,7 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
           onClick={onSwitch}
           style={{
             background: "none", border: "none", cursor: "pointer",
-            color: "#e87c27", fontFamily: "'Rajdhani', sans-serif",
+            color: "#e87c27", fontFamily: "'Inter', sans-serif",
             fontSize: 13, fontWeight: 700, letterSpacing: "0.2px",
           }}
         >
@@ -556,7 +556,7 @@ function SignUpForm({ onSwitch, onLoginSuccess }) {
     <div style={{ animation: "slideIn 0.35s ease" }}>
       <div style={{ marginBottom: 16 }}>
         <h1 style={{
-          fontFamily: "'Rajdhani', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 32, fontWeight: 700,
           color: "#f9fafb", margin: "0 0 6px",
           letterSpacing: "-0.3px",
@@ -564,7 +564,7 @@ function SignUpForm({ onSwitch, onLoginSuccess }) {
           Create account
         </h1>
         <p style={{
-          fontFamily: "'Rajdhani', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 14, color: "rgba(255,255,255,0.4)",
           fontWeight: 400, letterSpacing: "0.2px",
         }}>
@@ -609,7 +609,7 @@ function SignUpForm({ onSwitch, onLoginSuccess }) {
             ))}
           </div>
           <p style={{
-            fontSize: 11, fontFamily: "'Rajdhani', sans-serif",
+            fontSize: 11, fontFamily: "'Inter', sans-serif",
             color: strengthColors[strength], fontWeight: 600,
             textAlign: "right", margin: 0,
           }}>{strengthLabels[strength]}</p>
@@ -626,7 +626,7 @@ function SignUpForm({ onSwitch, onLoginSuccess }) {
       <div style={{ marginBottom: 24 }} />
 
       <PrimaryButton onClick={handleSignUp} loading={loading}>
-        Create Account →
+        Create Account
       </PrimaryButton>
 
       <OrDivider />
@@ -635,7 +635,7 @@ function SignUpForm({ onSwitch, onLoginSuccess }) {
 
       <p style={{
         textAlign: "center", marginTop: 24,
-        fontFamily: "'Rajdhani', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: 13, color: "rgba(255,255,255,0.35)", fontWeight: 500,
       }}>
         Already have an account?{" "}
@@ -644,7 +644,7 @@ function SignUpForm({ onSwitch, onLoginSuccess }) {
           onClick={onSwitch}
           style={{
             background: "none", border: "none", cursor: "pointer",
-            color: "#e87c27", fontFamily: "'Rajdhani', sans-serif",
+            color: "#e87c27", fontFamily: "'Inter', sans-serif",
             fontSize: 13, fontWeight: 700, letterSpacing: "0.2px",
           }}
         >
@@ -664,7 +664,7 @@ export default function LoginPage({ onLoginSuccess }) {
       {/* Google Fonts */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       <style>{`
         @keyframes gridDrift {
@@ -694,7 +694,7 @@ export default function LoginPage({ onLoginSuccess }) {
       <div style={{
         display: "flex",
         minHeight: "100vh",
-        fontFamily: "'Rajdhani', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         position: "relative",
         overflow: "hidden",
       }}>
@@ -759,7 +759,7 @@ export default function LoginPage({ onLoginSuccess }) {
                     borderRadius: 7,
                     border: "none",
                     cursor: "pointer",
-                    fontFamily: "'Rajdhani', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontSize: 13, fontWeight: 700,
                     letterSpacing: "0.5px",
                     transition: "all 0.2s",

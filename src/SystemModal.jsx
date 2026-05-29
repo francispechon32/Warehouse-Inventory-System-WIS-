@@ -320,40 +320,146 @@ export default function SystemModal({
               {guideTab === "getting-started" && (
                 <ModalGuidePanel title="System Introduction">
                   <p>The Warehouse Inventory System (WIS) gives you instant tracking over steel products, stock-in pipelines, and stock-out deliveries.</p>
-                  <h5 style={{ margin: "16px 0 8px", fontSize: 13, fontWeight: 800, color: "#334155" }}>Workflow Steps</h5>
-                  <ol style={{ margin: 0, paddingLeft: 20 }}>
-                    <li><strong>Check Dashboard Alerts</strong> — Monitor home indicators for stock warnings.</li>
-                    <li><strong>Log Orders</strong> — Use Purchase Orders for supplier deliveries.</li>
-                    <li><strong>Update Stock Sheets</strong> — Record additions and releases in real time.</li>
+                  <h5 style={{ margin: "16px 0 10px", fontSize: 13, fontWeight: 800, color: "#334155", textAlign: "left" }}>Workflow Steps</h5>
+                  <ol style={{ margin: 0, paddingLeft: 20, textAlign: "left" }}>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Access the System</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Log in using your authorized account credentials to securely access the Warehouse Inventory System (WIS).</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Review Dashboard Overview</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Upon logging in, check the dashboard for important warehouse updates and inventory summaries.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Verify Incoming Deliveries</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Before recording inventory, confirm the details of incoming deliveries. This step ensures that accurate deliveries are entered into the system.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Create or Update PO</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Proper purchase order management helps maintain organized supplier records and inventory planning.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Record Stock In/Out Transaction</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Add newly delivered items into the inventory system and all outgoing inventory. Ensures accurate monitoring of all incoming and released quantities inventory.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Monitor Inventory Level</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Regularly review inventory quantities to prevent overstocking, identify low stock items, and monitor fast-moving products. Consistent monitoring improves inventory control.</p>
+                    </li>
+                    <li style={{ marginBottom: 0 }}>
+                      <strong>Conduct Ending Inventory</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Every end of the month, users must finalize the inventory. Helps ensure that all inventory records are accurate and updated every month.</p>
+                    </li>
                   </ol>
                 </ModalGuidePanel>
               )}
               {guideTab === "stock" && (
-                <ModalGuidePanel title="Managing Stock Sheets">
-                  <p>Stock Sheets store permanent transactional movements: Stock In (replenishing) and Stock Out (releasing).</p>
-                  <ul style={{ margin: "12px 0 0", paddingLeft: 20 }}>
-                    <li><strong>Pagination</strong> — Navigate entries from the table footer.</li>
-                    <li><strong>Search</strong> — Filter by description or SKU.</li>
-                    <li><strong>Export</strong> — Download sheets as Excel.</li>
-                  </ul>
+                <ModalGuidePanel title="How to Use Stock Sheets">
+                  <p>Stock Sheets record all permanent inventory movements — Stock In (replenishing) and Stock Out (releasing) — keeping your warehouse data accurate and up to date.</p>
+                  <ol style={{ margin: "12px 0 0", paddingLeft: 20, textAlign: "left" }}>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Open Stock Sheets</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Go to the sidebar menu and click the Stock Sheets button to open the inventory records page.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Search Bar</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the search bar or filter options to quickly find specific items by item code, item name, category, or warehouse location.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>View Item Details</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Select an item to view important information such as the item description, category, warehouse location, stock quantity, and stock movement records.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Update Information</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Edit or update inventory details such as stock quantity, item description, storage location, and unit information when needed.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Record Stock-In</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Enter all newly delivered items into the system by adding the received quantity and updating the available stock balance.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Record Stock-Out</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Record all released or outgoing items by entering the released quantity and updating the remaining stock balance.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Save Changes</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>After updating inventory records, click the Save button to apply all changes and keep the inventory data updated.</p>
+                    </li>
+                    <li style={{ marginBottom: 0 }}>
+                      <strong>Export</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the export function to save copies of stock sheet records for monitoring and reporting purposes.</p>
+                    </li>
+                  </ol>
                 </ModalGuidePanel>
               )}
               {guideTab === "ending" && (
-                <ModalGuidePanel title="Ending Inventory">
-                  <p>Overview of on-hand stock counts checked against configured limits.</p>
-                  <ul style={{ margin: "12px 0 0", paddingLeft: 20 }}>
-                    <li><strong>Return Entry</strong> — Restore items from customer returns.</li>
-                    <li><strong>Backload Tracking</strong> — Record surplus project backloads.</li>
-                  </ul>
+                <ModalGuidePanel title="How to Use Ending Inventory">
+                  <p>Ending Inventory is conducted every end of the month to reconcile system records with actual physical counts, ensuring all stock data remains accurate and updated.</p>
+                  <ol style={{ margin: "12px 0 0", paddingLeft: 20, textAlign: "left" }}>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Open Ending Inventory</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Navigate to the Ending Inventory page from the sidebar to begin the month-end inventory process.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Import WIS Data</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Import the latest WIS Excel file to automatically populate system quantities, average unit costs, and total values for each SKU.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Perform Physical Count</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Physically count all items in the warehouse and enter the actual counted quantities in the Qty as per Counting column for each product.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Review Variances</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>The system automatically computes the variance between WIS quantity and physical count. Investigate and resolve any discrepancies before finalizing.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Add Remarks</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the Remarks column to note any damaged items, missing stock, or other relevant observations per SKU.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Finalize Inventory</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Once all counts are verified and variances are resolved, click Start Ending Inventory to lock in the final inventory for the month.</p>
+                    </li>
+                    <li style={{ marginBottom: 0 }}>
+                      <strong>Export Report</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Export the completed ending inventory as an Excel file for record-keeping, auditing, and management reporting.</p>
+                    </li>
+                  </ol>
                 </ModalGuidePanel>
               )}
               {guideTab === "po" && (
-                <ModalGuidePanel title="Purchase Order Logistics">
-                  <p>Track supplier procurements: Draft, Pending Approval, Shipped, and Delivered.</p>
-                  <ul style={{ margin: "12px 0 0", paddingLeft: 20 }}>
-                    <li><strong>Create PO Drafts</strong> — Add products and supplier details.</li>
-                    <li><strong>Mark Delivered</strong> — Increment ending inventory on arrival.</li>
-                  </ul>
+                <ModalGuidePanel title="How to Use Purchase Orders">
+                  <p>Purchase Orders help track all supplier procurements from creation to delivery, keeping supplier records organized and inventory planning on schedule.</p>
+                  <ol style={{ margin: "12px 0 0", paddingLeft: 20, textAlign: "left" }}>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Open Purchase Orders</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Go to the sidebar and click Purchase Orders to access all supplier procurement records.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Create a New PO</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Click the Add PO button and fill in the required details including supplier name, product description, quantity, unit cost, and expected delivery date (ETA).</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Track PO Status</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Monitor each PO's status — Pending or Delivered — to stay updated on outstanding and completed supplier orders.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Filter and Search</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the search bar and status filters to quickly locate specific purchase orders by supplier, product, or delivery status.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Update PO Details</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Edit existing POs to update quantities, costs, ETA, or status as new information becomes available from suppliers.</p>
+                    </li>
+                    <li style={{ marginBottom: 10 }}>
+                      <strong>Mark as Delivered</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Once goods arrive, update the PO status to Delivered. This confirms receipt and supports accurate inventory and backload records.</p>
+                    </li>
+                    <li style={{ marginBottom: 0 }}>
+                      <strong>Export PO Records</strong>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the Export button to download PO records as an Excel file for procurement tracking, auditing, and management review.</p>
+                    </li>
+                  </ol>
                 </ModalGuidePanel>
               )}
             </div>

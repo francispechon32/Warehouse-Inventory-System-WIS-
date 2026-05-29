@@ -52,6 +52,29 @@ function IconWarning({ size = 14 }) {
   );
 }
 
+/* ─── SEARCH HIGHLIGHT ───────────────────────────────────── */
+function HighlightText({ text, query }) {
+  if (!query || !text) return <>{text}</>;
+  const str = String(text);
+  const idx = str.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{str}</>;
+  return (
+    <>
+      {str.slice(0, idx)}
+      <mark style={{
+        background: "#fef08a",
+        color: "#78350f",
+        borderRadius: 3,
+        padding: "0 1px",
+        fontWeight: 700,
+      }}>
+        {str.slice(idx, idx + query.length)}
+      </mark>
+      {str.slice(idx + query.length)}
+    </>
+  );
+}
+
 /* ─── SHEETJS LOADER ─────────────────────────────────────── */
 function useSheetJS() {
   const [ready, setReady] = useState(!!window.XLSX);
@@ -259,7 +282,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                 {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS"].map(h => (
                   <th key={h} style={{
                     padding: "16px 20px",
-                    textAlign: ["CURRENT STOCK","AVG COST","TOTAL VALUE"].includes(h) ? "right" : "left",
+                    textAlign: h === "PRODUCT DESCRIPTION" ? "left" : "center",
                     color: "#fff", fontWeight: 700, fontSize: 12,
                   }}>{h}</th>
                 ))}
@@ -268,8 +291,36 @@ export default function ProductPage({ products: propProducts, setProducts: propS
             <tbody>
               {paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
-                    No items match your search or filter.
+                  <td colSpan={8} style={{ padding: "60px 20px", textAlign: "center" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                      <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                      </svg>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", margin: 0 }}>
+                        {searchQuery
+                          ? `No products matching "${searchQuery}"`
+                          : statusFilter !== "All Status"
+                            ? `No ${statusFilter.toLowerCase()} items found`
+                            : "No items found"}
+                      </p>
+                      <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>
+                        {searchQuery
+                          ? "Try a different search term or clear the filters"
+                          : "Adjust your filters or import a product list"}
+                      </p>
+                      {searchQuery && (
+                        <button
+                          onClick={() => { setSearchQuery(""); setCurrentPage(1); }}
+                          style={{
+                            marginTop: 4, fontSize: 12, color: "#e87c27",
+                            background: "none", border: "1px solid #e87c27",
+                            borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontWeight: 600,
+                          }}
+                        >
+                          Clear search
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : paginatedItems.map((product, idx) => {
@@ -291,10 +342,16 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                       : (idx % 2 === 0 ? "#fff" : "#fafafa")
                   }
                 >
-                  <td style={{ padding: "14px 20px", color: "#374151", fontWeight: 600 }}>{product.sku}</td>
-                  <td style={{ padding: "14px 20px", color: "#374151", fontSize: 12 }}>{product.description}</td>
-                  <td style={{ padding: "14px 20px", color: "#6b7280", fontSize: 12 }}>{product.category}</td>
-                  <td style={{ padding: "14px 20px", color: "#374151" }}>{product.unit}</td>
+                  <td style={{ padding: "14px 20px", color: "#374151", fontWeight: 600, textAlign: "center" }}>
+                    <HighlightText text={product.sku} query={searchQuery} />
+                  </td>
+                  <td style={{ padding: "14px 20px", color: "#374151", fontSize: 12, textAlign: "left" }}>
+                    <HighlightText text={product.description} query={searchQuery} />
+                  </td>
+                  <td style={{ padding: "14px 20px", color: "#6b7280", fontSize: 12, textAlign: "center" }}>
+                    <HighlightText text={product.category} query={searchQuery} />
+                  </td>
+                  <td style={{ padding: "14px 20px", color: "#374151", textAlign: "center" }}>{product.unit}</td>
                   <td style={{
                     padding: "14px 20px", textAlign: "right",
                     color: low ? "#d97706" : "#374151",

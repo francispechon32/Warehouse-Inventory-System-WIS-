@@ -35,6 +35,20 @@ const STOCK_OUT_COLS = [
   "RUNNING QTY", "RUNNING VALUE", "REMARKS",
 ];
 
+function Highlight({ text, query }) {
+  if (!query || !text) return <>{String(text)}</>;
+  const idx = String(text).toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{String(text)}</>;
+  const s = String(text);
+  return (
+    <>
+      {s.slice(0, idx)}
+      <mark style={{ background: "#fef08a", color: "#111827", padding: 0, borderRadius: 2 }}>{s.slice(idx, idx + query.length)}</mark>
+      {s.slice(idx + query.length)}
+    </>
+  );
+}
+
 const PAGE_SIZE = 8;
 const RIGHT_IN = new Set(["QTY", "COST/KILO", "COST/UNIT", "TOTAL PURCHASE", "RUNNING QTY", "AVG UNIT COST", "TOTAL VALUE"]);
 const RIGHT_OUT = new Set(["QTY OUT", "UNIT COST", "TOTAL PRICE", "RUNNING QTY", "RUNNING VALUE"]);
@@ -72,7 +86,7 @@ function Pagination({ currentPage, totalPages, onPage }) {
   );
 }
 
-function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination }) {
+function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination, searchSku }) {
   return (
     <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px 12px", flexWrap: "wrap", gap: 10 }}>
@@ -83,13 +97,16 @@ function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination }) 
           <thead>
             <tr style={{ background: "#1c2235" }}>
               {cols.map((h) => (
-                <th key={h} style={{ padding: "12px 10px", textAlign: rightAlign.has(h) ? "right" : "left", color: "#fff", fontWeight: 700, fontSize: 9, whiteSpace: "nowrap" }}>{h}</th>
+                <th key={h} style={{ padding: "12px 10px", textAlign: rightAlign.has(h) ? "right" : "center", color: "#fff", fontWeight: 700, fontSize: 9, whiteSpace: "nowrap" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={cols.length} style={{ textAlign: "center", padding: 40, color: "#9ca3af" }}>No records for this SKU.</td></tr>
+              <tr><td colSpan={cols.length} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                No records found{searchSku ? <> for SKU <strong style={{ color: "#374151" }}>"{searchSku}"</strong></> : ""}.
+              </td></tr>
             ) : rows.map((row, idx) => renderRow(row, idx))}
           </tbody>
         </table>
@@ -134,7 +151,7 @@ function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows) {
     [],
     ["TRANS #","DATE","TDT PO #","TDT PO DATE","VENDOR #","VENDOR NAME","CUSTOMER'S NAME AS PER DR","TDT WO #","ACCEPTANCE DATE","QTY","COST/KILO","COST/UNIT","TOTAL PURCHASE","RUNNING QTY","AVG UNIT COST","TOTAL VALUE","REMARK"],
   ];
-  const inData = stockInRows.map(r => [r.transNo, r.date, r.tdtPo, r.tdtPoDate, r.vendorNo, r.vendorName, r.customerDr, r.tdtWo, r.acceptDate, r.qty, r.costKilo, r.costUnit, r.totalPurchase, r.runningQty, r.avgUnitCost, r.totalValue, r.remark||"—"]);
+  const inData = stockInRows.map(r => [r.transNo, r.date, r.tdtPo, r.tdtPoDate, r.vendorNo, r.vendorName, r.customerDr, r.tdtWo, r.acceptDate, r.qty, r.costKilo != null ? parseFloat(Number(r.costKilo).toFixed(2)) : "", r.costUnit, r.totalPurchase, r.runningQty, r.avgUnitCost, r.totalValue, r.remark||"—"]);
   const wsIn = XLSX.utils.aoa_to_sheet([...inHeaders, ...inData]);
   wsIn["!cols"] = [{wch:10},{wch:12},{wch:16},{wch:12},{wch:10},{wch:18},{wch:22},{wch:10},{wch:14},{wch:8},{wch:10},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14},{wch:18}];
   XLSX.utils.book_append_sheet(wb, wsIn, sku + " STOCK IN");
@@ -228,6 +245,8 @@ export default function StockSheetsPage({
   const setStockOutData = setPropStockOut ?? setLocalStockOut;
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ type: "in", date: "", sku: "", description: "", qty: "", unitCost: "", ref: "", customer: "" });
   const importRef = useRef(null);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
@@ -265,7 +284,7 @@ export default function StockSheetsPage({
       <PageToolbar
         searchValue={searchSku}
         onSearchChange={(v) => { setSearchSku(v); setInPage(1); setOutPage(1); }}
-        primaryAction={{ label: "New Stock Sheet", onClick: () => {} }}
+        primaryAction={{ label: "New Stock Sheet", onClick: () => setShowCreate(true) }}
         row1End={
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: "1 1 300px" }}>
             <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>Recent:</span>
@@ -358,26 +377,27 @@ export default function StockSheetsPage({
           cols={STOCK_IN_COLS}
           rows={pagedIn}
           rightAlign={RIGHT_IN}
+          searchSku={searchSku}
           pagination={<Pagination currentPage={inPage} totalPages={inTotalPages} onPage={setInPage} />}
           renderRow={(row, idx) => (
             <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-              <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600 }}>{row.transNo}</td>
-              <td style={{ padding: "10px", whiteSpace: "nowrap" }}>{row.date}</td>
-              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700 }}>{row.tdtPo}</td>
-              <td style={{ padding: "10px" }}>{row.tdtPoDate}</td>
-              <td style={{ padding: "10px" }}>{row.vendorNo}</td>
-              <td style={{ padding: "10px" }}>{row.vendorName}</td>
-              <td style={{ padding: "10px" }}>{row.customerDr}</td>
-              <td style={{ padding: "10px" }}>{row.tdtWo}</td>
-              <td style={{ padding: "10px" }}>{row.acceptDate}</td>
+              <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
+              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.date}</td>
+              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtPo}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtPoDate}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.vendorNo}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.vendorName}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.customerDr}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtWo}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.acceptDate}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.qty}</td>
-              <td style={{ padding: "10px", textAlign: "right" }}>{row.costKilo}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.costKilo != null && row.costKilo !== "" ? parseFloat(Number(row.costKilo).toFixed(2)) : "—"}</td>
               <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.costUnit)}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPurchase)}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
               <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.avgUnitCost)}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalValue)}</td>
-              <td style={{ padding: "10px", color: "#6b7280" }}>{row.remark || "—"}</td>
+              <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remark || "—"}</td>
             </tr>
           )}
         />
@@ -389,26 +409,27 @@ export default function StockSheetsPage({
           cols={STOCK_OUT_COLS}
           rows={pagedOut}
           rightAlign={RIGHT_OUT}
+          searchSku={searchSku}
           pagination={<Pagination currentPage={outPage} totalPages={outTotalPages} onPage={setOutPage} />}
           renderRow={(row, idx) => (
             <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-              <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600 }}>{row.transNo}</td>
-              <td style={{ padding: "10px", whiteSpace: "nowrap" }}>{row.dispatchDate}</td>
-              <td style={{ padding: "10px" }}>{row.tdtWo}</td>
-              <td style={{ padding: "10px", fontWeight: 600 }}>{row.customer}</td>
-              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700 }}>{row.tdtDr}</td>
-              <td style={{ padding: "10px" }}>{row.branch}</td>
-              <td style={{ padding: "10px" }}>{row.bdrSummary}</td>
-              <td style={{ padding: "10px" }}>{row.tdtSi}</td>
+              <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
+              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtWo}</td>
+              <td style={{ padding: "10px", fontWeight: 600, textAlign: "center" }}>{row.customer}</td>
+              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.branch}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.bdrSummary}</td>
+              <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtSi}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.qtyOut}</td>
               <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.unitCost)}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPrice)}</td>
-              <td style={{ padding: "10px", fontSize: 11 }}>{row.s1}</td>
-              <td style={{ padding: "10px", fontSize: 11 }}>{row.s2}</td>
-              <td style={{ padding: "10px", fontSize: 11 }}>{row.s3}</td>
+              <td style={{ padding: "10px", fontSize: 11, textAlign: "center" }}>{row.s1}</td>
+              <td style={{ padding: "10px", fontSize: 11, textAlign: "center" }}>{row.s2}</td>
+              <td style={{ padding: "10px", fontSize: 11, textAlign: "center" }}>{row.s3}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
               <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.runningValue)}</td>
-              <td style={{ padding: "10px", color: "#6b7280" }}>{row.remarks || "—"}</td>
+              <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remarks || "—"}</td>
             </tr>
           )}
         />
@@ -420,6 +441,75 @@ export default function StockSheetsPage({
         <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 9999, background: toast.type === "error" ? "#dc2626" : "#16a34a", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
           {toast.msg}
         </div>
+      )}
+
+      {showCreate && (
+        <>
+          <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1100 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#fff", borderRadius: 16, width: "min(520px,95vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>New Stock Sheet Entry</h2>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>Add a stock in or stock out transaction</p>
+              </div>
+              <button type="button" onClick={() => setShowCreate(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#4b5563", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                {["in", "out"].map(t => (
+                  <button key={t} type="button" onClick={() => setCreateForm(f => ({ ...f, type: t }))}
+                    style={{ flex: 1, padding: "10px 16px", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700,
+                      background: createForm.type === t ? (t === "in" ? "#dcfce7" : "#fee2e2") : "#f3f4f6",
+                      color: createForm.type === t ? (t === "in" ? "#16a34a" : "#dc2626") : "#6b7280" }}>
+                    {t === "in" ? "▲ Stock In" : "▼ Stock Out"}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
+                {[
+                  { label: "Date", key: "date", type: "date" },
+                  { label: "SKU Code", key: "sku", type: "text", placeholder: "e.g. DRB052" },
+                  { label: "Item Description", key: "description", type: "text", placeholder: "e.g. Deformed Round Bar...", full: true },
+                  { label: "Quantity", key: "qty", type: "number", placeholder: "0" },
+                  { label: "Unit Cost (₱)", key: "unitCost", type: "number", placeholder: "0.00" },
+                  { label: createForm.type === "in" ? "Reference / PO No." : "Customer / DR No.", key: "ref", type: "text", placeholder: createForm.type === "in" ? "e.g. PO-001" : "e.g. DR26050" },
+                ].map(({ label, key, type, placeholder, full }) => (
+                  <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: full ? "1 / -1" : undefined }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
+                    <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
+                      onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
+                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
+              <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
+              <button type="button" onClick={() => {
+                if (!createForm.date || !createForm.sku || !createForm.qty) {
+                  setToast({ msg: "Please fill in Date, SKU, and Quantity.", type: "error" });
+                  setTimeout(() => setToast(null), 3000);
+                  return;
+                }
+                const entry = { id: Date.now(), date: createForm.date, sku: createForm.sku.toUpperCase(), description: createForm.description, qty: Number(createForm.qty) || 0, unitCost: Number(createForm.unitCost) || 0, ref: createForm.ref };
+                if (createForm.type === "in") {
+                  setStockInData(prev => [entry, ...prev]);
+                } else {
+                  setStockOutData(prev => [entry, ...prev]);
+                }
+                setShowCreate(false);
+                setCreateForm({ type: "in", date: "", sku: "", description: "", qty: "", unitCost: "", ref: "" });
+                setToast({ msg: "Stock sheet entry added successfully.", type: "success" });
+                setTimeout(() => setToast(null), 3000);
+              }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                Add Entry
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

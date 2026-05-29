@@ -46,6 +46,20 @@ const SEED_BACKLOAD = [
 
 const PAGE_SIZE = 8;
 
+function Highlight({ text, query }) {
+  if (!query || !text) return <>{String(text)}</>;
+  const idx = String(text).toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{String(text)}</>;
+  const s = String(text);
+  return (
+    <>
+      {s.slice(0, idx)}
+      <mark style={{ background: "#fef08a", color: "#111827", padding: 0, borderRadius: 2 }}>{s.slice(idx, idx + query.length)}</mark>
+      {s.slice(idx + query.length)}
+    </>
+  );
+}
+
 function fmtPHP(n) {
   if (!n && n !== 0) return "—";
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -302,7 +316,13 @@ export default function BackloadInventoryPage() {
     let d = data;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      d = d.filter(r => r.item.toLowerCase().includes(q) || (r.sku||"").toLowerCase().includes(q) || (r.drNo||"").toLowerCase().includes(q) || (r.customerName||"").toLowerCase().includes(q));
+      d = d.filter(
+        (r) =>
+          (r.item || "").toLowerCase().includes(q) ||
+          (r.sku || "").toLowerCase().includes(q) ||
+          (r.drNo || "").toLowerCase().includes(q) ||
+          (r.customerName || "").toLowerCase().includes(q)
+      );
     }
     if (statusFilter !== "All Status") d = d.filter(r => r.status === statusFilter);
     return d;
@@ -389,7 +409,7 @@ export default function BackloadInventoryPage() {
             <thead>
               <tr style={{ background: "#1c2235" }}>
                 {COLS.map(h => (
-                  <th key={h} style={{ padding: "14px 12px", textAlign: ["QTY","UNIT COST","TOTAL COST","TOTAL QTY OUT","QTY BALANCE","AMOUNT BALANCE"].includes(h) ? "right" : "left", color: "#fff", fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h} style={{ padding: "14px 12px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -411,25 +431,25 @@ export default function BackloadInventoryPage() {
                     onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
                     onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fafafa"}
                   >
-                    <td style={{ padding: "12px 12px", color: "#9ca3af", fontSize: 11 }}>{row.id}</td>
-                    <td style={{ padding: "12px 12px", color: "#6b7280", whiteSpace: "nowrap" }}>{row.date}</td>
-                    <td style={{ padding: "12px 12px", color: "#e87c27", fontWeight: 700 }}>{row.drNo || "—"}</td>
-                    <td style={{ padding: "12px 12px", color: "#374151" }}>{row.sku || "—"}</td>
-                    <td style={{ padding: "12px 12px", color: "#374151", maxWidth: 220 }}>{row.item}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "right", fontWeight: 700 }}>{row.qty}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "right" }}>{fmtPHP(row.unitCost)}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(totalCost)}</td>
-                    <td style={{ padding: "12px 12px", color: "#374151", maxWidth: 180 }}>{row.customerName}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "right" }}>{row.totalQtyOut}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "right" }}>
+                    <td style={{ padding: "12px 12px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{row.id}</td>
+                    <td style={{ padding: "12px 12px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{row.date}</td>
+                    <td style={{ padding: "12px 12px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo || "—"} query={searchQuery} /></td>
+                    <td style={{ padding: "12px 12px", color: "#374151", textAlign: "center" }}><Highlight text={row.sku || "—"} query={searchQuery} /></td>
+                    <td style={{ padding: "12px 12px", color: "#374151", maxWidth: 220, textAlign: "left" }}><Highlight text={row.item} query={searchQuery} /></td>
+                    <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: 700 }}>{row.qty}</td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{fmtPHP(row.unitCost)}</td>
+                    <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(totalCost)}</td>
+                    <td style={{ padding: "12px 12px", color: "#374151", maxWidth: 180, textAlign: "left" }}><Highlight text={row.customerName} query={searchQuery} /></td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{row.totalQtyOut}</td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>
                       <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: qtyBalance > 0 ? "#fef3c7" : "#d1fae5", color: qtyBalance > 0 ? "#d97706" : "#065f46" }}>{qtyBalance}</span>
                     </td>
-                    <td style={{ padding: "12px 12px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(amtBalance)}</td>
-                    <td style={{ padding: "12px 12px", color: "#6b7280", maxWidth: 180, fontSize: 11 }}>{row.remarks || "—"}</td>
-                    <td style={{ padding: "12px 12px" }}>
+                    <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(amtBalance)}</td>
+                    <td style={{ padding: "12px 12px", color: "#6b7280", maxWidth: 180, fontSize: 11, textAlign: "left" }}>{row.remarks || "—"}</td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>
                       <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
                     </td>
-                    <td style={{ padding: "12px 8px" }}>
+                    <td style={{ padding: "12px 8px", textAlign: "center" }}>
                       <button onClick={() => setEditingId(row.id)} style={{ padding: "5px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
                         <IconEdit size={12} /> Edit
                       </button>

@@ -34,7 +34,7 @@ import {
 import MetricCard from "./MetricCard";
 import SystemModal from "./SystemModal";
 
-/* â”€â”€â”€ ICONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* --- ICONS ----------------------------------------------- */
 function IconHome({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -267,7 +267,7 @@ function IconShield({ size = 16 }) {
   );
 }
 
-/* â”€â”€â”€ CUSTOM TOOLTIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* --- CUSTOM TOOLTIP --------------------------------------- */
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -295,7 +295,7 @@ const stockSubItems = [
   { label: "Return",              Icon: IconReturn     },
 ];
 
-/* â”€â”€â”€ TOOLTIP WRAPPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* --- TOOLTIP WRAPPER -------------------------------------- */
 function NavTooltip({ label, children, show }) {
   const [visible, setVisible] = useState(false);
   if (!show) return children;
@@ -330,7 +330,7 @@ function NavTooltip({ label, children, show }) {
   );
 }
 
-/* â”€â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* --- HELPERS ---------------------------------------------- */
 function buildLast7DaysChart(stockIn, stockOut) {
   const days = ["Sun","Mon","Tues","Wed","Thurs","Fri","Sat"];
   const today = new Date();
@@ -359,7 +359,7 @@ function buildTopReleasedItems(stockOut, products) {
   return sorted.map(([sku, qty]) => {
     const p = products.find(p => p.sku === sku);
     const desc = p?.description || sku;
-    const shortName = desc.length > 22 ? desc.slice(0, 22) + "â€¦" : desc;
+    const shortName = desc.length > 22 ? desc.slice(0, 22) + "…" : desc;
     return {
       sku,
       name: shortName,
@@ -372,12 +372,12 @@ function buildTopReleasedItems(stockOut, products) {
 // Recent stock-in + stock-out combined (dashboard shows 12 by default)
 function buildRecentActivity(stockIn, stockOut, limit = 12) {
   const ins  = stockIn.map(t => ({
-    text: `${t.description} â€” ${t.qty.toLocaleString()} units received`,
+    text: `${t.description} – ${t.qty.toLocaleString()} units received`,
     time: t.date,
     type: "in",
   }));
   const outs = stockOut.map(t => ({
-    text: `${t.description} â€” ${t.qty.toLocaleString()} units released`,
+    text: `${t.description} – ${t.qty.toLocaleString()} units released`,
     time: t.date,
     type: "out",
   }));
@@ -425,7 +425,157 @@ const inventoryDataByRange = {
   ],
 };
 
-/* â”€â”€â”€ MAIN DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* --- MAIN DASHBOARD --------------------------------------- */
+/* --- PROFILE PAGE ----------------------------------------- */
+function ProfileField({ label, value, editing, name, onChange, type = "text" }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        {label}
+      </label>
+      {editing ? (
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          style={{
+            padding: "10px 14px", fontSize: 14, fontWeight: 500, color: "#111827",
+            border: "1.5px solid #e87c27", borderRadius: 10, outline: "none",
+            fontFamily: "inherit", background: "#fff", boxSizing: "border-box",
+            boxShadow: "0 0 0 3px rgba(232,124,39,0.12)",
+          }}
+        />
+      ) : (
+        <p style={{ fontSize: 14, color: "#111827", fontWeight: 500, padding: "10px 0", borderBottom: "1px solid #f3f4f6", margin: 0 }}>
+          {value || "\u2014"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ProfilePage({ profile, onSave, onClose }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ ...profile });
+
+  const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  const handleSave = () => {
+    if (!form.name.trim()) return;
+    onSave(form);
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setForm({ ...profile });
+    setEditing(false);
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9000,
+      background: "rgba(15,23,42,0.5)",
+      backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 20,
+    }} onClick={onClose}>
+      <div style={{
+        background: "#fff", borderRadius: 20, width: "100%", maxWidth: 560,
+        maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column",
+        boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+        animation: "wisModalFrameIn 0.28s cubic-bezier(0.16,1,0.3,1)",
+      }} onClick={e => e.stopPropagation()}>
+
+        <div style={{
+          padding: "24px 28px", borderBottom: "1px solid #f0f2f5",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "linear-gradient(135deg, #fff7ed 0%, #fff 100%)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: "50%",
+              background: "linear-gradient(135deg, #e87c27, #c96b1c)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontWeight: 800, fontSize: 20,
+              flexShrink: 0, boxShadow: "0 4px 12px rgba(232,124,39,0.3)",
+            }}>
+              {(form.name || "?")[0].toUpperCase()}
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#0f172a" }}>My Profile</h2>
+              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748b" }}>{form.role}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} style={{
+            width: 36, height: 36, border: "1px solid #e2e8f0", borderRadius: 10,
+            background: "#fff", color: "#64748b", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div style={{ padding: "24px 28px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+            <ProfileField label="Full Name" value={form.name} editing={editing} name="name" onChange={handleChange} />
+            <ProfileField label="Email Address" value={form.email} editing={editing} name="email" onChange={handleChange} type="email" />
+            <ProfileField label="Phone Number" value={form.phone} editing={editing} name="phone" onChange={handleChange} />
+            <ProfileField label="Role" value={form.role} editing={editing} name="role" onChange={handleChange} />
+            <ProfileField label="Department" value={form.department} editing={editing} name="department" onChange={handleChange} />
+            <ProfileField label="Location" value={form.location} editing={editing} name="location" onChange={handleChange} />
+          </div>
+          {editing && (
+            <div style={{
+              background: "#fff7ed", border: "1px solid #fcd9b0",
+              borderRadius: 10, padding: "12px 16px", fontSize: 12, color: "#92400e",
+            }}>
+              ✏️ You're in edit mode — update your details and click Save to confirm.
+            </div>
+          )}
+        </div>
+
+        <div style={{
+          padding: "16px 28px", borderTop: "1px solid #f0f2f5",
+          background: "#f8fafc", display: "flex", justifyContent: "flex-end", gap: 10,
+        }}>
+          {editing ? (
+            <>
+              <button type="button" onClick={handleCancel} style={{
+                padding: "10px 20px", borderRadius: 10, border: "1px solid #e2e8f0",
+                background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                color: "#374151", fontFamily: "inherit",
+              }}>Cancel</button>
+              <button type="button" onClick={handleSave} style={{
+                padding: "10px 20px", borderRadius: 10, border: "none",
+                background: "linear-gradient(135deg,#e87c27,#c96b1c)",
+                color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+                fontFamily: "inherit", boxShadow: "0 4px 12px rgba(232,124,39,0.3)",
+              }}>Save Changes</button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setEditing(true)} style={{
+              padding: "10px 20px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#e87c27,#c96b1c)",
+              color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8,
+              boxShadow: "0 4px 12px rgba(232,124,39,0.3)",
+            }}>
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Edit Profile
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard({ onLogout, userName }) {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(false);
@@ -439,6 +589,15 @@ export default function Dashboard({ onLogout, userName }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
+  const [showProfilePage, setShowProfilePage] = useState(false);
+  const [userProfile, setUserProfile] = useState({
+    name: userName || "Admin User",
+    email: "chelsea.lopez@tdt.com",
+    phone: "+63 917 123 4567",
+    role: "Warehouse Administrator",
+    department: "Operations",
+    location: "Marilao Warehouse",
+  });
   const sidebarRef = useRef(null);
   const profileRef = useRef(null);
   const [toast, setToast] = useState(null);
@@ -447,7 +606,7 @@ export default function Dashboard({ onLogout, userName }) {
     setTimeout(() => setToast(null), 3500);
   };
   const lowStockPromptChecked = useRef(false);
-  const displayName = userName || "Admin User";
+  const displayName = userProfile.name || "Admin User";
   const firstName = displayName.split(" ")[0];
 
   const [products, setProducts] = useState(() =>
@@ -805,7 +964,7 @@ export default function Dashboard({ onLogout, userName }) {
           to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* â”€â”€ FIXED: metric card pulse uses iconColor properly â”€â”€ */
+        /* -- FIXED: metric card pulse uses iconColor properly -- */
         @keyframes metricPulse {
           0%, 100% { transform: scale(1); opacity: 0.15; }
           50% { transform: scale(1.15); opacity: 0.25; }
@@ -814,7 +973,7 @@ export default function Dashboard({ onLogout, userName }) {
 
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
 
-        {/* â”€â”€ SIDEBAR â”€â”€ */}
+        {/* -- SIDEBAR -- */}
         <aside
           ref={sidebarRef}
           className="sidebar-transition"
@@ -1050,10 +1209,10 @@ export default function Dashboard({ onLogout, userName }) {
           </nav>
         </aside>
 
-        {/* â”€â”€ MAIN COLUMN â”€â”€ */}
+        {/* -- MAIN COLUMN -- */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100vh", overflow: "hidden" }}>
 
-          {/* â”€â”€ Header â”€â”€ */}
+          {/* -- Header -- */}
           <header style={{
             minHeight: 80, background: "#fff",
             borderBottom: "1px solid #e9ecef",
@@ -1148,8 +1307,23 @@ export default function Dashboard({ onLogout, userName }) {
                   <div className="profile-dropdown" onClick={e => e.stopPropagation()}>
                     <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
                       <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#111827" }}>{displayName}</p>
-                      <p style={{ margin: "2px 0 0", fontSize: 11, color: "#6b7280" }}>chelsea.lopez@tdt.com</p>
+                      <p style={{ margin: "2px 0 0", fontSize: 11, color: "#6b7280" }}>{userProfile.email}</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => { setProfileMenuOpen(false); setShowProfilePage(true); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8, padding: "10px 16px",
+                        border: "none", background: "none", width: "100%", textAlign: "left",
+                        cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 600,
+                        transition: "background 0.15s"
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                      onMouseLeave={e => e.currentTarget.style.background = "none"}
+                    >
+                      <IconUser size={16} />
+                      My Profile
+                    </button>
                     <button
                       type="button"
                       onClick={() => { setProfileMenuOpen(false); setActiveModal("logout"); }}
@@ -1157,7 +1331,7 @@ export default function Dashboard({ onLogout, userName }) {
                         display: "flex", alignItems: "center", gap: 8, padding: "10px 16px",
                         border: "none", background: "none", width: "100%", textAlign: "left",
                         cursor: "pointer", fontSize: 13, color: "#ef4444", fontWeight: 600,
-                        transition: "background 0.15s"
+                        transition: "background 0.15s", borderTop: "1px solid #f3f4f6",
                       }}
                       onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
                       onMouseLeave={e => e.currentTarget.style.background = "none"}
@@ -1171,7 +1345,7 @@ export default function Dashboard({ onLogout, userName }) {
             </div>
           </header>
 
-          {/* â”€â”€ Scrollable Content â”€â”€ */}
+          {/* -- Scrollable Content -- */}
           <main id="scroll-area" style={{
             flex: 1, overflowY: "auto",
             background: "#f0f2f5",
@@ -1208,7 +1382,7 @@ export default function Dashboard({ onLogout, userName }) {
             ) : activeNav === "Return" ? (
               <ReturnPage />
             ) : (
-              /* â•â• HOME DASHBOARD â•â• */
+              /* ══ HOME DASHBOARD ══ */
               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
                 {/* Metric Cards */}
@@ -1251,7 +1425,7 @@ export default function Dashboard({ onLogout, userName }) {
 />
                 </div>
 
-               {/* â”€â”€ Row 2: Chart (flex) + Top Released Items (380px) â”€â”€ */}
+               {/* -- Row 2: Chart (flex) + Top Released Items (380px) -- */}
 <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "stretch" }}>
 
   {/* Inventory Movement Chart */}
@@ -1263,7 +1437,7 @@ export default function Dashboard({ onLogout, userName }) {
     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
       <div>
         <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>
-          Inventory Movement â€“ {dateRange}
+          Inventory Movement – {dateRange}
         </p>
         <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
           {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
@@ -1348,7 +1522,7 @@ export default function Dashboard({ onLogout, userName }) {
   </div>
 </div>
 
- {/* â”€â”€ Row 3: Stock Alerts + Recent Activity â”€â”€ */}
+ {/* -- Row 3: Stock Alerts + Recent Activity -- */}
 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
 
   {/* Stock Alerts */}
@@ -1374,7 +1548,7 @@ export default function Dashboard({ onLogout, userName }) {
     </div>
     {stockAlerts.length === 0 ? (
       <div style={{ textAlign: "center", padding: "32px 24px" }}>
-        <p style={{ fontSize: 13, color: "#9ca3af" }}>âœ“ All items are well-stocked</p>
+        <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
       </div>
     ) : (
       <div className="dashboard-scroll-panel" style={{ maxHeight: 320 }}>
@@ -1382,10 +1556,10 @@ export default function Dashboard({ onLogout, userName }) {
           <div key={a.sku} className="alert-row" onClick={goToLowStock}>
             <div style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {a.description.length > 30 ? a.description.slice(0, 30) + "â€¦" : a.description}
+                {a.description.length > 30 ? a.description.slice(0, 30) + "…" : a.description}
               </p>
               <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>
-                SKU: {a.sku} â€” {a.stock} unit{a.stock !== 1 ? "s" : ""} left
+                SKU: {a.sku} · {a.stock} unit{a.stock !== 1 ? "s" : ""} left
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 12 }}>
@@ -1466,6 +1640,15 @@ export default function Dashboard({ onLogout, userName }) {
           }}
           products={products}
           setProducts={setProducts}
+        />
+      )}
+
+      {/* Profile Page Modal */}
+      {showProfilePage && (
+        <ProfilePage
+          profile={userProfile}
+          onSave={(updated) => { setUserProfile(updated); setShowProfilePage(false); showToast("Profile updated successfully!"); }}
+          onClose={() => setShowProfilePage(false)}
         />
       )}
 

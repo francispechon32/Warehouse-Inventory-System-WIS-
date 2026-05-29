@@ -29,6 +29,20 @@ import {
   modalCellInput,
 } from "./modalFormStyles";
 
+function Highlight({ text, query }) {
+  if (!query || !text) return <>{String(text)}</>;
+  const idx = String(text).toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{String(text)}</>;
+  const s = String(text);
+  return (
+    <>
+      {s.slice(0, idx)}
+      <mark style={{ background: "#fef08a", color: "#111827", padding: 0, borderRadius: 2 }}>{s.slice(idx, idx + query.length)}</mark>
+      {s.slice(idx + query.length)}
+    </>
+  );
+}
+
 function useSheetJS() {
   const [ready, setReady] = useState(!!window.XLSX);
   useEffect(() => {
@@ -355,7 +369,14 @@ export default function EndingInventoryPage({
 
   const filtered = useMemo(() => {
     let d = inventoryData;
-    if (searchQuery.trim()) { const q = searchQuery.toLowerCase(); d = d.filter(r => r.sku.toLowerCase().includes(q) || r.productDescription.toLowerCase().includes(q)); }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      d = d.filter(
+        (r) =>
+          (r.sku || "").toLowerCase().includes(q) ||
+          (r.productDescription || "").toLowerCase().includes(q)
+      );
+    }
     if (statusFilter === "Total Stock")     d = d.filter(r => r.qtyAsPerWis > 0);
     if (statusFilter === "Out of Stock") d = d.filter(r => r.qtyAsPerWis === 0);
     if (statusFilter === "Variance")     d = d.filter(r => r.varianceQty !== 0);
@@ -491,7 +512,7 @@ export default function EndingInventoryPage({
                   ? ["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS"]
                   : ["#","PRODUCT DESCRIPTION","SKU","QTY AS PER WIS","AVG UNIT COST","TOTAL COST OF GOODS SOLD"]
                 ).map((h,i) => (
-                  <th key={h+i} style={{ padding: "14px 16px", textAlign: ["QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","QTY AS PER WIS","AVG UNIT COST","TOTAL COST OF GOODS SOLD"].includes(h)?"right":"left", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h+i} style={{ padding: "14px 16px", textAlign: h === "PRODUCT DESCRIPTION" ? "left" : "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -509,30 +530,30 @@ export default function EndingInventoryPage({
                   >
                     {activeTab === "wis" ? (
                       <>
-                        <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11 }}>{item.no}</td>
-                        <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280 }}>{item.productDescription}</td>
-                        <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700 }}>{item.sku}</td>
-                        <td style={{ padding: "12px 16px", color: "#6b7280", whiteSpace: "nowrap" }}>{item.lastAcceptanceDate || "—"}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>{fmtPHP(item.totalUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>{fmtPHP(item.avgUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700 }}>{item.qtyAsPerCounting.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                        <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{item.no}</td>
+                        <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280, textAlign: "left" }}><Highlight text={item.productDescription} query={searchQuery} /></td>
+                        <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={item.sku} query={searchQuery} /></td>
+                        <td style={{ padding: "12px 16px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{item.lastAcceptanceDate || "—"}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{fmtPHP(item.totalUnitCost)}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{fmtPHP(item.avgUnitCost)}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerCounting.toLocaleString()}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
                           <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceQty===0?"#d1fae5":"#fee2e2", color: item.varianceQty===0?"#065f46":"#991b1b" }}>{item.varianceQty}</span>
                         </td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
                           <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceAmount===0?"#d1fae5":"#fee2e2", color: item.varianceAmount===0?"#065f46":"#991b1b" }}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
                         </td>
-                         <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150 }}>{item.remarks || "—"}</td>
+                         <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150, textAlign: "center" }}>{item.remarks || "—"}</td>
                       </>
                     ) : (
                       <>
-                        <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11 }}>{item.no}</td>
-                        <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280 }}>{item.productDescription}</td>
-                        <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700 }}>{item.sku}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>{fmtPHP(item.avgUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700, color: item.totalUnitCost>0?"#065f46":"#9ca3af" }}>{item.totalUnitCost>0?fmtPHP(item.totalUnitCost):"—"}</td>
+                        <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{item.no}</td>
+                        <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280, textAlign: "left" }}><Highlight text={item.productDescription} query={searchQuery} /></td>
+                        <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={item.sku} query={searchQuery} /></td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{fmtPHP(item.avgUnitCost)}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, color: item.totalUnitCost>0?"#065f46":"#9ca3af" }}>{item.totalUnitCost>0?fmtPHP(item.totalUnitCost):"—"}</td>
                       </>
                     )}
                   </tr>
