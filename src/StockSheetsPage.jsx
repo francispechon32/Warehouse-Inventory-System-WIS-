@@ -123,15 +123,7 @@ function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination, se
 
 
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 function IconUpload2({ size = 16 }) {
@@ -256,132 +248,87 @@ function buildStockInWorksheet(sku, skuInfo, rows) {
 
   writeSsMeta(ws, C, put, merges, styles, sku, skuInfo);
 
-  const HDR_GROUP = 5;
-  const HDR_DETAIL = 6;
-  const DATA_START = 7;
-  const GAP = 7;
-  const COL = {
-    TRANS: 0, DATE: 1, PO: 2, PO_DATE: 3, V_DR: 4, V_NAME: 5, CUSTOMER: 6,
-    WO: 8, ACCEPT: 9, QTY: 10, COST_K: 11, COST_U: 12, TOTAL: 13,
-    DISP: 14, D_QTY: 15, D_UNIT: 16, D_PRICE: 17, TDT_DR: 18, BRANCH: 19,
-  };
-  const LAST_COL = COL.BRANCH;
+  const HDR_ROW = 5;
+  const DATA_START = 6;
+  const LAST_COL = STOCK_IN_COLS.length - 1;
+  const { hdrFill, yellowFill, totalFill, solidBorder, dottedRed, f, center, left, right } = styles;
 
-  const { hdrFill, yellowFill, totalFill, greyFill, solidBorder, dottedRed, f, center, left, right } = styles;
-
-  put(HDR_GROUP, COL.TRANS, "TRANS", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.TRANS }, e: { r: HDR_DETAIL, c: COL.TRANS } });
-  for (let c = COL.DATE; c <= COL.CUSTOMER; c++) {
-    put(HDR_GROUP, c, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
-  }
-  merges.push({ s: { r: HDR_GROUP, c: COL.DATE }, e: { r: HDR_GROUP, c: COL.CUSTOMER } });
-  put(HDR_GROUP, COL.WO, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.WO }, e: { r: HDR_GROUP, c: COL.ACCEPT } });
-  put(HDR_GROUP, COL.QTY, "RECEIVED PURCHASES", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.QTY }, e: { r: HDR_GROUP, c: COL.COST_U } });
-  put(HDR_GROUP, COL.TOTAL, "TOTAL PURCHASES", "s", { font: f.hdr(true), fill: totalFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.TOTAL }, e: { r: HDR_DETAIL, c: COL.TOTAL } });
-  put(HDR_GROUP, COL.DISP, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
-  put(HDR_GROUP, COL.D_QTY, "DELIVERED GOODS", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.D_QTY }, e: { r: HDR_GROUP, c: COL.D_PRICE } });
-  put(HDR_GROUP, COL.TDT_DR, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
-  put(HDR_GROUP, COL.BRANCH, "", "s", { fill: hdrFill, border: solidBorder });
-
-  const detailHdrs = [
-    [COL.TRANS, "NOS."],
-    [COL.DATE, "DATE TODAY"],
-    [COL.PO, "TDT PO#"],
-    [COL.PO_DATE, "TDT PO DATE"],
-    [COL.V_DR, "VENDOR'S DR#"],
-    [COL.V_NAME, "VENDOR'S NAME"],
-    [COL.CUSTOMER, "CUSTOMER'S NAME AS PER DR"],
-    [COL.WO, "TDT WO#"],
-    [COL.ACCEPT, "ACCEPTANCE DATE"],
-    [COL.QTY, "QUANTITY"],
-    [COL.COST_K, "COST PER KILO"],
-    [COL.COST_U, "COST PER UNIT"],
-    [COL.TOTAL, "TOTAL PURCHASES"],
-    [COL.DISP, "DISPATCH DATE"],
-    [COL.D_QTY, "QUANTITY"],
-    [COL.D_UNIT, "UNIT COST"],
-    [COL.D_PRICE, "PRICE"],
-    [COL.TDT_DR, "TDT DR#"],
-    [COL.BRANCH, "BRANCH"],
-  ];
-  detailHdrs.forEach(([c, h]) => {
-    const isYellow = c >= COL.QTY && c <= COL.COST_U;
-    const isTotal = c === COL.TOTAL;
-    const isGrey = c === COL.D_UNIT;
-    put(HDR_DETAIL, c, h, "s", {
-      font: f.hdr(isTotal),
-      fill: isTotal ? totalFill : isYellow ? yellowFill : isGrey ? greyFill : hdrFill,
+  const rightInSet = RIGHT_IN;
+  STOCK_IN_COLS.forEach((h, ci) => {
+    const isQty = rightInSet.has(h);
+    put(HDR_ROW, ci, h, "s", {
+      font: f.hdr(false),
+      fill: ["QTY","COST/KILO","COST/UNIT"].includes(h) ? yellowFill : ["TOTAL PURCHASE","RUNNING QTY","AVG UNIT COST","TOTAL VALUE"].includes(h) ? totalFill : hdrFill,
       alignment: center,
       border: solidBorder,
     });
   });
-  put(HDR_DETAIL, GAP, "", "s", { fill: styles.sheetFill, border: solidBorder });
 
   const slotCount = Math.max(rows.length, SS_MIN_DATA_ROWS);
   for (let i = 0; i < slotCount; i++) {
     const ri = DATA_START + i;
     const row = rows[i];
-    const fill = styles.sheetFill;
-    const dataStyle = { font: f.body(), fill, border: dottedRed };
+    const dataStyle = { font: f.body(), fill: styles.sheetFill, border: dottedRed };
 
-    put(ri, COL.TRANS, ssTransNo(row, i), "n", { ...dataStyle, alignment: center, numFmt: SS_QTY_FMT });
     if (!row) {
-      for (let c = 1; c <= LAST_COL; c++) {
-        if (c === GAP) continue;
-        const isPeso = [COL.COST_K, COL.COST_U, COL.TOTAL, COL.D_UNIT, COL.D_PRICE].includes(c);
-        const isQty = [COL.QTY, COL.D_QTY].includes(c);
-        put(ri, c, isPeso ? "₱ -" : isQty ? 0 : "", isPeso || isQty ? (isQty ? "n" : "s") : "s", {
-          ...dataStyle,
-          alignment: isPeso || c >= COL.D_UNIT ? right : center,
-          ...(isQty ? { numFmt: SS_QTY_FMT } : {}),
-          ...(c === COL.D_UNIT ? { fill: greyFill } : {}),
-          ...(c === COL.TOTAL ? { fill: totalFill, font: f.hdr(true) } : {}),
-          ...(c >= COL.QTY && c <= COL.COST_U ? { fill: yellowFill } : {}),
+      STOCK_IN_COLS.forEach((h, ci) => {
+        const isPeso = ["COST/KILO","COST/UNIT","TOTAL PURCHASE","AVG UNIT COST","TOTAL VALUE"].includes(h);
+        const isNum = ["QTY","RUNNING QTY"].includes(h);
+        put(ri, ci, isPeso ? "₱ -" : isNum ? 0 : "", isPeso ? "s" : "n", {
+          ...dataStyle, alignment: rightInSet.has(h) ? right : center,
+          ...(isNum ? { numFmt: SS_QTY_FMT } : {}),
         });
-      }
-      put(ri, GAP, "", "s", { fill, border: dottedRed });
+      });
       continue;
     }
 
-    put(ri, COL.DATE, formatSsDate(row.date), "s", { ...dataStyle, alignment: center });
-    put(ri, COL.PO, row.tdtPo || "", "s", { ...dataStyle, alignment: center, font: f.link() });
-    put(ri, COL.PO_DATE, formatSsDate(row.tdtPoDate), "s", { ...dataStyle, alignment: center });
-    put(ri, COL.V_DR, row.vendorNo || "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.V_NAME, row.vendorName || "", "s", { ...dataStyle, alignment: left });
-    put(ri, COL.CUSTOMER, row.customerDr || "", "s", { ...dataStyle, alignment: left });
-    put(ri, GAP, "", "s", { fill, border: dottedRed });
-    put(ri, COL.WO, row.tdtWo || "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.ACCEPT, formatSsDate(row.acceptDate), "s", { ...dataStyle, alignment: center });
-    put(ri, COL.QTY, row.qty ?? 0, "n", { ...dataStyle, alignment: center, fill: yellowFill, numFmt: SS_QTY_FMT });
-    putPeso(put, ri, COL.COST_K, row.costKilo, { ...dataStyle, alignment: right, fill: yellowFill });
-    putPeso(put, ri, COL.COST_U, row.costUnit, { ...dataStyle, alignment: right, fill: yellowFill });
-    const totalStyle = { ...dataStyle, alignment: right, fill: totalFill, font: f.hdr(true) };
-    putPeso(put, ri, COL.TOTAL, row.totalPurchase, totalStyle);
-    put(ri, COL.DISP, "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.D_QTY, 0, "n", { ...dataStyle, alignment: center, numFmt: SS_QTY_FMT });
-    putPeso(put, ri, COL.D_UNIT, null, { ...dataStyle, alignment: right, fill: greyFill });
-    putPeso(put, ri, COL.D_PRICE, null, { ...dataStyle, alignment: right });
-    put(ri, COL.TDT_DR, "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.BRANCH, "", "s", { ...dataStyle, alignment: center });
+    const vals = [
+      row.transNo || i + 1,
+      formatSsDate(row.date),
+      row.tdtPo || "",
+      formatSsDate(row.tdtPoDate),
+      row.vendorNo || "",
+      row.vendorName || "",
+      row.customerDr || "",
+      row.tdtWo || "",
+      formatSsDate(row.acceptDate),
+      row.qty ?? 0,
+      row.costKilo ?? "",
+      row.costUnit ?? 0,
+      row.totalPurchase ?? 0,
+      row.runningQty ?? 0,
+      row.avgUnitCost ?? 0,
+      row.totalValue ?? 0,
+      row.remark || "",
+    ];
+    STOCK_IN_COLS.forEach((h, ci) => {
+      const v = vals[ci];
+      const isPeso = ["COST/KILO","COST/UNIT","TOTAL PURCHASE","AVG UNIT COST","TOTAL VALUE"].includes(h);
+      const isNum = ["QTY","RUNNING QTY"].includes(h);
+      const align = rightInSet.has(h) ? right : h === "CUSTOMER'S NAME AS PER DR" || h === "VENDOR NAME" ? left : center;
+      if (isPeso && !v) {
+        put(ri, ci, "₱ -", "s", { ...dataStyle, alignment: right });
+      } else if (isPeso) {
+        put(ri, ci, Number(v), "n", { ...dataStyle, alignment: right, numFmt: SS_PESO_FMT });
+      } else if (isNum) {
+        put(ri, ci, Number(v) || 0, "n", { ...dataStyle, alignment: right, numFmt: SS_QTY_FMT });
+      } else {
+        put(ri, ci, String(v ?? ""), "s", { ...dataStyle, alignment: align });
+      }
+    });
   }
 
   const lastRow = DATA_START + slotCount - 1;
   ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
   ws["!merges"] = merges;
   ws["!cols"] = [
-    { wch: 6 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
-    { wch: 28 }, { wch: 2 }, { wch: 11 }, { wch: 14 }, { wch: 10 }, { wch: 14 },
-    { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-    { wch: 12 }, { wch: 10 },
+    { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 18 },
+    { wch: 26 }, { wch: 11 }, { wch: 14 }, { wch: 8 }, { wch: 10 },
+    { wch: 12 }, { wch: 14 }, { wch: 11 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
   ];
   ws["!rows"] = [
     { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
-    { hpt: 8 }, { hpt: 20 }, { hpt: 36 },
-    ...Array(slotCount).fill({ hpt: 22 }),
+    { hpt: 36 }, ...Array(slotCount).fill({ hpt: 22 }),
   ];
   return ws;
 }
@@ -395,112 +342,86 @@ function buildStockOutWorksheet(sku, skuInfo, rows) {
 
   writeSsMeta(ws, C, put, merges, styles, sku, skuInfo);
 
-  const HDR_GROUP = 5;
-  const HDR_DETAIL = 6;
-  const DATA_START = 7;
-  const GAP = 7;
-  const COL = {
-    TRANS: 0, DATE: 1, PO: 2, PO_DATE: 3, V_DR: 4, V_NAME: 5, CUSTOMER: 6,
-    TDT_DR: 8, BRANCH: 9, BDR: 10, SI: 11, QTY: 12, UNIT: 13, PRICE: 14, REMARKS: 15,
-  };
-  const LAST_COL = COL.REMARKS;
-  const { hdrFill, totalFill, greyFill, solidBorder, dottedRed, f, center, left, right } = styles;
+  const HDR_ROW = 5;
+  const DATA_START = 6;
+  const LAST_COL = STOCK_OUT_COLS.length - 1;
+  const { hdrFill, totalFill, solidBorder, dottedRed, f, center, left, right } = styles;
 
-  put(HDR_GROUP, COL.TRANS, "TRANS", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.TRANS }, e: { r: HDR_DETAIL, c: COL.TRANS } });
-  for (let c = COL.DATE; c <= COL.CUSTOMER; c++) {
-    put(HDR_GROUP, c, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
-  }
-  merges.push({ s: { r: HDR_GROUP, c: COL.DATE }, e: { r: HDR_GROUP, c: COL.CUSTOMER } });
-  put(HDR_GROUP, COL.TDT_DR, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.TDT_DR }, e: { r: HDR_GROUP, c: COL.SI } });
-  put(HDR_GROUP, COL.QTY, "BALANCE", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.QTY }, e: { r: HDR_GROUP, c: COL.PRICE } });
-  put(HDR_GROUP, COL.REMARKS, "REMARKS", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
-  merges.push({ s: { r: HDR_GROUP, c: COL.REMARKS }, e: { r: HDR_DETAIL, c: COL.REMARKS } });
-
-  const detailHdrs = [
-    [COL.TRANS, "NOS."],
-    [COL.DATE, "DATE TODAY"],
-    [COL.PO, "TDT PO#"],
-    [COL.PO_DATE, "TDT PO DATE"],
-    [COL.V_DR, "VENDOR'S DR#"],
-    [COL.V_NAME, "VENDOR'S NAME"],
-    [COL.CUSTOMER, "CUSTOMER'S NAME AS PER DR"],
-    [COL.TDT_DR, "TDT DR#"],
-    [COL.BRANCH, "BRANCH"],
-    [COL.BDR, "TDT BDR'S #"],
-    [COL.SI, "TDT SI#"],
-    [COL.QTY, "QUANTITY"],
-    [COL.UNIT, "UNIT COST"],
-    [COL.PRICE, "PRICE"],
-    [COL.REMARKS, "REMARKS"],
-  ];
-  detailHdrs.forEach(([c, h]) => {
-    const accent = [COL.TRANS, COL.BDR, COL.QTY, COL.UNIT, COL.PRICE].includes(c);
-    put(HDR_DETAIL, c, h, "s", {
-      font: f.hdr(),
-      fill: accent ? totalFill : c === COL.UNIT ? greyFill : hdrFill,
+  const rightOutSet = RIGHT_OUT;
+  STOCK_OUT_COLS.forEach((h, ci) => {
+    put(HDR_ROW, ci, h, "s", {
+      font: f.hdr(false),
+      fill: ["QTY OUT","UNIT COST","TOTAL PRICE","RUNNING QTY","RUNNING VALUE"].includes(h) ? totalFill : hdrFill,
       alignment: center,
       border: solidBorder,
     });
   });
-  put(HDR_DETAIL, GAP, "", "s", { fill: styles.sheetFill, border: solidBorder });
 
   const slotCount = Math.max(rows.length, SS_MIN_DATA_ROWS);
   for (let i = 0; i < slotCount; i++) {
     const ri = DATA_START + i;
     const row = rows[i];
-    const fill = styles.sheetFill;
-    const dataStyle = { font: f.body(), fill, border: dottedRed };
-    const accentFill = { ...dataStyle, fill: totalFill, font: f.hdr(true) };
+    const dataStyle = { font: f.body(), fill: styles.sheetFill, border: dottedRed };
 
-    put(ri, COL.TRANS, ssTransNo(row, i), "n", { ...accentFill, alignment: center, numFmt: SS_QTY_FMT });
     if (!row) {
-      for (let c = 1; c <= LAST_COL; c++) {
-        if (c === GAP) continue;
-        const isPeso = c === COL.UNIT || c === COL.PRICE;
-        const isQty = c === COL.QTY || c === COL.BDR;
-        put(ri, c, isPeso ? "₱ -" : isQty ? 0 : "", isPeso ? "s" : "n", {
-          ...dataStyle,
-          alignment: isPeso ? right : center,
-          ...(isQty && c === COL.QTY ? { numFmt: SS_QTY_FMT, ...accentFill } : {}),
-          ...(c === COL.UNIT ? { fill: greyFill } : {}),
+      STOCK_OUT_COLS.forEach((h, ci) => {
+        const isPeso = ["UNIT COST","TOTAL PRICE","RUNNING VALUE"].includes(h);
+        const isNum = ["QTY OUT","RUNNING QTY"].includes(h);
+        put(ri, ci, isPeso ? "₱ -" : isNum ? 0 : "", isPeso ? "s" : "n", {
+          ...dataStyle, alignment: rightOutSet.has(h) ? right : center,
+          ...(isNum ? { numFmt: SS_QTY_FMT } : {}),
         });
-      }
-      put(ri, GAP, "", "s", { fill, border: dottedRed });
+      });
       continue;
     }
 
-    put(ri, COL.DATE, formatSsDate(row.dispatchDate), "s", { ...dataStyle, alignment: center });
-    put(ri, COL.PO, row.tdtWo || "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.PO_DATE, "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.V_DR, "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.V_NAME, "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.CUSTOMER, row.customer || "", "s", { ...dataStyle, alignment: left });
-    put(ri, GAP, "", "s", { fill, border: dottedRed });
-    put(ri, COL.TDT_DR, row.tdtDr || "", "s", { ...dataStyle, alignment: center, font: f.link() });
-    put(ri, COL.BRANCH, row.branch || "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.BDR, row.bdrSummary || "0", "s", { ...accentFill, alignment: center });
-    put(ri, COL.SI, row.tdtSi || "", "s", { ...dataStyle, alignment: center });
-    put(ri, COL.QTY, row.qtyOut ?? 0, "n", { ...accentFill, alignment: center, numFmt: SS_QTY_FMT });
-    putPeso(put, ri, COL.UNIT, row.unitCost, { ...dataStyle, alignment: right, fill: greyFill });
-    putPeso(put, ri, COL.PRICE, row.totalPrice, { ...accentFill, alignment: right });
-    put(ri, COL.REMARKS, row.remarks || "", "s", { ...dataStyle, alignment: left });
+    const vals = [
+      row.transNo || i + 1,
+      formatSsDate(row.dispatchDate),
+      row.tdtWo || "",
+      row.customer || "",
+      row.tdtDr || "",
+      row.branch || "",
+      row.bdrSummary || "",
+      row.tdtSi || "",
+      row.qtyOut ?? 0,
+      row.unitCost ?? 0,
+      row.totalPrice ?? 0,
+      row.s1 || "",
+      row.s2 || "",
+      row.s3 || "",
+      row.runningQty ?? 0,
+      row.runningValue ?? 0,
+      row.remarks || "",
+    ];
+    STOCK_OUT_COLS.forEach((h, ci) => {
+      const v = vals[ci];
+      const isPeso = ["UNIT COST","TOTAL PRICE","RUNNING VALUE"].includes(h);
+      const isNum = ["QTY OUT","RUNNING QTY"].includes(h);
+      const align = rightOutSet.has(h) ? right : h === "CUSTOMER NAME" ? left : center;
+      if (isPeso && !v) {
+        put(ri, ci, "₱ -", "s", { ...dataStyle, alignment: right });
+      } else if (isPeso) {
+        put(ri, ci, Number(v), "n", { ...dataStyle, alignment: right, numFmt: SS_PESO_FMT });
+      } else if (isNum) {
+        put(ri, ci, Number(v) || 0, "n", { ...dataStyle, alignment: right, numFmt: SS_QTY_FMT });
+      } else {
+        put(ri, ci, String(v ?? ""), "s", { ...dataStyle, alignment: align });
+      }
+    });
   }
 
   const lastRow = DATA_START + slotCount - 1;
   ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
   ws["!merges"] = merges;
   ws["!cols"] = [
-    { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 },
-    { wch: 26 }, { wch: 2 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 12 },
-    { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 24 },
+    { wch: 8 }, { wch: 13 }, { wch: 11 }, { wch: 22 }, { wch: 12 }, { wch: 10 },
+    { wch: 18 }, { wch: 11 }, { wch: 9 }, { wch: 12 }, { wch: 13 },
+    { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 11 }, { wch: 14 }, { wch: 20 },
   ];
   ws["!rows"] = [
     { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
-    { hpt: 8 }, { hpt: 20 }, { hpt: 36 },
-    ...Array(slotCount).fill({ hpt: 22 }),
+    { hpt: 36 }, ...Array(slotCount).fill({ hpt: 22 }),
   ];
   return ws;
 }
@@ -536,40 +457,45 @@ function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows) {
 }
 
 function importStockSheets(file, onInDone, onOutDone, onError) {
-  if (!window.XLSX) { onError("SheetJS not loaded."); return; }
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      const wb = window.XLSX.read(new Uint8Array(e.target.result), { type: "array" });
-      const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/,/g, "")); return isNaN(n) ? 0 : n; };
-      const parseSheet = (ws, colMap) => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true, cellText: false, dateNF: "yyyy-mm-dd" });
+      const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/[₱,]/g, "")); return isNaN(n) ? 0 : n; };
+      const toStr = (v) => { if (v == null) return ""; if (v instanceof Date) return v.toISOString().slice(0, 10); return String(v).trim(); };
+      const parseSheet = (ws, fieldMap) => {
         if (!ws) return [];
-        const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
-        let start = 0;
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+        let hdrIdx = -1;
         for (let i = 0; i < Math.min(raw.length, 15); i++) {
-          if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) { start = i + 1; break; }
+          if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) { hdrIdx = i; break; }
         }
+        const dataStart = hdrIdx >= 0 ? hdrIdx + 1 : 6;
         const result = [];
-        for (let i = start; i < raw.length; i++) {
-          const r = raw[i]; if (!r || !r[0] || String(r[0]).trim() === "") continue;
-          const row = { id: i - start + 1 };
-          colMap.forEach(([field, idx, numeric]) => { row[field] = numeric ? toNum(r[idx]) : String(r[idx] ?? ""); });
+        for (let i = dataStart; i < raw.length; i++) {
+          const r = raw[i];
+          if (!r || r.every(v => !v || String(v).trim() === "")) continue;
+          const row = { id: result.length + 1 };
+          fieldMap.forEach(([field, idx, numeric]) => {
+            row[field] = numeric ? toNum(r[idx]) : toStr(r[idx]);
+          });
           result.push(row);
         }
         return result;
       };
 
-      // Find IN and OUT sheets
       const inSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("IN")) || wb.SheetNames[0];
       const outSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("OUT")) || wb.SheetNames[1] || wb.SheetNames[0];
 
+      // New flat IN format: cols match STOCK_IN_COLS exactly (0-16)
       const inCols = [
         ["transNo",0,false],["date",1,false],["tdtPo",2,false],["tdtPoDate",3,false],
-        ["vendorNo",4,false],["vendorName",5,false],["customerDr",6,false],["tdtWo",7,false],
-        ["acceptDate",8,false],["qty",9,true],["costKilo",10,true],["costUnit",11,true],
-        ["totalPurchase",12,true],["runningQty",13,true],["avgUnitCost",14,true],
-        ["totalValue",15,true],["remark",16,false],
+        ["vendorNo",4,false],["vendorName",5,false],["customerDr",6,false],
+        ["tdtWo",7,false],["acceptDate",8,false],
+        ["qty",9,true],["costKilo",10,true],["costUnit",11,true],["totalPurchase",12,true],
+        ["runningQty",13,true],["avgUnitCost",14,true],["totalValue",15,true],["remark",16,false],
       ];
+      // New flat OUT format: cols match STOCK_OUT_COLS exactly (0-16)
       const outCols = [
         ["transNo",0,false],["dispatchDate",1,false],["tdtWo",2,false],["customer",3,false],
         ["tdtDr",4,false],["branch",5,false],["bdrSummary",6,false],["tdtSi",7,false],
@@ -580,7 +506,7 @@ function importStockSheets(file, onInDone, onOutDone, onError) {
 
       const inRows = parseSheet(wb.Sheets[inSheetName], inCols);
       const outRows = parseSheet(wb.Sheets[outSheetName], outCols);
-      if (!inRows.length && !outRows.length) throw new Error("No data rows found.");
+      if (!inRows.length && !outRows.length) throw new Error("No data rows found. Ensure you are importing a Stock Sheet exported from this system.");
       onInDone(inRows);
       onOutDone(outRows);
     } catch(err) { onError(err.message); }
@@ -608,7 +534,8 @@ export default function StockSheetsPage({
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ type: "in", date: "", sku: "", description: "", qty: "", unitCost: "", ref: "", customer: "" });
+  const EMPTY_FORM = { type: "in", sku: "", date: "", tdtPo: "", tdtPoDate: "", vendorNo: "", vendorName: "", customerDr: "", tdtWo: "", acceptDate: "", qty: "", costKilo: "", costUnit: "", dispatchDate: "", customer: "", tdtDr: "", branch: "", bdrSummary: "", tdtSi: "", qtyOut: "", remarks: "" };
+  const [createForm, setCreateForm] = useState(EMPTY_FORM);
   const importRef = useRef(null);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
@@ -844,43 +771,94 @@ export default function StockSheetsPage({
                   </button>
                 ))}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
-                {[
-                  { label: "Date", key: "date", type: "date" },
-                  { label: "SKU Code", key: "sku", type: "text", placeholder: "e.g. DRB052" },
-                  { label: "Item Description", key: "description", type: "text", placeholder: "e.g. Deformed Round Bar...", full: true },
-                  { label: "Quantity", key: "qty", type: "number", placeholder: "0" },
-                  { label: "Unit Cost (₱)", key: "unitCost", type: "number", placeholder: "0.00" },
-                  { label: createForm.type === "in" ? "Reference / PO No." : "Customer / DR No.", key: "ref", type: "text", placeholder: createForm.type === "in" ? "e.g. PO-001" : "e.g. DR26050" },
-                ].map(({ label, key, type, placeholder, full }) => (
+              {(() => {
+                const fldStyle = { padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
+                const lbl = { fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" };
+                const set = (k, v) => setCreateForm(f => ({ ...f, [k]: v }));
+                const inp = (key, label, type = "text", placeholder = "", full = false) => (
                   <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: full ? "1 / -1" : undefined }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
-                    <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                      placeholder={placeholder}
-                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
+                    <label style={lbl}>{label}</label>
+                    <input type={type} value={createForm[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder}
+                      style={fldStyle}
                       onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
-                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
-                    />
+                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }} />
                   </div>
-                ))}
-              </div>
+                );
+                const commonFields = [inp("sku", "SKU Code *", "text", "e.g. DRB052")];
+                const inFields = [
+                  inp("date", "Date *", "date"),
+                  inp("tdtPo", "TDT PO #", "text", "e.g. PO-2026-001"),
+                  inp("tdtPoDate", "TDT PO Date", "date"),
+                  inp("vendorNo", "Vendor #", "text", "e.g. V-001"),
+                  inp("vendorName", "Vendor Name", "text", "e.g. Steel Asia Corp"),
+                  inp("customerDr", "Customer's Name as per DR", "text", "e.g. RCM Builders", true),
+                  inp("tdtWo", "TDT WO #", "text", "e.g. WO-001"),
+                  inp("acceptDate", "Acceptance Date", "date"),
+                  inp("qty", "QTY *", "number", "0"),
+                  inp("costKilo", "Cost/Kilo", "number", "0.00"),
+                  inp("costUnit", "Cost/Unit (₱)", "number", "0.00"),
+                ];
+                const outFields = [
+                  inp("dispatchDate", "Dispatch Date *", "date"),
+                  inp("tdtWo", "TDT WO #", "text", "e.g. WO-001"),
+                  inp("customer", "Customer Name *", "text", "e.g. RCM Builders", true),
+                  inp("tdtDr", "TDT DR #", "text", "e.g. DR26050"),
+                  inp("branch", "Branch", "text", "e.g. Manila"),
+                  inp("bdrSummary", "Summary of TDT BDR #", "text", "e.g. BDR-001"),
+                  inp("tdtSi", "TDT SI #", "text", "e.g. SI-001"),
+                  inp("qtyOut", "QTY Out *", "number", "0"),
+                  inp("costUnit", "Unit Cost (₱)", "number", "0.00"),
+                  inp("remarks", "Remarks", "text", "Optional notes", true),
+                ];
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
+                    {commonFields}
+                    {createForm.type === "in" ? inFields : outFields}
+                  </div>
+                );
+              })()}
             </div>
             <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
               <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
               <button type="button" onClick={() => {
-                if (!createForm.date || !createForm.sku || !createForm.qty) {
-                  setToast({ msg: "Please fill in Date, SKU, and Quantity.", type: "error" });
+                const isIn = createForm.type === "in";
+                if (!createForm.sku || (isIn && (!createForm.date || !createForm.qty)) || (!isIn && (!createForm.dispatchDate || !createForm.qtyOut))) {
+                  setToast({ msg: `Please fill in SKU, Date, and ${isIn ? "QTY" : "QTY Out"}.`, type: "error" });
                   setTimeout(() => setToast(null), 3000);
                   return;
                 }
-                const entry = { id: Date.now(), date: createForm.date, sku: createForm.sku.toUpperCase(), description: createForm.description, qty: Number(createForm.qty) || 0, unitCost: Number(createForm.unitCost) || 0, ref: createForm.ref };
-                if (createForm.type === "in") {
-                  setStockInData(prev => [entry, ...prev]);
+                const sku = createForm.sku.trim().toUpperCase();
+                if (isIn) {
+                  const qty = Number(createForm.qty) || 0;
+                  const costUnit = Number(createForm.costUnit) || 0;
+                  const entry = {
+                    id: Date.now(), sku,
+                    transNo: String(stockInData.filter(r => r.sku === sku).length + 1).padStart(3, "0"),
+                    date: createForm.date, tdtPo: createForm.tdtPo, tdtPoDate: createForm.tdtPoDate,
+                    vendorNo: createForm.vendorNo, vendorName: createForm.vendorName,
+                    customerDr: createForm.customerDr, tdtWo: createForm.tdtWo,
+                    acceptDate: createForm.acceptDate, qty,
+                    costKilo: Number(createForm.costKilo) || 0, costUnit,
+                    totalPurchase: qty * costUnit, runningQty: 0, avgUnitCost: costUnit, totalValue: 0, remark: "",
+                  };
+                  setStockInData(prev => [...prev, entry]);
                 } else {
-                  setStockOutData(prev => [entry, ...prev]);
+                  const qtyOut = Number(createForm.qtyOut) || 0;
+                  const unitCost = Number(createForm.costUnit) || 0;
+                  const entry = {
+                    id: Date.now(), sku,
+                    transNo: String(stockOutData.filter(r => r.sku === sku).length + 1).padStart(3, "0"),
+                    dispatchDate: createForm.dispatchDate, tdtWo: createForm.tdtWo,
+                    customer: createForm.customer, tdtDr: createForm.tdtDr,
+                    branch: createForm.branch, bdrSummary: createForm.bdrSummary,
+                    tdtSi: createForm.tdtSi, qtyOut, unitCost,
+                    totalPrice: qtyOut * unitCost, s1: "", s2: "", s3: "",
+                    runningQty: 0, runningValue: 0, remarks: createForm.remarks,
+                  };
+                  setStockOutData(prev => [...prev, entry]);
                 }
                 setShowCreate(false);
-                setCreateForm({ type: "in", date: "", sku: "", description: "", qty: "", unitCost: "", ref: "" });
+                setCreateForm(EMPTY_FORM);
                 setToast({ msg: "Stock sheet entry added successfully.", type: "success" });
                 setTimeout(() => setToast(null), 3000);
               }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>

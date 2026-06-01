@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import {
   cellStr,
@@ -77,21 +78,11 @@ function HighlightText({ text, query }) {
 
 /* ─── SHEETJS LOADER ─────────────────────────────────────── */
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 /* ─── EXPORT ─────────────────────────────────────────────── */
 function exportProducts(rows) {
-  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
-  const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
   const headers = [
     ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
@@ -160,6 +151,83 @@ async function importProducts(file, onDone, onError) {
   }
 }
 
+/* ─── ADD ITEM MODAL ─────────────────────────────────────── */
+const EMPTY_ITEM = { sku: "", description: "", category: "", unit: "pcs", stock: "", avgCost: "" };
+
+function AddItemModal({ categories, onClose, onSave }) {
+  const [form, setForm] = useState(EMPTY_ITEM);
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = () => {
+    if (!form.sku.trim()) { setError("SKU Code is required."); return; }
+    if (!form.description.trim()) { setError("Product Description is required."); return; }
+    const stock = parseFloat(form.stock) || 0;
+    const avgCost = parseFloat(form.avgCost) || 0;
+    onSave({
+      sku: form.sku.trim().toUpperCase(),
+      description: form.description.trim(),
+      category: form.category.trim() || "Uncategorized",
+      unit: form.unit.trim() || "pcs",
+      stock,
+      avgCost,
+      totalValue: stock * avgCost,
+      status: deriveProductStatus(stock),
+    });
+  };
+
+  const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center" };
+  const panelStyle = { background: "#fff", borderRadius: 14, padding: "28px 32px", width: "min(96vw,480px)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" };
+  const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: "#374151", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.04em" };
+  const inputStyle = { width: "100%", padding: "9px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, boxSizing: "border-box", outline: "none" };
+  const fieldStyle = { marginBottom: 14 };
+
+  return (
+    <div style={overlayStyle} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={panelStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#1c2235" }}>Add New Item</h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#9ca3af" }}>✕</button>
+        </div>
+        {error && <div style={{ background: "#fee2e2", color: "#991b1b", padding: "8px 12px", borderRadius: 8, fontSize: 12, marginBottom: 14 }}>{error}</div>}
+        <div style={fieldStyle}>
+          <label style={labelStyle}>SKU Code *</label>
+          <input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="e.g. DRB007" style={inputStyle} />
+        </div>
+        <div style={fieldStyle}>
+          <label style={labelStyle}>Product Description *</label>
+          <input value={form.description} onChange={e => set("description", e.target.value)} placeholder="e.g. Deformed Round Bar, 10mm x 6M" style={inputStyle} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>Category</label>
+            <input value={form.category} onChange={e => set("category", e.target.value)} list="cat-list" placeholder="e.g. Steel Bars" style={inputStyle} />
+            <datalist id="cat-list">{categories.filter(c => c !== "All Categories").map(c => <option key={c} value={c} />)}</datalist>
+          </div>
+          <div>
+            <label style={labelStyle}>Unit</label>
+            <input value={form.unit} onChange={e => set("unit", e.target.value)} placeholder="pcs / kgs / m" style={inputStyle} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 22 }}>
+          <div>
+            <label style={labelStyle}>Current Stock</label>
+            <input type="number" min={0} value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="0" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Avg Cost (₱)</label>
+            <input type="number" min={0} step="0.01" value={form.avgCost} onChange={e => set("avgCost", e.target.value)} placeholder="0.00" style={inputStyle} />
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button onClick={onClose} style={{ padding: "9px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#f3f4f6", color: "#374151", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>Cancel</button>
+          <button onClick={handleSave} style={{ padding: "9px 22px", border: "none", borderRadius: 8, background: "#e87c27", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Add Item</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── PRODUCT PAGE ───────────────────────────────────────── */
 /**
  * Props:
@@ -181,6 +249,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const [currentPage, setCurrentPage]     = useState(1);
   const [importing, setImporting]         = useState(false);
   const [toast, setToast]                 = useState(null);
+  const [showAddModal, setShowAddModal]   = useState(false);
   const fileInputRef = useRef(null);
   const itemsPerPage = 8;
 
@@ -263,7 +332,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
           { key: "category", value: categoryFilter, onChange: (v) => { setCategoryFilter(v); setCurrentPage(1); }, options: categories, minWidth: 160 },
           { key: "status",   value: statusFilter,   onChange: (v) => { setStatusFilter(v);   setCurrentPage(1); }, options: ["All Status", "Active", "Low Stock"], minWidth: 140 },
         ]}
-        primaryAction={{ label: "Add Item", onClick: () => {} }}
+        primaryAction={{ label: "Add Item", onClick: () => setShowAddModal(true) }}
         showDateRange={false}
         importExport={{
           fileInputRef,
@@ -429,6 +498,19 @@ export default function ProductPage({ products: propProducts, setProducts: propS
           </div>
         </div>
       </div>
+
+      {showAddModal && (
+        <AddItemModal
+          categories={categories}
+          onClose={() => setShowAddModal(false)}
+          onSave={(newItem) => {
+            const newId = Math.max(0, ...products.map(p => p.id || 0)) + 1;
+            setProducts(prev => [...prev, { id: newId, ...newItem }]);
+            setShowAddModal(false);
+            showToast(`✓ "${newItem.sku}" added successfully.`);
+          }}
+        />
+      )}
 
       {toast && (
         <div style={{

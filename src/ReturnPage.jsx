@@ -575,7 +575,7 @@ export default function ReturnPage() {
                     onMouseLeave={(e) => { e.currentTarget.style.background = isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa"; }}
                   >
                     <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{row.returnDate}</td>
+                    <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{formatReturnExportDate(row.returnDate)}</td>
                     <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo} query={searchQuery} /></td>
                     <td style={{ padding: "12px 10px", color: "#374151", fontWeight: 600, textAlign: "center" }}><Highlight text={row.sku} query={searchQuery} /></td>
                     <td style={{ padding: "12px 10px", color: "#111827", maxWidth: 200, textAlign: "center" }}><Highlight text={row.item} query={searchQuery} /></td>

@@ -306,32 +306,12 @@ function lineTotals(lines) {
 
 /* ─── SheetJS loader ── */
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 function IconUpload({ size = 16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
 
-/* ─── EXPORT (horizontal SKU blocks) ── */
-const ACPO_BLOCK_COLS = 6;
-const ACPO_BLOCK_GAP = 1;
-const ACPO_BLOCK_WIDTH = ACPO_BLOCK_COLS + ACPO_BLOCK_GAP;
-const ACPO_DATA_SLOTS = 20;
-const ACPO_ROW_LOGO1 = 0;
-const ACPO_ROW_LOGO2 = 1;
-const ACPO_ROW_INFO_START = 2;
-const ACPO_ROW_SECTION = 5;
-const ACPO_ROW_HDR = 6;
-const ACPO_ROW_SUMMARY = 7;
-const ACPO_ROW_DATA_START = 8;
-
+/* ─── EXPORT (flat table matching website columns) ── */
 function formatAcpoExportDateTime(d = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -345,215 +325,99 @@ function formatAcpoExportDate(iso) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
-function acpoTransSlotLabels(count = ACPO_DATA_SLOTS) {
-  const slots = [1, 2, 3, 4];
-  while (slots.length < count) slots.push(slots[slots.length - 1] + 5);
-  return slots.slice(0, count);
-}
-
-function groupReservationsBySku(rows) {
-  const groups = [];
-  const map = new Map();
-  rows.forEach((row) => {
-    const { sku, item, estQtyEnding } = getSummaryFields(row);
-    const key = sku === "—" ? `__${row.id}` : sku;
-    if (!map.has(key)) {
-      const g = { sku, item, estQtyEnding, rows: [] };
-      map.set(key, g);
-      groups.push(g);
-    }
-    map.get(key).rows.push(row);
-  });
-  return groups;
-}
-
-function resolveSectionEstEnding(estQtyEnding, groupRows) {
-  if (estQtyEnding !== "—" && estQtyEnding !== "" && estQtyEnding != null) {
-    const n = Number(estQtyEnding);
-    if (!Number.isNaN(n)) return n;
-  }
-  return groupRows.reduce((s, r) => s + (Number(r.estEnding) || 0), 0);
-}
-
 function exportToWis(rows) {
   const wb = XLSX.utils.book_new();
   const C = (r, c) => XLSX.utils.encode_cell({ r, c });
-  const groups = groupReservationsBySku(rows);
-  if (!groups.length) groups.push({ sku: "—", item: "—", estQtyEnding: "—", rows: [] });
-
-  const sheetFill = { patternType: "solid", fgColor: { rgb: "FFF9E6" } };
-  const goldFill = { patternType: "solid", fgColor: { rgb: "FFD966" } };
-  const hdrFill = { patternType: "solid", fgColor: { rgb: "806000" } };
-  const summaryFill = { patternType: "solid", fgColor: { rgb: "FFEB9C" } };
-  const dataFill = { patternType: "solid", fgColor: { rgb: "FCE4D6" } };
-
-  const thickBorder = {
-    top: { style: "medium", color: { rgb: "000000" } },
-    bottom: { style: "medium", color: { rgb: "000000" } },
-    left: { style: "medium", color: { rgb: "000000" } },
-    right: { style: "medium", color: { rgb: "000000" } },
-  };
-  const blackBorder = {
-    top: { style: "thin", color: { rgb: "000000" } },
-    bottom: { style: "thin", color: { rgb: "000000" } },
-    left: { style: "thin", color: { rgb: "000000" } },
-    right: { style: "thin", color: { rgb: "000000" } },
-  };
-  const dataBorder = {
-    top: { style: "thin", color: { rgb: "B4C6E7" } },
-    bottom: { style: "thin", color: { rgb: "B4C6E7" } },
-    left: { style: "thin", color: { rgb: "B4C6E7" } },
-    right: { style: "thin", color: { rgb: "B4C6E7" } },
-  };
-
-  const f = {
-    brand: () => ({ name: "Arial", sz: 11, bold: true, color: { rgb: "E87C27" } }),
-    brandDark: () => ({ name: "Arial", sz: 11, bold: true, color: { rgb: "000000" } }),
-    tagline: () => ({ name: "Arial", sz: 8, bold: true, color: { rgb: "000000" } }),
-    infoLabel: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
-    sectionNum: () => ({ name: "Arial", sz: 10, bold: true, color: { rgb: "000000" } }),
-    hdr: () => ({ name: "Arial", sz: 8, bold: true, color: { rgb: "FFFFFF" } }),
-    summary: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
-    body: () => ({ name: "Arial", sz: 9, color: { rgb: "000000" } }),
-  };
-  const center = { horizontal: "center", vertical: "center", wrapText: true };
-  const left = { horizontal: "left", vertical: "center", wrapText: true, indent: 1 };
-  const qtyFmt = "#,##0";
-
   const ws = {};
-  const merges = [];
   const put = (r, c, v, t, style) => {
     ws[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s: style };
   };
-  const blockStart = (bi) => bi * ACPO_BLOCK_WIDTH;
+
+  const peachFill = { patternType: "solid", fgColor: { rgb: "FFF9E6" } };
+  const hdrFill = { patternType: "solid", fgColor: { rgb: "1C2235" } };
+  const dataFill = { patternType: "solid", fgColor: { rgb: "FCE4D6" } };
+  const altFill = { patternType: "solid", fgColor: { rgb: "FFF9F0" } };
+  const hdrBorder = {
+    top: { style: "thin", color: { rgb: "FFFFFF" } },
+    bottom: { style: "thin", color: { rgb: "FFFFFF" } },
+    left: { style: "thin", color: { rgb: "FFFFFF" } },
+    right: { style: "thin", color: { rgb: "FFFFFF" } },
+  };
+  const dataBorder = {
+    top: { style: "thin", color: { rgb: "E5E7EB" } },
+    bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+    left: { style: "thin", color: { rgb: "E5E7EB" } },
+    right: { style: "thin", color: { rgb: "E5E7EB" } },
+  };
+  const f = {
+    title: () => ({ name: "Arial", sz: 13, bold: true, color: { rgb: "1C2235" } }),
+    sub: () => ({ name: "Arial", sz: 10, color: { rgb: "6B7280" } }),
+    hdr: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "FFFFFF" } }),
+    body: (bold = false) => ({ name: "Arial", sz: 9, bold, color: { rgb: "374151" } }),
+    orange: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "E87C27" } }),
+  };
+  const a = {
+    ctr: () => ({ horizontal: "center", vertical: "center" }),
+    left: () => ({ horizontal: "left", vertical: "center" }),
+    right: () => ({ horizontal: "right", vertical: "center" }),
+  };
+  const qtyFmt = "#,##0";
   const now = formatAcpoExportDateTime();
-  const transSlots = acpoTransSlotLabels();
 
-  const tableHdrs = [
-    "TRANS #", "INSERT DATE", "INSERT DR #",
-    "INSERT CUSTOMER NAME", "INSERT PLACE OF DELIVERY", "EST ENDING BALANCE",
+  put(0, 0, "TDT ADVANCE CUSTOMER PURCHASE ORDER", "s", { font: f.title(), alignment: a.left(), fill: peachFill });
+  put(1, 0, `Exported: ${now}`, "s", { font: f.sub(), alignment: a.left(), fill: peachFill });
+
+  const hdrs = [
+    "TRANS NO.", "RESERVATION DATE", "SO#/WO#", "TDT DR#",
+    "CUSTOMER'S NAME", "PLACE OF DELIVERY", "RESERVED QTY",
+    "CURRENT STOCK", "EST ENDING BALANCE", "APPROVED BY", "STATUS",
   ];
+  hdrs.forEach((h, ci) => {
+    put(3, ci, h, "s", { font: f.hdr(), fill: hdrFill, alignment: a.ctr(), border: hdrBorder });
+  });
 
-  groups.forEach((group, bi) => {
-    const sc = blockStart(bi);
-    const endC = sc + ACPO_BLOCK_COLS - 1;
-    const actualBal = resolveSectionEstEnding(group.estQtyEnding, group.rows);
-
-    put(ACPO_ROW_LOGO1, sc, "TDT POWERSTEEL", "s", { font: f.brand(), alignment: center, fill: sheetFill });
-    merges.push({ s: { r: ACPO_ROW_LOGO1, c: sc }, e: { r: ACPO_ROW_LOGO1, c: endC } });
-
-    put(ACPO_ROW_LOGO2, sc, "THE NO. 1 STEEL SUPPLIER", "s", {
-      font: f.tagline(), alignment: center, fill: sheetFill,
-    });
-    merges.push({ s: { r: ACPO_ROW_LOGO2, c: sc }, e: { r: ACPO_ROW_LOGO2, c: endC } });
-
-    const infoRows = [
-      ["SKU", group.sku],
-      ["ITEM", group.item],
-      ["EST QTY ENDING", group.estQtyEnding],
+  rows.forEach((row, i) => {
+    const ri = 4 + i;
+    const fill = i % 2 === 0 ? dataFill : altFill;
+    const cells = [
+      { v: row.transNo, bold: true },
+      { v: formatAcpoExportDate(row.resDate) },
+      { v: row.soWo || "—" },
+      { v: row.tdtDr || "—", orange: true },
+      { v: row.customer || "", left: true },
+      { v: row.place || "" },
+      { v: row.reservedQty ?? 0, num: true, fmt: qtyFmt, bold: true },
+      { v: row.currentStock ?? 0, num: true, fmt: qtyFmt },
+      { v: row.estEnding ?? "", num: typeof row.estEnding === "number", fmt: qtyFmt, bold: true },
+      { v: row.approvedBy || "" },
+      { v: row.status || "" },
     ];
-    infoRows.forEach(([label, value], ri) => {
-      const row = ACPO_ROW_INFO_START + ri;
-      put(row, sc, label, "s", {
-        font: f.infoLabel(), fill: goldFill, alignment: left, border: thickBorder,
+    cells.forEach(({ v, bold, orange, left, num, fmt }, ci) => {
+      const font = orange ? f.orange() : f.body(bold);
+      put(ri, ci, v, num ? "n" : "s", {
+        font,
+        fill,
+        alignment: left ? a.left() : a.ctr(),
+        border: dataBorder,
+        ...(fmt && num ? { numFmt: fmt } : {}),
       });
-      merges.push({ s: { r: row, c: sc }, e: { r: row, c: sc + 1 } });
-      put(row, sc + 2, value, "s", {
-        font: f.body(), fill: goldFill, alignment: center, border: thickBorder,
-      });
-      merges.push({ s: { r: row, c: sc + 2 }, e: { r: row, c: endC } });
-    });
-
-    put(ACPO_ROW_SECTION, sc, bi + 1, "n", {
-      font: f.sectionNum(), alignment: center, fill: sheetFill,
-    });
-
-    tableHdrs.forEach((h, ci) => {
-      put(ACPO_ROW_HDR, sc + ci, h, "s", {
-        font: f.hdr(), fill: hdrFill, alignment: center, border: blackBorder,
-      });
-    });
-
-    put(ACPO_ROW_SUMMARY, sc, "", "s", { fill: summaryFill, border: blackBorder });
-    put(ACPO_ROW_SUMMARY, sc + 1, now, "s", {
-      font: f.summary(), fill: summaryFill, alignment: center, border: blackBorder,
-    });
-    put(ACPO_ROW_SUMMARY, sc + 2, "ACTUAL ENDING BALANCE >>>", "s", {
-      font: f.summary(), fill: summaryFill, alignment: center, border: blackBorder,
-    });
-    merges.push({ s: { r: ACPO_ROW_SUMMARY, c: sc + 2 }, e: { r: ACPO_ROW_SUMMARY, c: sc + 4 } });
-    put(ACPO_ROW_SUMMARY, sc + 5, actualBal, "n", {
-      font: f.summary(), fill: summaryFill, alignment: center, border: blackBorder, numFmt: qtyFmt,
-    });
-
-    transSlots.forEach((slotLabel, si) => {
-      const row = ACPO_ROW_DATA_START + si;
-      const data = group.rows[si];
-      put(row, sc, slotLabel, "n", {
-        font: f.body(), fill: dataFill, alignment: center, border: dataBorder, numFmt: qtyFmt,
-      });
-      if (data) {
-        const dr = data.drNo || data.tdtDr || "";
-        const est = data.estEnding ?? "";
-        put(row, sc + 1, formatAcpoExportDate(data.resDate), "s", {
-          font: f.body(), fill: dataFill, alignment: center, border: dataBorder,
-        });
-        put(row, sc + 2, dr, "s", { font: f.body(), fill: dataFill, alignment: center, border: dataBorder });
-        put(row, sc + 3, data.customer || "", "s", {
-          font: f.body(), fill: dataFill, alignment: left, border: dataBorder,
-        });
-        put(row, sc + 4, data.place || "", "s", {
-          font: f.body(), fill: dataFill, alignment: center, border: dataBorder,
-        });
-        put(row, sc + 5, est === "" || est === null ? "" : est, typeof est === "number" ? "n" : "s", {
-          font: f.body(), fill: dataFill, alignment: center, border: dataBorder,
-          ...(typeof est === "number" ? { numFmt: qtyFmt } : {}),
-        });
-      } else {
-        for (let ci = 1; ci < ACPO_BLOCK_COLS; ci++) {
-          put(row, sc + ci, "", "s", { fill: dataFill, border: dataBorder, alignment: center });
-        }
-      }
     });
   });
 
-  const lastRow = ACPO_ROW_DATA_START + ACPO_DATA_SLOTS - 1;
-  const lastCol = blockStart(groups.length) - 1;
-  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: Math.max(lastCol, 0) });
-
-  for (let r = 0; r <= lastRow; r++) {
-    for (let c = 0; c <= lastCol; c++) {
-      if (!ws[C(r, c)]) {
-        put(r, c, "", "s", { fill: sheetFill, border: dataBorder, alignment: center });
-      }
-    }
-  }
-
-  ws["!merges"] = merges;
-
-  const colWidths = [];
-  groups.forEach((_, bi) => {
-    const sc = blockStart(bi);
-    colWidths[sc] = { wch: 7 };
-    colWidths[sc + 1] = { wch: 12 };
-    colWidths[sc + 2] = { wch: 11 };
-    colWidths[sc + 3] = { wch: 24 };
-    colWidths[sc + 4] = { wch: 14 };
-    colWidths[sc + 5] = { wch: 12 };
-    if (bi < groups.length - 1) colWidths[sc + ACPO_BLOCK_COLS] = { wch: 2 };
-  });
-  ws["!cols"] = colWidths;
-
+  const lastRow = Math.max(4 + rows.length - 1, 3);
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: hdrs.length - 1 });
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: hdrs.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: hdrs.length - 1 } },
+  ];
+  ws["!cols"] = [
+    { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 14 },
+    { wch: 28 }, { wch: 16 }, { wch: 13 },
+    { wch: 13 }, { wch: 16 }, { wch: 14 }, { wch: 10 },
+  ];
   ws["!rows"] = [
-    { hpt: 20 },
-    { hpt: 16 },
-    { hpt: 18 },
-    { hpt: 22 },
-    { hpt: 18 },
-    { hpt: 14 },
-    { hpt: 38 },
-    { hpt: 22 },
-    ...Array(ACPO_DATA_SLOTS).fill({ hpt: 20 }),
+    { hpt: 22 }, { hpt: 16 }, { hpt: 6 }, { hpt: 36 },
+    ...rows.map(() => ({ hpt: 20 })),
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, "ADVANCE CUSTOMER PO");
@@ -565,7 +429,7 @@ async function importReservations(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["ADVANCE"]);
     const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
-    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 4;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
     const parsed = [];
 
@@ -573,39 +437,27 @@ async function importReservations(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
-      let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 1));
-      let resDate = formatExcelDate(pickCol(r, headers, ["DATE", "RESERVATION"], 2));
-      const col0 = cellStr(r[0]);
-      const col1 = cellStr(r[1]);
-      const col2 = r[2];
-      if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
-        transNo = col0;
-        resDate = formatExcelDate(col1);
-      } else if (!transNo && col1 && !formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
-        transNo = col1;
-        if (formatExcelDate(col2).match(/^\d{4}-\d{2}-\d{2}/)) resDate = formatExcelDate(col2);
-      }
-
-      const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 5));
-      const tdtDr = cellStr(pickCol(r, headers, ["TDT DR", "DR"], 4));
+      const transNo = cellStr(pickCol(r, headers, ["TRANS NO.", "TRANS #", "TRANS"], 0));
+      const customer = cellStr(pickCol(r, headers, ["CUSTOMER'S NAME", "CUSTOMER"], 4));
+      const tdtDr = cellStr(pickCol(r, headers, ["TDT DR#", "TDT DR", "DR"], 3));
       if (!transNo && !customer && !tdtDr) continue;
 
-      const estRaw = pickCol(r, headers, ["EST", "ENDING"], 9);
+      const estRaw = pickCol(r, headers, ["EST ENDING BALANCE", "EST ENDING", "EST"], 8);
       const estStr = cellStr(estRaw);
 
       parsed.push({
         id: parsed.length + 1,
         transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
-        resDate,
-        soWo: cellStr(pickCol(r, headers, ["SO", "WO"], 3)) || "—",
+        resDate: formatExcelDate(pickCol(r, headers, ["RESERVATION DATE", "DATE"], 1)),
+        soWo: cellStr(pickCol(r, headers, ["SO#/WO#", "SO", "WO"], 2)) || "—",
         tdtDr,
         customer,
-        place: cellStr(pickCol(r, headers, ["PLACE"], 6)) || "Manila",
-        reservedQty: cellNum(pickCol(r, headers, ["RESERVED"], 7)),
-        currentStock: cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 8)),
+        place: cellStr(pickCol(r, headers, ["PLACE OF DELIVERY", "PLACE"], 5)) || "Manila",
+        reservedQty: cellNum(pickCol(r, headers, ["RESERVED QTY", "RESERVED"], 6)),
+        currentStock: cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 7)),
         estEnding: estStr && estStr !== "—" ? cellNum(estRaw) : null,
-        approvedBy: cellStr(pickCol(r, headers, ["APPROVED"], 10)),
-        status: cellStr(pickCol(r, headers, ["STATUS"], 11)) || "Pending",
+        approvedBy: cellStr(pickCol(r, headers, ["APPROVED BY", "APPROVED"], 9)),
+        status: cellStr(pickCol(r, headers, ["STATUS"], 10)) || "Pending",
         drNo: tdtDr,
         remarks: "",
         lineItems: [],
@@ -614,7 +466,7 @@ async function importReservations(file, onDone, onError) {
       });
     }
 
-    if (!parsed.length) throw new Error("No data rows found. Fill TRANS #, CUSTOMER, or TDT DR columns.");
+    if (!parsed.length) throw new Error("No data rows found. Fill TRANS NO., CUSTOMER, or TDT DR# columns.");
     onDone(parsed);
   } catch (err) {
     onError(err.message || "Import failed.");

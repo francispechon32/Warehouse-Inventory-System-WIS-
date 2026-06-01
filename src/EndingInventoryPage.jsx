@@ -45,15 +45,7 @@ function Highlight({ text, query }) {
 }
 
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 export const INITIAL_ENDING_INVENTORY = [
@@ -108,8 +100,12 @@ async function importEndingInventory(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
+      // Column order matches exportToWis (wisHdrs) exactly:
+      // 0=NO., 1=PRODUCT DESCRIPTION, 2=SKU NUMBER, 3=LAST ACCEPTANCE DATE,
+      // 4=QUANTITY AS PER WIS, 5=TOTAL UNIT COST, 6=AVERAGE UNIT COST,
+      // 7=QUANTITY AS PER COUNTING, 8=VARIANCE (QUANTITY), 9=VARIANCE (AMOUNT), 10=REMARKS
       const productDescription = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 1));
-      const sku = cellStr(pickCol(r, headers, ["SKU"], 2));
+      const sku = cellStr(pickCol(r, headers, ["SKU NUMBER", "SKU"], 2));
       const noRaw = cellStr(pickCol(r, headers, ["NO."], 0));
       let no = cellNum(noRaw);
       if (!no && noRaw) {
@@ -119,24 +115,26 @@ async function importEndingInventory(file, onDone, onError) {
 
       if (!sku && !productDescription) continue;
 
-      const qtyAsPerWis = cellNum(pickCol(r, headers, ["QUANTITY AS PER WIS", "WIS"], 4));
-      const avgUnitCost = cellNum(pickCol(r, headers, ["AVERAGE UNIT COST", "AVG"], 6));
-      const totalUnitCost = cellNum(pickCol(r, headers, ["TOTAL UNIT COST", "TOTAL"], 5)) || qtyAsPerWis * avgUnitCost;
-      const qtyAsPerCounting = cellNum(pickCol(r, headers, ["QUANTITY AS PER COUNTING", "COUNTING"], 7));
+      const qtyAsPerWis = cellNum(pickCol(r, headers, ["QUANTITY AS PER WIS", "QUANTITY\nAS PER WIS"], 4));
+      const totalUnitCost = cellNum(pickCol(r, headers, ["TOTAL\nUNIT COST", "TOTAL UNIT COST"], 5));
+      const avgUnitCost = cellNum(pickCol(r, headers, ["AVERAGE\nUNIT COST", "AVERAGE UNIT COST"], 6));
+      const qtyAsPerCounting = cellNum(pickCol(r, headers, ["QUANTITY AS\nPER COUNTING", "QUANTITY AS PER COUNTING"], 7));
 
       parsed.push({
         id: no || parsed.length + 1,
         no: no || parsed.length + 1,
         productDescription,
         sku: sku || `SKU-${no || parsed.length + 1}`,
-        lastAcceptanceDate: formatExcelDate(pickCol(r, headers, ["LAST ACCEPTANCE", "DATE"], 3)),
+        lastAcceptanceDate: formatExcelDate(pickCol(r, headers, ["LAST ACCEPTANCE\nDATE", "LAST ACCEPTANCE DATE", "LAST ACCEPTANCE"], 3)),
         qtyAsPerWis,
-        totalUnitCost,
+        totalUnitCost: totalUnitCost || qtyAsPerWis * avgUnitCost,
         avgUnitCost,
         qtyAsPerCounting,
-        varianceQty: cellNum(pickCol(r, headers, ["VARIANCE (QUANTITY)", "VARIANCE"], 8)) || qtyAsPerCounting - qtyAsPerWis,
-        varianceAmount: cellNum(pickCol(r, headers, ["VARIANCE (AMOUNT)"], 9)),
+        varianceQty: cellNum(pickCol(r, headers, ["VARIANCE\n(QUANTITY)", "VARIANCE (QUANTITY)"], 8)),
+        varianceAmount: cellNum(pickCol(r, headers, ["VARIANCE\n(AMOUNT)", "VARIANCE (AMOUNT)"], 9)),
         remarks: cellStr(pickCol(r, headers, ["REMARKS"], 10)),
+        cogsQty: cellNum(pickCol(r, headers, ["QUANTITY SOLD\nAS PER WIS", "QUANTITY SOLD AS PER WIS"], 15)),
+        cogsAvgUnitCost: cellNum(pickCol(r, headers, ["AVERAGE UNIT COST\nOF GOODS SOLD", "AVERAGE UNIT COST OF GOODS SOLD"], 16)),
       });
     }
 
@@ -321,15 +319,16 @@ function exportToWis(rows) {
       });
     });
 
-    const cogsTotalCell = exportCurrencyVal(r.totalUnitCost);
-    const cogsAvgCell = exportCurrencyVal(r.avgUnitCost);
+    const cogsRowTotal = (r.cogsQty ?? 0) * (r.cogsAvgUnitCost ?? 0);
+    const cogsTotalCell = exportCurrencyVal(cogsRowTotal);
+    const cogsAvgCell = exportCurrencyVal(r.cogsAvgUnitCost);
     const cogsCells = [
       { v: r.no, t: "n", al: a.ctr(), fmt: null, fnt: f.body("7F7F7F"), off: 0 },
       { v: r.productDescription, t: "s", al: a.left(true), fmt: null, fnt: f.body(), off: 1 },
       { v: r.sku, t: "s", al: a.ctr(), fmt: null, fnt: f.body("E87C27", true), off: 2 },
-      { v: r.qtyAsPerWis ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body("000000", true), off: 3 },
+      { v: r.cogsQty ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body("000000", true), off: 3 },
       { ...cogsAvgCell, al: a.right(), fmt: phpFmt, fnt: f.body(), off: 4 },
-      { ...cogsTotalCell, al: a.right(), fmt: phpFmt, fnt: f.body(r.totalUnitCost > 0 ? "000000" : "7F7F7F", true), off: 5 },
+      { ...cogsTotalCell, al: a.right(), fmt: phpFmt, fnt: f.body(cogsRowTotal > 0 ? "000000" : "7F7F7F", true), off: 5 },
     ];
 
     cogsCells.forEach((cell) => {
@@ -553,6 +552,36 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
   );
 }
 
+/* ─── COGS INLINE EDIT ROW ── */
+function CogsInlineEditRow({ item, onSave, onCancel, idx }) {
+  const [draft, setDraft] = useState({ ...item });
+  const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+  const cogsTotal = (parseFloat(draft.cogsQty) || 0) * (parseFloat(draft.cogsAvgUnitCost) || 0);
+
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding: "8px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{item.no}</td>
+      <td style={{ padding: "8px 16px", color: "#374151", fontSize: 11, maxWidth: 280, textAlign: "left" }}>{item.productDescription}</td>
+      <td style={{ padding: "8px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{item.sku}</td>
+      <td style={{ padding: "6px 10px", textAlign: "center" }}>
+        <input type="number" min={0} value={draft.cogsQty ?? ""} onChange={e => set("cogsQty", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "6px 10px", textAlign: "right" }}>
+        <input type="number" min={0} step="0.01" value={draft.cogsAvgUnitCost ?? ""} onChange={e => set("cogsAvgUnitCost", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "8px 16px", textAlign: "center", fontWeight: 700, color: cogsTotal > 0 ? "#065f46" : "#9ca3af" }}>{cogsTotal > 0 ? fmtPHP(cogsTotal) : "—"}</td>
+      <td style={{ padding: "8px 10px" }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={() => onSave(draft)} style={{ padding: "5px 10px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700 }}>
+            <IconSave size={12} /> Save
+          </button>
+          <button onClick={onCancel} style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer" }}><IconX size={12} /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 /* ─── MAIN COMPONENT ── */
 export default function EndingInventoryPage({
   inventoryData: propInventoryData,
@@ -571,6 +600,7 @@ export default function EndingInventoryPage({
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
   const [editingNo, setEditingNo] = useState(null);
+  const [editingCogsNo, setEditingCogsNo] = useState(null);
   const [showStartModal, setShowStartModal] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -618,6 +648,12 @@ export default function EndingInventoryPage({
     setInventoryData(d => d.map(r => r.no === updated.no ? { ...updated } : r));
     setEditingNo(null);
     showToast("Row updated successfully.");
+  };
+
+  const handleSaveCogsEdit = (updated) => {
+    setInventoryData(d => d.map(r => r.no === updated.no ? { ...r, cogsQty: updated.cogsQty, cogsAvgUnitCost: updated.cogsAvgUnitCost } : r));
+    setEditingCogsNo(null);
+    showToast("COGS row updated successfully.");
   };
 
   const handleStartInventorySave = (edits) => {
@@ -687,8 +723,8 @@ export default function EndingInventoryPage({
             <thead>
               <tr style={{ background: "#1c2235" }}>
                 {(activeTab === "wis"
-                  ? ["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS"]
-                  : ["#","PRODUCT DESCRIPTION","SKU","QTY AS PER WIS","AVG UNIT COST","TOTAL COST OF GOODS SOLD"]
+                  ? ["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS",""]
+                  : ["#","PRODUCT DESCRIPTION","SKU","QTY SOLD AS PER WIS","AVG UNIT COST OF GOODS SOLD","TOTAL COST OF GOODS SOLD",""]
                 ).map((h,i) => (
                   <th key={h+i} style={{ padding: "14px 16px", textAlign: h === "PRODUCT DESCRIPTION" ? "left" : "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
@@ -700,6 +736,10 @@ export default function EndingInventoryPage({
                 if (activeTab === "wis" && editingNo === item.no) {
                   return <InlineEditRow key={item.id} item={item} idx={idx} onSave={handleSaveEdit} onCancel={() => setEditingNo(null)} />;
                 }
+                if (activeTab === "cogs" && editingCogsNo === item.no) {
+                  return <CogsInlineEditRow key={item.id} item={item} idx={idx} onSave={handleSaveCogsEdit} onCancel={() => setEditingCogsNo(null)} />;
+                }
+                const cogsTotal = (item.cogsQty ?? 0) * (item.cogsAvgUnitCost ?? 0);
                 return (
                   <tr key={item.id ?? item.sku}
                     style={{ borderBottom: "1px solid #f3f4f6", background: idx%2===0?"#fff":"#fafafa" }}
@@ -723,15 +763,25 @@ export default function EndingInventoryPage({
                           <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceAmount===0?"#d1fae5":"#fee2e2", color: item.varianceAmount===0?"#065f46":"#991b1b" }}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
                         </td>
                         <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150, textAlign: "center" }}>{item.remarks || "—"}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                          <button onClick={() => setEditingNo(item.no)} style={{ padding: "5px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
+                            <IconEdit size={12} /> Edit
+                          </button>
+                        </td>
                       </>
                     ) : (
                       <>
                         <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{item.no}</td>
                         <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280, textAlign: "left" }}><Highlight text={item.productDescription} query={searchQuery} /></td>
                         <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={item.sku} query={searchQuery} /></td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{fmtPHP(item.avgUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, color: item.totalUnitCost>0?"#065f46":"#9ca3af" }}>{item.totalUnitCost>0?fmtPHP(item.totalUnitCost):"—"}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{(item.cogsQty ?? 0).toLocaleString()}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{item.cogsAvgUnitCost > 0 ? fmtPHP(item.cogsAvgUnitCost) : "—"}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, color: cogsTotal > 0 ? "#065f46" : "#9ca3af" }}>{cogsTotal > 0 ? fmtPHP(cogsTotal) : "—"}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                          <button onClick={() => setEditingCogsNo(item.no)} style={{ padding: "5px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
+                            <IconEdit size={12} /> Edit
+                          </button>
+                        </td>
                       </>
                     )}
                   </tr>

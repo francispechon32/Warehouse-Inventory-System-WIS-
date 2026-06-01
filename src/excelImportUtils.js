@@ -1,4 +1,5 @@
 /** Shared helpers for WIS Excel import (text numbers, dates, header rows). */
+import XLSX from "xlsx-js-style";
 
 export function cellStr(v) {
   if (v == null || v === "") return "";
@@ -26,6 +27,8 @@ export function formatExcelDate(v) {
   }
   const s = cellStr(v);
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const dm = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dm) return `${dm[3]}-${dm[2].padStart(2, "0")}-${dm[1].padStart(2, "0")}`;
   const parsed = new Date(s);
   if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
   return s;
@@ -99,14 +102,10 @@ export function isInvalidProductRow(sku, description = "") {
 
 export function readWorkbookSheet(file, sheetMatchers) {
   return new Promise((resolve, reject) => {
-    if (!window.XLSX) {
-      reject(new Error("SheetJS not loaded."));
-      return;
-    }
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = window.XLSX.read(new Uint8Array(e.target.result), {
+        const wb = XLSX.read(new Uint8Array(e.target.result), {
           type: "array",
           cellDates: true,
           cellText: false,
@@ -123,7 +122,7 @@ export function readWorkbookSheet(file, sheetMatchers) {
         }
         if (!ws) ws = wb.Sheets[sheetName];
         if (!ws) throw new Error("No valid sheet found.");
-        const raw = window.XLSX.utils.sheet_to_json(ws, {
+        const raw = XLSX.utils.sheet_to_json(ws, {
           header: 1,
           defval: null,
           raw: false,

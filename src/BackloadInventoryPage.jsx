@@ -178,15 +178,7 @@ function EditableRow({ row, onSave, onCancel, idx }) {
 }
 
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 const OUT_TRACK_PAIRS = 6;
@@ -402,21 +394,25 @@ async function importBackload(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
-      const transOrId = cellStr(pickCol(r, headers, ["TRANS NO", "TRANS", "NO."], 0));
+      // Column order matches exportBackload exactly:
+      // 0=TRANS, 1=INSERT DATE, 2=INSERT DR #, 3=SKU, 4=ITEM,
+      // 5=INSERT QTY, 6=INSERT UNIT COST, 7=TOTAL COST, 8=CUSTOMER'S NAME,
+      // 9=TOTAL QTY OUT, 10=QTY BALANCE, 11=AMOUNT BALANCE, 12=REMARKS
+      const transOrId = cellStr(pickCol(r, headers, ["TRANS"], 0));
       const item = cellStr(pickCol(r, headers, ["ITEM"], 4));
       const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 8));
       if (!transOrId && !item && !customer) continue;
 
       parsed.push({
         id: parseRowId(transOrId, parsed.length + 1),
-        date: formatExcelDate(pickCol(r, headers, ["DATE"], 1)),
-        drNo: cellStr(pickCol(r, headers, ["DR"], 2)),
+        date: formatExcelDate(pickCol(r, headers, ["INSERT DATE", "DATE"], 1)),
+        drNo: cellStr(pickCol(r, headers, ["INSERT DR", "DR"], 2)),
         sku: cellStr(pickCol(r, headers, ["SKU"], 3)),
         item,
-        qty: cellNum(pickCol(r, headers, ["QTY"], 5)),
-        unitCost: cellNum(pickCol(r, headers, ["UNIT COST"], 6)),
+        qty: cellNum(pickCol(r, headers, ["INSERT QTY", "QTY"], 5)),
+        unitCost: cellNum(pickCol(r, headers, ["INSERT UNIT COST", "UNIT COST"], 6)),
         customerName: customer,
-        totalQtyOut: cellNum(pickCol(r, headers, ["TOTAL QTY OUT", "QTY OUT"], 9)),
+        totalQtyOut: cellNum(pickCol(r, headers, ["TOTAL QTY OUT"], 9)),
         remarks: cellStr(pickCol(r, headers, ["REMARKS"], 12)),
       });
     }
@@ -581,7 +577,7 @@ export default function BackloadInventoryPage() {
                     onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fafafa"}
                   >
                     <td style={{ padding: "12px 12px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{row.id}</td>
-                    <td style={{ padding: "12px 12px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{row.date}</td>
+                    <td style={{ padding: "12px 12px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{formatBackloadExportDate(row.date)}</td>
                     <td style={{ padding: "12px 12px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo || "—"} query={searchQuery} /></td>
                     <td style={{ padding: "12px 12px", color: "#374151", textAlign: "center" }}><Highlight text={row.sku || "—"} query={searchQuery} /></td>
                     <td style={{ padding: "12px 12px", color: "#374151", maxWidth: 220, textAlign: "left" }}><Highlight text={row.item} query={searchQuery} /></td>

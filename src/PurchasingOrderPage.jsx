@@ -332,15 +332,7 @@ function lineValSum(lines) {
 
 /* ─── SheetJS loader ── */
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 function IconUpload({ size = 16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
@@ -698,7 +690,7 @@ export default function PurchasingOrderPage({
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ poDate: "", eta: "", vendor: "", productDesc: "", sku: "", qty: "", unitCost: "", notes: "" });
+  const [createForm, setCreateForm] = useState({ poDate: "", eta: "", purchaser: "", tdtPo: "", vendor: "", productDesc: "", sku: "", qty: "", unitCost: "", destination: "", tradingOrStocks: "Stocks", warehouseType: "Stocks", metricTons: "", weight: "", notes: "" });
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
@@ -930,29 +922,43 @@ export default function PurchasingOrderPage({
               <button type="button" onClick={() => setShowCreate(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#4b5563", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             <div style={{ padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px" }}>
-              {[
-                { label: "PO Date", key: "poDate", type: "date" },
-                { label: "ETA Date", key: "eta", type: "date" },
-                { label: "Vendor / Supplier", key: "vendor", type: "text", placeholder: "e.g. Steel Corp PH" },
-                { label: "SKU Code", key: "sku", type: "text", placeholder: "e.g. DRB052" },
-                { label: "Product Description", key: "productDesc", type: "text", placeholder: "e.g. Deformed Round Bar..." },
-                { label: "Quantity", key: "qty", type: "number", placeholder: "0" },
-                { label: "Unit Cost (₱)", key: "unitCost", type: "number", placeholder: "0.00" },
-                { label: "Notes (optional)", key: "notes", type: "text", placeholder: "Any additional notes..." },
-              ].map(({ label, key, type, placeholder }) => (
-                <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: key === "productDesc" || key === "notes" ? "1 / -1" : undefined }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
-                  <input
-                    type={type}
-                    value={createForm[key]}
-                    onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                    placeholder={placeholder}
-                    style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
-                    onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
-                    onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
-                  />
-                </div>
-              ))}
+              {(() => {
+                const inp = (key, label, type = "text", placeholder = "", fullWidth = false) => (
+                  <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: fullWidth ? "1 / -1" : undefined }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
+                    <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))} placeholder={placeholder}
+                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
+                      onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
+                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }} />
+                  </div>
+                );
+                const sel = (key, label, opts, fullWidth = false) => (
+                  <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: fullWidth ? "1 / -1" : undefined }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
+                    <select value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}>
+                      {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                );
+                return [
+                  inp("poDate", "PO Date", "date"),
+                  inp("eta", "ETA Date", "date"),
+                  inp("purchaser", "Name of Purchaser", "text", "e.g. Maria Santos"),
+                  inp("tdtPo", "TDT Purchase Order #", "text", "e.g. PO-2026-0142"),
+                  inp("vendor", "Vendor / Supplier", "text", "e.g. Steel Asia Corp"),
+                  inp("destination", "Destination", "text", "e.g. Manila Warehouse"),
+                  sel("tradingOrStocks", "If for Trading or Stocks", ["Stocks", "Trading"]),
+                  sel("warehouseType", "If to Warehouse — Stocks or Backload", ["Stocks", "Backload"]),
+                  inp("sku", "SKU Code", "text", "e.g. DRB052"),
+                  inp("qty", "Quantity as per PO", "number", "0"),
+                  inp("metricTons", "Metric Tons", "number", "0.0"),
+                  inp("weight", "Weight (if needed)", "text", "e.g. 2.4 MT"),
+                  inp("productDesc", "Product Description", "text", "e.g. Deformed Round Bar...", true),
+                  inp("unitCost", "Unit Cost (₱)", "number", "0.00"),
+                  inp("notes", "Notes (optional)", "text", "Any additional notes...", true),
+                ];
+              })()}
             </div>
             <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
               <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
@@ -968,18 +974,27 @@ export default function PurchasingOrderPage({
                   transNo: String(orders.length + 1).padStart(3, "0"),
                   poDate: createForm.poDate,
                   eta: createForm.eta || "",
+                  purchaser: createForm.purchaser || "",
+                  tdtPo: createForm.tdtPo || "",
                   vendor: createForm.vendor,
-                  sku: createForm.sku,
                   productDesc: createForm.productDesc,
-                  qty,
+                  sku: createForm.sku,
+                  destination: createForm.destination || "",
+                  tradingOrStocks: createForm.tradingOrStocks || "Stocks",
+                  warehouseType: createForm.warehouseType || "Stocks",
+                  metricTons: Number(createForm.metricTons) || 0,
+                  qtyPerPo: qty,
+                  weight: createForm.weight || "—",
                   unitCost: cost,
                   totalAmount: qty * cost,
                   status: "Pending",
                   notes: createForm.notes,
+                  txnNo: `TXN-${new Date().getFullYear()}-${String(orders.length + 1).padStart(3, "0")}`,
+                  lineItems: [],
                 };
                 setOrders(prev => [newPO, ...prev]);
                 setShowCreate(false);
-                setCreateForm({ poDate: "", eta: "", vendor: "", productDesc: "", sku: "", qty: "", unitCost: "", notes: "" });
+                setCreateForm({ poDate: "", eta: "", purchaser: "", tdtPo: "", vendor: "", productDesc: "", sku: "", qty: "", unitCost: "", destination: "", tradingOrStocks: "Stocks", warehouseType: "Stocks", metricTons: "", weight: "", notes: "" });
                 showToast("Purchase order created successfully.", "success");
               }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
                 Create PO
