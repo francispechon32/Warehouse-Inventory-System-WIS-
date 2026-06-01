@@ -30,6 +30,7 @@ const PAGE_SIZE = 5;
 const STATUS_OPTS = ["All Status", "Approved", "Pending", "Received"];
 const DISP_OPTS = ["All Dispositions", "Restock", "Scrap", "Credit memo"];
 const REASON_OPTS = ["All Reasons", "Damaged During Delivery", "Wrong item", "Customer cancel", "Quality hold"];
+const WAREHOUSE_OPTS = ["All Warehouses", "Manila Warehouse", "Cebu Warehouse", "Davao Warehouse"];
 
 function fmtPHP(n) {
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -124,15 +125,7 @@ function lineValSum(lines) {
 
 
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true;
 }
 
 const RT_OUT_TRACK_PAIRS = 6;
@@ -437,6 +430,7 @@ export default function ReturnPage() {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [dispFilter, setDispFilter] = useState("All Dispositions");
   const [reasonFilter, setReasonFilter] = useState("All Reasons");
+  const [warehouseFilter, setWarehouseFilter] = useState("All Warehouses");
   const [currentPage, setCurrentPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -483,8 +477,9 @@ export default function ReturnPage() {
     if (statusFilter !== "All Status") rows = rows.filter((r) => r.status === statusFilter);
     if (dispFilter !== "All Dispositions") rows = rows.filter((r) => r.disposition === dispFilter);
     if (reasonFilter !== "All Reasons") rows = rows.filter((r) => r.reason === reasonFilter);
+    if (warehouseFilter !== "All Warehouses") rows = rows.filter((r) => r.warehouse === warehouseFilter);
     return rows;
-  }, [returns, searchQuery, statusFilter, dispFilter, reasonFilter]);
+  }, [returns, searchQuery, statusFilter, dispFilter, reasonFilter, warehouseFilter]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -506,9 +501,10 @@ export default function ReturnPage() {
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: STATUS_OPTS, minWidth: 160 },
-          { key: "disp", value: dispFilter, onChange: (v) => { setDispFilter(v); setCurrentPage(1); }, options: DISP_OPTS, minWidth: 170 },
-          { key: "reason", value: reasonFilter, onChange: (v) => { setReasonFilter(v); setCurrentPage(1); }, options: REASON_OPTS, minWidth: 180 },
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: STATUS_OPTS, minWidth: 140 },
+          { key: "disp", value: dispFilter, onChange: (v) => { setDispFilter(v); setCurrentPage(1); }, options: DISP_OPTS, minWidth: 155 },
+          { key: "reason", value: reasonFilter, onChange: (v) => { setReasonFilter(v); setCurrentPage(1); }, options: REASON_OPTS, minWidth: 155 },
+          { key: "warehouse", value: warehouseFilter, onChange: (v) => { setWarehouseFilter(v); setCurrentPage(1); }, options: WAREHOUSE_OPTS, minWidth: 165 },
         ]}
         primaryAction={{ label: "Create New Return", onClick: () => setShowCreate(true) }}
         showDateRange={false}
@@ -709,7 +705,9 @@ export default function ReturnPage() {
                     <select
                       value={createForm[key]}
                       onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", background: "#fff", outline: "none" }}
+                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", background: "#fff", outline: "none", color: "#111827", appearance: "auto", WebkitAppearance: "auto", cursor: "pointer", width: "100%" }}
+                      onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
+                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
                     >
                       {options.map(o => <option key={o}>{o}</option>)}
                     </select>

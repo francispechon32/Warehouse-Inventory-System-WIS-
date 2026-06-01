@@ -3,10 +3,6 @@ import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import { SEED_STOCK_IN, SEED_STOCK_OUT } from "./stockTransactionSeeds";
 
-const RECENT_SKUS = [
-  "DRB007", "DRB050", "DRB052", "DRB051", "SHPT2", "SHPT3",
-  "MSP010", "MSP018", "JINXI", "WF016", "WF10833", "DRB008",
-];
 
 const SKU_CATALOG = {
   DRB007: { desc: "Deformed Round Bar, 10mm x 6M g33", weight: "3.696 kg/pc" },
@@ -540,6 +536,21 @@ export default function StockSheetsPage({
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
+  const recentSkus = useMemo(() => {
+    const combined = [
+      ...stockInData.map(r => ({ sku: r.sku, date: r.date || "" })),
+      ...stockOutData.map(r => ({ sku: r.sku, date: r.dispatchDate || "" })),
+    ];
+    combined.sort((a, b) => b.date.localeCompare(a.date));
+    const seen = new Set();
+    const result = [];
+    for (const { sku } of combined) {
+      if (sku && !seen.has(sku)) { seen.add(sku); result.push(sku); }
+      if (result.length >= 12) break;
+    }
+    return result;
+  }, [stockInData, stockOutData]);
+
   const skuKey = searchSku.trim().toUpperCase();
   const skuInfo = SKU_CATALOG[skuKey] || { desc: "—", weight: "—" };
 
@@ -614,7 +625,7 @@ export default function StockSheetsPage({
         boxShadow: "0 1px 4px rgba(0,0,0,0.07)",
       }}>
         <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>Recent SKUs:</span>
-        {RECENT_SKUS.map((sku) => {
+        {recentSkus.map((sku) => {
           const active = skuKey === sku;
           return (
             <button

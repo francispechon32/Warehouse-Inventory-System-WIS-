@@ -347,6 +347,23 @@ function buildLast7DaysChart(stockIn, stockOut) {
   return result;
 }
 
+function buildLast30DaysChart(stockIn, stockOut) {
+  const today = new Date();
+  const result = [];
+  for (let i = 3; i >= 0; i--) {
+    const weekEnd = new Date(today);
+    weekEnd.setDate(today.getDate() - i * 7);
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekEnd.getDate() - 6);
+    const startStr = weekStart.toISOString().slice(0, 10);
+    const endStr = weekEnd.toISOString().slice(0, 10);
+    const inQty  = stockIn.filter(t => t.date >= startStr && t.date <= endStr).reduce((s, t) => s + (t.qty || 0), 0);
+    const outQty = stockOut.filter(t => t.date >= startStr && t.date <= endStr).reduce((s, t) => s + (t.qty || 0), 0);
+    result.push({ day: `Wk ${4 - i}`, stockIn: inQty, stockOut: outQty });
+  }
+  return result;
+}
+
 function buildTopReleasedItems(stockOut, products) {
   const totals = {};
   stockOut.forEach(t => {
@@ -579,7 +596,7 @@ function ProfilePage({ profile, onSave, onClose }) {
 export default function Dashboard({ onLogout, userName }) {
   const [activeNav, setActiveNav]         = useState("Home");
   const [stockExpanded, setStockExpanded] = useState(false);
-  const [dateRange, setDateRange]         = useState("Last 7 Days");
+  const [dateRange, setDateRange]         = useState("Last 30 Days");
   const [sidebarOpen, setSidebarOpen]     = useState(true);
   const [productStatusFilter, setProductStatusFilter] = useState("All Status");
   const [poStatusFilter, setPoStatusFilter]           = useState("All Status");
@@ -660,6 +677,8 @@ export default function Dashboard({ onLogout, userName }) {
   const notificationCount     = stockAlerts.length + notificationActivity.length;
   const chartData = dateRange === "Last 7 Days"
     ? buildLast7DaysChart(stockIn, stockOut)
+    : dateRange === "Last 30 Days"
+    ? buildLast30DaysChart(stockIn, stockOut)
     : inventoryDataByRange[dateRange] || [];
   const chartYMax = (() => {
     const peak = chartData.reduce((m, d) => Math.max(m, d.stockIn || 0, d.stockOut || 0), 0);
@@ -1449,7 +1468,7 @@ export default function Dashboard({ onLogout, userName }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 6 }}>
-        {["Last 7 Days"].map(r => (
+        {["Last 7 Days", "Last 30 Days"].map(r => (
           <button key={r} onClick={() => setDateRange(r)} style={{
             padding: "4px 10px", fontSize: 11, fontWeight: 600,
             borderRadius: 6, cursor: "pointer",
