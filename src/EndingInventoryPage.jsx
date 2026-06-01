@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo, useEffect } from "react";
+﻿import { useState, useRef, useMemo, useEffect } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import {
   cellStr,
@@ -146,21 +147,249 @@ async function importEndingInventory(file, onDone, onError) {
   }
 }
 
+// ─── EXPORT FUNCTION ────────────────────────────────────────────────────────
+function formatExportDateTime(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatExportDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function exportCurrencyVal(n) {
+  const v = Number(n);
+  if (!v) return { v: "-", t: "s" };
+  return { v, t: "n" };
+}
+
 function exportToWis(rows) {
-  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
-  const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
-  const headers = [
-    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
-    ["Ending Inventory as per WIS"],
-    ["LOCATION:", "MARILAO WAREHOUSE"],
-    ["AS OF", new Date().toLocaleString()],
-    [],
-    ["NO.","PRODUCT DESCRIPTION","SKU NUMBER","LAST ACCEPTANCE DATE","QUANTITY AS PER WIS","TOTAL UNIT COST","AVERAGE UNIT COST","QUANTITY AS PER COUNTING","VARIANCE (QUANTITY)","VARIANCE (AMOUNT)","REMARKS"],
+  const now = formatExportDateTime();
+
+  const peachFill = { patternType: "solid", fgColor: { rgb: "FCE4D6" } };
+  const hdrFill = { patternType: "solid", fgColor: { rgb: "F4B084" } };
+  const yellowFill = { patternType: "solid", fgColor: { rgb: "FFEB9C" } };
+  const blueFill = { patternType: "solid", fgColor: { rgb: "BDD7EE" } };
+
+  const dashBorder = {
+    top: { style: "dashed", color: { rgb: "C00000" } },
+    bottom: { style: "dashed", color: { rgb: "C00000" } },
+    left: { style: "dashed", color: { rgb: "C00000" } },
+    right: { style: "dashed", color: { rgb: "C00000" } },
+  };
+  const hdrBorder = {
+    top: { style: "thin", color: { rgb: "C00000" } },
+    bottom: { style: "thin", color: { rgb: "C00000" } },
+    left: { style: "thin", color: { rgb: "C00000" } },
+    right: { style: "thin", color: { rgb: "C00000" } },
+  };
+  const bottomBorder = { bottom: { style: "thin", color: { rgb: "000000" } } };
+
+  const f = {
+    title: (color = "C00000") => ({ name: "Arial", sz: 14, bold: true, color: { rgb: color } }),
+    sub: () => ({ name: "Arial", sz: 11, bold: false, color: { rgb: "000000" } }),
+    label: () => ({ name: "Arial", sz: 10, bold: true, color: { rgb: "000000" } }),
+    meta: (color = "C00000") => ({ name: "Arial", sz: 10, bold: true, color: { rgb: color } }),
+    hdr: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
+    body: (color = "000000", bold = false) => ({ name: "Arial", sz: 9, bold, color: { rgb: color } }),
+    sku: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "0563C1" }, underline: true }),
+  };
+  const a = {
+    ctr: (wrap = false) => ({ horizontal: "center", vertical: "center", wrapText: wrap }),
+    left: (wrap = false) => ({ horizontal: "left", vertical: "center", wrapText: wrap }),
+    right: () => ({ horizontal: "right", vertical: "center" }),
+  };
+
+  const phpFmt = '"₱"#,##0.00';
+  const qtyFmt = "#,##0";
+  const COGS_START = 12;
+  const LAST_COL = 17;
+
+  const ws = {};
+  const C = (r, c) => XLSX.utils.encode_cell({ r, c });
+
+  const put = (r, c, v, t, style) => {
+    ws[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s: style };
+  };
+
+  const fillForCol = (ci) => {
+    if (ci === 7) return yellowFill;
+    if (ci === 8 || ci === 9) return blueFill;
+    return peachFill;
+  };
+
+  const hdrFillForCol = (ci) => {
+    if (ci === 7) return yellowFill;
+    if (ci === 8 || ci === 9) return blueFill;
+    return hdrFill;
+  };
+
+  const totalValue = rows.reduce((s, r) => s + (r.totalUnitCost || 0), 0);
+  const cogsTotal = rows.reduce((s, r) => s + (r.qtyAsPerWis > 0 ? (r.totalUnitCost || 0) : 0), 0);
+
+  const titleStyle = { font: f.title(), alignment: a.left(), fill: peachFill };
+  const subStyle = { font: f.sub(), alignment: a.left(), fill: peachFill };
+  const labelStyle = { font: f.label(), alignment: a.left(), fill: peachFill };
+
+  // Row 0: titles
+  put(0, 0, "TDT WAREHOUSE INVENTORY SHEET (TDT WIS)", "s", titleStyle);
+  put(0, COGS_START, "TDT WAREHOUSE INVENTORY SHEET (TDT WIS)", "s", titleStyle);
+
+  // Row 1: subtitles
+  put(1, 0, "Ending Inventory as per WIS", "s", subStyle);
+  put(1, COGS_START, "Cost of Goods Sold as per WIS", "s", subStyle);
+
+  // Row 2: location + metrics (WIS)
+  put(2, 0, "LOCATION:", "s", labelStyle);
+  put(2, 1, "MARILAO WAREHOUSE", "s", { font: f.body(), alignment: a.ctr(), fill: peachFill, border: bottomBorder });
+  put(2, 7, "INVENTORY AGE", "s", { font: f.meta(), alignment: a.right(), fill: peachFill });
+  put(2, 8, 386, "n", { font: { name: "Arial", sz: 22, bold: true, color: { rgb: "C00000" } }, alignment: a.ctr(), fill: peachFill });
+  put(2, 9, "AVERAGE INVENTORY →", "s", { font: f.meta("E87C27"), alignment: a.right(), fill: peachFill });
+  put(2, 10, totalValue, "n", { font: f.meta(), alignment: a.right(), fill: peachFill, numFmt: phpFmt });
+  put(2, COGS_START, "LOCATION:", "s", labelStyle);
+  put(2, COGS_START + 1, "MARILAO WAREHOUSE", "s", { font: f.body(), alignment: a.ctr(), fill: peachFill, border: bottomBorder });
+
+  // Row 3: AS OF + COGS summary (WIS)
+  put(3, 0, "AS OF", "s", labelStyle);
+  put(3, 1, now, "s", { font: f.body(), alignment: a.ctr(), fill: peachFill, border: bottomBorder });
+  put(3, 9, "COST OF GOODS SOLD →", "s", { font: f.meta("E87C27"), alignment: a.right(), fill: peachFill });
+  put(3, 10, cogsTotal, "n", { font: f.meta(), alignment: a.right(), fill: peachFill, numFmt: phpFmt });
+  put(3, COGS_START, "AS OF", "s", labelStyle);
+  put(3, COGS_START + 1, now, "s", { font: f.body(), alignment: a.ctr(), fill: peachFill, border: bottomBorder });
+
+  // Row 5: column headers
+  const wisHdrs = [
+    "NO.", "PRODUCT DESCRIPTION", "SKU NUMBER", "LAST ACCEPTANCE\nDATE",
+    "QUANTITY\nAS PER WIS", "TOTAL\nUNIT COST", "AVERAGE\nUNIT COST",
+    "QUANTITY AS\nPER COUNTING", "VARIANCE\n(QUANTITY)", "VARIANCE\n(AMOUNT)", "REMARKS",
   ];
-  const dataRows = rows.map(r => [r.no, r.productDescription, r.sku, r.lastAcceptanceDate||"", r.qtyAsPerWis, r.totalUnitCost, r.avgUnitCost, r.qtyAsPerCounting, r.varianceQty, r.varianceAmount, r.remarks]);
-  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:5},{wch:65},{wch:10},{wch:20},{wch:18},{wch:18},{wch:18},{wch:22},{wch:18},{wch:18},{wch:22}];
+  const cogsHdrs = [
+    "NO.", "PRODUCT DESCRIPTION", "SKU NUMBER",
+    "QUANTITY SOLD\nAS PER WIS", "AVERAGE UNIT COST\nOF GOODS SOLD", "TOTAL COST\nOF GOODS SOLD",
+  ];
+
+  wisHdrs.forEach((h, ci) => {
+    put(5, ci, h, "s", {
+      font: f.hdr(),
+      fill: hdrFillForCol(ci),
+      alignment: a.ctr(true),
+      border: hdrBorder,
+    });
+  });
+  cogsHdrs.forEach((h, i) => {
+    put(5, COGS_START + i, h, "s", {
+      font: f.hdr(),
+      fill: hdrFill,
+      alignment: a.ctr(true),
+      border: hdrBorder,
+    });
+  });
+
+  // Data rows
+  rows.forEach((r, i) => {
+    const ri = 6 + i;
+    const totalCost = exportCurrencyVal(r.totalUnitCost);
+    const avgCost = exportCurrencyVal(r.avgUnitCost);
+    const varAmt = exportCurrencyVal(r.varianceAmount);
+
+    const wisCells = [
+      { ...{ v: r.no, t: "n" }, al: a.ctr(), fmt: null, fnt: f.body("7F7F7F"), ci: 0 },
+      { v: r.productDescription, t: "s", al: a.left(true), fmt: null, fnt: f.body(), ci: 1 },
+      { v: r.sku, t: "s", al: a.ctr(), fmt: null, fnt: f.sku(), ci: 2 },
+      { v: formatExportDate(r.lastAcceptanceDate), t: "s", al: a.ctr(), fmt: null, fnt: f.body("7F7F7F"), ci: 3 },
+      { v: r.qtyAsPerWis ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body("000000", true), ci: 4 },
+      { ...totalCost, al: a.right(), fmt: phpFmt, fnt: f.body(), ci: 5 },
+      { ...avgCost, al: a.right(), fmt: phpFmt, fnt: f.body(), ci: 6 },
+      { v: r.qtyAsPerCounting ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body("000000", true), ci: 7 },
+      { v: r.varianceQty ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body(r.varianceQty === 0 ? "000000" : "C00000", true), ci: 8 },
+      { ...varAmt, al: a.right(), fmt: phpFmt, fnt: f.body(r.varianceAmount === 0 ? "000000" : "C00000", true), ci: 9 },
+      { v: r.remarks || "", t: "s", al: a.left(true), fmt: null, fnt: f.body("7F7F7F"), ci: 10 },
+    ];
+
+    wisCells.forEach((cell) => {
+      put(ri, cell.ci, cell.v, cell.t, {
+        font: cell.fnt,
+        fill: fillForCol(cell.ci),
+        alignment: cell.al,
+        border: dashBorder,
+        ...(cell.fmt ? { numFmt: cell.fmt } : {}),
+      });
+    });
+
+    const cogsTotalCell = exportCurrencyVal(r.totalUnitCost);
+    const cogsAvgCell = exportCurrencyVal(r.avgUnitCost);
+    const cogsCells = [
+      { v: r.no, t: "n", al: a.ctr(), fmt: null, fnt: f.body("7F7F7F"), off: 0 },
+      { v: r.productDescription, t: "s", al: a.left(true), fmt: null, fnt: f.body(), off: 1 },
+      { v: r.sku, t: "s", al: a.ctr(), fmt: null, fnt: f.body("E87C27", true), off: 2 },
+      { v: r.qtyAsPerWis ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body("000000", true), off: 3 },
+      { ...cogsAvgCell, al: a.right(), fmt: phpFmt, fnt: f.body(), off: 4 },
+      { ...cogsTotalCell, al: a.right(), fmt: phpFmt, fnt: f.body(r.totalUnitCost > 0 ? "000000" : "7F7F7F", true), off: 5 },
+    ];
+
+    cogsCells.forEach((cell) => {
+      const col = COGS_START + cell.off;
+      put(ri, col, cell.v, cell.t, {
+        font: cell.fnt,
+        fill: peachFill,
+        alignment: cell.al,
+        border: dashBorder,
+        ...(cell.fmt ? { numFmt: cell.fmt } : {}),
+      });
+    });
+  });
+
+  const lastRow = Math.max(6 + rows.length - 1, 5);
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
+
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+    { s: { r: 2, c: 1 }, e: { r: 2, c: 3 } },
+    { s: { r: 3, c: 1 }, e: { r: 3, c: 3 } },
+    { s: { r: 2, c: 8 }, e: { r: 3, c: 8 } },
+    { s: { r: 0, c: COGS_START }, e: { r: 0, c: LAST_COL } },
+    { s: { r: 1, c: COGS_START }, e: { r: 1, c: LAST_COL } },
+    { s: { r: 2, c: COGS_START + 1 }, e: { r: 2, c: COGS_START + 3 } },
+    { s: { r: 3, c: COGS_START + 1 }, e: { r: 3, c: COGS_START + 3 } },
+  ];
+
+  ws["!cols"] = [
+    { wch: 5 },
+    { wch: 38 },
+    { wch: 11 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 2 },
+    { wch: 5 },
+    { wch: 38 },
+    { wch: 11 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 20 },
+  ];
+
+  ws["!rows"] = [
+    { hpt: 22 },
+    { hpt: 18 },
+    { hpt: 20 },
+    { hpt: 20 },
+    { hpt: 6 },
+    { hpt: 44 },
+    ...rows.map(() => ({ hpt: 32 })),
+  ];
+
   XLSX.utils.book_append_sheet(wb, ws, "ENDING INVENTORY");
   XLSX.writeFile(wb, "TDT_WIS_Ending_Inventory_Export.xlsx");
 }
@@ -211,8 +440,6 @@ function StartInventoryModal({ data, onClose, onSave }) {
           <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close" onMouseEnter={(e) => { e.currentTarget.style.background = "#e5e7eb"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "#f3f4f6"; }}><IconX size={18} /></button>
         </div>
 
-
-
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0, padding: "0 16px 16px" }}>
           <div style={{ flex: 1, overflow: "auto", border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 1050 }}>
@@ -237,33 +464,23 @@ function StartInventoryModal({ data, onClose, onSave }) {
                     <td style={{ padding: "8px 10px", color: "#9ca3af", fontSize: 11 }}>{row.no}</td>
                     <td style={{ padding: "8px 10px", color: "#374151", maxWidth: 240, fontSize: 11 }}>{row.productDescription}</td>
                     <td style={{ padding: "8px 10px", color: "#e87c27", fontWeight: 700 }}>{row.sku}</td>
-                    {/* EDITABLE: Last Acceptance Date */}
                     <td style={{ padding: "6px 8px" }}>
                       <input type="date" value={ed.lastAcceptanceDate||""} onChange={e => setField(row.no, "lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
                     </td>
-                    {/* READ-ONLY: Qty as per WIS (from WIS import) */}
-                    <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 700, fontSize: 11 }}>
-                      {qty.toLocaleString()}
-                    </td>
-                    {/* AUTO: Total Cost */}
+                    <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 700, fontSize: 11 }}>{qty.toLocaleString()}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 600, fontSize: 11 }}>{totalCost > 0 ? fmtPHP(totalCost) : "—"}</td>
-                    {/* EDITABLE: Avg Unit Cost */}
                     <td style={{ padding: "6px 8px", textAlign: "right" }}>
                       <input type="number" min={0} step="0.01" value={ed.avgUnitCost ?? ""} onChange={e => setField(row.no, "avgUnitCost", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
                     </td>
-                    {/* EDITABLE: Qty as per Counting */}
                     <td style={{ padding: "6px 8px", textAlign: "right" }}>
                       <input type="number" min={0} value={ed.qtyAsPerCounting ?? ""} onChange={e => setField(row.no, "qtyAsPerCounting", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
                     </td>
-                    {/* AUTO: Variance Qty */}
                     <td style={{ padding: "8px 10px", textAlign: "right" }}>
                       <span style={{ padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: varQty===0?"#d1fae5":varQty>0?"#dcfce7":"#fee2e2", color: varQty===0?"#065f46":varQty>0?"#16a34a":"#991b1b" }}>{varQty}</span>
                     </td>
-                    {/* AUTO: Variance Amount */}
                     <td style={{ padding: "8px 10px", textAlign: "right" }}>
                       <span style={{ padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: varAmt===0?"#d1fae5":"#fee2e2", color: varAmt===0?"#065f46":"#991b1b" }}>{varAmt===0?"—":fmtPHP(varAmt)}</span>
                     </td>
-                    {/* EDITABLE: Remarks */}
                     <td style={{ padding: "6px 8px" }}>
                       <input value={ed.remarks||""} onChange={e => setField(row.no, "remarks", e.target.value)} placeholder="Notes..." {...modalCellInput({ width: 150 })} />
                     </td>
@@ -302,33 +519,25 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
       <td style={{ padding: "8px 16px", color: "#9ca3af", fontSize: 11 }}>{item.no}</td>
       <td style={{ padding: "8px 16px", color: "#374151", fontSize: 11, maxWidth: 240 }}>{item.productDescription}</td>
       <td style={{ padding: "8px 16px", color: "#e87c27", fontWeight: 700 }}>{item.sku}</td>
-      {/* EDITABLE: Last Acceptance Date */}
       <td style={{ padding: "6px 10px" }}>
         <input type="date" value={draft.lastAcceptanceDate||""} onChange={e => set("lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
       </td>
-      {/* READ-ONLY: Qty as per WIS */}
       <td style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, color: "#374151", fontSize: 11 }}>
         {(parseFloat(draft.qtyAsPerWis) || 0).toLocaleString()}
       </td>
-      {/* AUTO: Total Unit Cost */}
       <td style={{ padding: "8px 16px", textAlign: "right", color: "#374151", fontSize: 11 }}>{fmtPHP(draft.totalUnitCost)}</td>
-      {/* EDITABLE: Avg Unit Cost */}
       <td style={{ padding: "6px 10px", textAlign: "right" }}>
         <input type="number" min={0} step="0.01" value={draft.avgUnitCost ?? ""} onChange={e => set("avgUnitCost", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
       </td>
-      {/* EDITABLE: Qty as per Counting */}
       <td style={{ padding: "6px 10px", textAlign: "right" }}>
         <input type="number" min={0} value={draft.qtyAsPerCounting ?? ""} onChange={e => set("qtyAsPerCounting", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
       </td>
-      {/* AUTO: Variance Qty */}
       <td style={{ padding: "8px 16px", textAlign: "right" }}>
         <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: draft.varianceQty===0?"#d1fae5":"#fee2e2", color: draft.varianceQty===0?"#065f46":"#991b1b" }}>{draft.varianceQty}</span>
       </td>
-      {/* AUTO: Variance Amount */}
       <td style={{ padding: "8px 16px", textAlign: "right" }}>
         <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: draft.varianceAmount===0?"#d1fae5":"#fee2e2", color: draft.varianceAmount===0?"#065f46":"#991b1b" }}>{draft.varianceAmount===0?"—":fmtPHP(draft.varianceAmount)}</span>
       </td>
-      {/* EDITABLE: Remarks */}
       <td style={{ padding: "6px 10px" }}>
         <input value={draft.remarks||""} onChange={e => set("remarks", e.target.value)} placeholder="Notes..." {...modalCellInput({ width: 150 })} />
       </td>
@@ -377,7 +586,7 @@ export default function EndingInventoryPage({
           (r.productDescription || "").toLowerCase().includes(q)
       );
     }
-    if (statusFilter === "Total Stock")     d = d.filter(r => r.qtyAsPerWis > 0);
+    if (statusFilter === "Total Stock")  d = d.filter(r => r.qtyAsPerWis > 0);
     if (statusFilter === "Out of Stock") d = d.filter(r => r.qtyAsPerWis === 0);
     if (statusFilter === "Variance")     d = d.filter(r => r.varianceQty !== 0);
     return d;
@@ -393,12 +602,7 @@ export default function EndingInventoryPage({
     setImporting(true);
     importEndingInventory(file, (parsed) => {
       setImporting(false);
-      setInventoryData(
-        parsed.map((p) => ({
-          ...p,
-          totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost,
-        }))
-      );
+      setInventoryData(parsed.map((p) => ({ ...p, totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost })));
       setCurrentPage(1);
       setEditingNo(null);
       showToast(`Imported ${parsed.length} SKUs successfully.`);
@@ -445,37 +649,11 @@ export default function EndingInventoryPage({
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
-      {/* Summary Cards — same style as Home dashboard */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
-        <MetricCard
-          icon={<IconBox size={34} />}
-          label="Total SKUs"
-          value={String(inventoryData.length)}
-          badge={{ text: "All ending inventory rows", color: "#16a34a", bg: "#dcfce7" }}
-        />
-        <MetricCard
-          icon={<IconStock size={30} />}
-          label="Total Stock"
-          value={String(inStockCount)}
-          badge={{ text: "SKUs with WIS qty > 0", color: "#16a34a", bg: "#dcfce7" }}
-        />
-        <MetricCard
-          icon={<IconWarning size={22} />}
-          label="Variance Items"
-          value={String(varianceCount)}
-          badge={{
-            text: varianceCount > 0 ? "Needs physical count review" : "No variances",
-            color: varianceCount > 0 ? "#dc2626" : "#6b7280",
-            bg: varianceCount > 0 ? "#fee2e2" : "transparent",
-            icon: varianceCount > 0 ? <IconWarning size={12} /> : undefined,
-          }}
-        />
-        <MetricCard
-          icon={<IconBarChart size={30} />}
-          label="Total Inventory Value"
-          value={formatCompactPHP(totalValue)}
-          badge={{ text: fmtPHP(totalValue), color: "#16a34a", bg: "#dcfce7" }}
-        />
+        <MetricCard icon={<IconBox size={34} />} label="Total SKUs" value={String(inventoryData.length)} badge={{ text: "All ending inventory rows", color: "#16a34a", bg: "#dcfce7" }} />
+        <MetricCard icon={<IconStock size={30} />} label="Total Stock" value={String(inStockCount)} badge={{ text: "SKUs with WIS qty > 0", color: "#16a34a", bg: "#dcfce7" }} />
+        <MetricCard icon={<IconWarning size={22} />} label="Variance Items" value={String(varianceCount)} badge={{ text: varianceCount > 0 ? "Needs physical count review" : "No variances", color: varianceCount > 0 ? "#dc2626" : "#6b7280", bg: varianceCount > 0 ? "#fee2e2" : "transparent", icon: varianceCount > 0 ? <IconWarning size={12} /> : undefined }} />
+        <MetricCard icon={<IconBarChart size={30} />} label="Total Inventory Value" value={formatCompactPHP(totalValue)} badge={{ text: fmtPHP(totalValue), color: "#16a34a", bg: "#dcfce7" }} />
       </div>
 
       <PageToolbar
@@ -544,7 +722,7 @@ export default function EndingInventoryPage({
                         <td style={{ padding: "12px 16px", textAlign: "center" }}>
                           <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceAmount===0?"#d1fae5":"#fee2e2", color: item.varianceAmount===0?"#065f46":"#991b1b" }}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
                         </td>
-                         <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150, textAlign: "center" }}>{item.remarks || "—"}</td>
+                        <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150, textAlign: "center" }}>{item.remarks || "—"}</td>
                       </>
                     ) : (
                       <>

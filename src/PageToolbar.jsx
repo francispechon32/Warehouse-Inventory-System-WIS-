@@ -152,7 +152,7 @@ export default function PageToolbar({
             </button>
           )}
           {(importExport || row2Start) && (
-            <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap", alignItems: "center", position: "relative", zIndex: 5 }}>
               {importExport && (
                 <>
                   {showImport && (
@@ -181,12 +181,19 @@ export default function PageToolbar({
                   )}
                   <button
                     type="button"
-                    onClick={importExport.onExport}
-                    disabled={importExport.exportDisabled}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      importExport.onExport?.();
+                    }}
+                    disabled={!!importExport.exportDisabled}
                     style={{
                       ...exportButtonStyle,
+                      position: "relative",
+                      zIndex: 2,
                       cursor: importExport.exportDisabled ? "not-allowed" : "pointer",
                       opacity: importExport.exportDisabled ? 0.6 : 1,
+                      pointerEvents: importExport.exportDisabled ? "none" : "auto",
                     }}
                   >
                     <IconDownload size={16} />

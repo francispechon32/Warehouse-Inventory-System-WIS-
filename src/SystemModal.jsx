@@ -1,565 +1,907 @@
 import { useState } from "react";
-import {
-  MODAL_THEME,
-  ModalBackdrop,
-  ModalFrame,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  ModalSurface,
-  ModalCallout,
-  ModalSearch,
-  ModalBtn,
-  ModalFaqItem,
-  ModalContactCard,
-  ModalGuideTab,
-  ModalGuidePanel,
-} from "./ModalUI";
 
-const MODAL_META = {
-  logout: { title: "Confirm Logout", subtitle: "Securely exit your active session", center: false, width: 440 },
-  "user-management": { title: "User Management", subtitle: "Manage system administrators and operators", center: true, width: 780 },
-  "stock-limits": { title: "Configure Stock Thresholds", subtitle: "Set minimum stock alert level warnings per category", center: true, width: 900 },
-  "user-guide": { title: "WIS Platform User Guide", subtitle: "Step-by-step instructions for utilizing the system", center: true, width: 860 },
-  faqs: { title: "Frequently Asked Questions", subtitle: "Answers to typical issues and questions", center: true, width: 680 },
-  about: { title: "About WIS Platform", subtitle: "Technical details and software information", center: true, width: 500 },
-  contact: { title: "Contact Customer Support", subtitle: "Send a ticket to support engineers", center: true, width: 660 },
-};
-
-const FAQ_ITEMS = [
-  { q: "How are stock alert levels determined?", a: "Stock alerts are triggered when the quantity of a product falls below the threshold set in Settings → Stock Limits. Limits apply per SKU and update as you save changes." },
-  { q: "Can I undo a Stock Out transaction?", a: "Yes. Record a corrective Stock In entry on Stock Sheets to balance the ledger, or register a customer Return on the Returns page to restore on-hand quantity." },
-  { q: "How do I add new system operator accounts?", a: "Administrators open Settings → User Management, choose Add new user, then enter the full name and role. The account appears in the list right away." },
-  { q: "Where do I track pending supplier deliveries?", a: "Open Purchasing Order and filter by Pending status, or use the Home dashboard Pending Deliveries metric to jump there directly." },
-  { q: "How do I generate inventory reports?", a: "Use Export on Ending Inventory, Stock Sheets, or Backload Inventory to download Excel files. Purchasing Order also supports export for PO summaries." },
-  { q: "How do I reset my password?", a: "On the login screen, use Forgot password and follow the email link. If you are already signed in, contact your administrator or IT support to reset access." },
-];
-
-const GUIDE_TABS = [
-  { id: "getting-started", emoji: "🚀", label: "Getting Started" },
-  { id: "stock", emoji: "📋", label: "Stock Sheets" },
-  { id: "ending", emoji: "📦", label: "Ending Inventory" },
-  { id: "po", emoji: "🛒", label: "Purchase Orders" },
-];
-
-function IconLogOut({ size = 26 }) {
+/* ── tiny icon helpers ── */
+function X({ s = 16 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+function ChevL({ s = 14 }) {
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
+function ChevR({ s = 14 }) {
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18l6-6-6-6" />
     </svg>
   );
 }
 
-export default function SystemModal({
-  type,
-  onClose,
-  onAction,
-  products = [],
-  setProducts,
-}) {
-  const [users, setUsers] = useState([
-    { id: 1, name: "Francis Pechon", email: "francis@wis.com", role: "Administrator", status: "Active" },
-    { id: 2, name: "Chelsea Lopez", email: "chelsea.lopez@tdt.com", role: "Warehouse Manager", status: "Active" },
-    { id: 3, name: "Jane Smith", email: "jane@wis.com", role: "Staff", status: "Active" },
-    { id: 4, name: "Alex Jones", email: "alex.jones@wis.com", role: "Staff", status: "Inactive" },
-  ]);
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [newUserName, setNewUserName] = useState("");
-  const [userSearch, setUserSearch] = useState("");
-  const [newUserRole, setNewUserRole] = useState("Staff");
-  const [localThresholdRows, setLocalThresholdRows] = useState(() =>
-    (products || []).map((p) => ({
-      id: p.id,
-      sku: p.sku,
-      desc: p.description,
-      current: Number(p.stock) || 0,
-      warningLevel: Number(p.warningLevel) || 50,
-      targetMax: Number(p.targetMax) || (Number(p.warningLevel) || 50) * 4,
-    }))
+/* ─────────────────────────────────────────────
+   USER GUIDE DATA
+───────────────────────────────────────────── */
+const GUIDE_PAGES = [
+  {
+    id: "dashboard",
+    title: "Dashboard Overview",
+    icon: "🏠",
+    content: {
+      intro: "The Dashboard is your central command center for monitoring warehouse activity in real-time.",
+      sections: [
+        {
+          heading: "Metric Cards",
+          body: "Four key performance indicators are displayed at the top: Total List of SKU, Total Pending Deliveries, Total Inventory Value, and Transactions Today. Click any card to navigate directly to the relevant module.",
+        },
+        {
+          heading: "Inventory Movement Chart",
+          body: "A bar chart comparing daily Stock In vs. Stock Out over the last 7 days. Orange bars represent incoming stock; teal bars represent outgoing stock.",
+        },
+        {
+          heading: "Top Released Items",
+          body: "Displays the top 5 most-released SKUs based on cumulative stock-out transactions. Progress bars show relative release volume.",
+        },
+        {
+          heading: "Stock Alerts",
+          body: "Lists all SKUs whose current quantity is at or below the defined warning level. Click any row to view the affected SKU in the Product page.",
+        },
+        {
+          heading: "Recent Activity",
+          body: "A live feed of the latest stock-in and stock-out transactions, sorted by most recent. Green dots = received; red dots = released.",
+        },
+      ],
+    },
+  },
+  {
+    id: "product",
+    title: "Product (List of SKU)",
+    icon: "📦",
+    content: {
+      intro: "The Product page maintains the master catalog of all Stock Keeping Units (SKUs) tracked in the warehouse.",
+      sections: [
+        {
+          heading: "Adding a New SKU",
+          body: "Click the '+ Add Product' button in the top-right corner. Fill in the SKU code, description, unit of measure, warning level, and target max. Click Save to confirm.",
+        },
+        {
+          heading: "Editing a Product",
+          body: "Click the edit (pencil) icon on any row. Modify the necessary fields and click Save. Changes are reflected immediately across all modules.",
+        },
+        {
+          heading: "Status Filters",
+          body: "Use the status filter dropdown to view All, In Stock, Low Stock, or Out of Stock items. Low stock items are highlighted for quick identification.",
+        },
+        {
+          heading: "Warning Level",
+          body: "The warning level is the minimum quantity threshold. When a SKU's stock drops to or below this number, it appears in Stock Alerts on the Dashboard.",
+        },
+        {
+          heading: "Search & Sort",
+          body: "Use the search bar to find SKUs by code or description. Click column headers to sort ascending or descending.",
+        },
+      ],
+    },
+  },
+  {
+    id: "management",
+    title: "Management",
+    icon: "🗂️",
+    isParent: true,
+    subPages: [
+      {
+        id: "ending-inventory",
+        title: "Ending Inventory",
+        icon: "📋",
+        content: {
+          intro: "The Ending Inventory page records monthly closing stock values for each SKU in the warehouse.",
+          sections: [
+            {
+              heading: "What is Ending Inventory?",
+              body: "Ending inventory is the total quantity and value of goods remaining in the warehouse at the close of a period (typically month-end). It serves as the beginning inventory for the next period.",
+            },
+            {
+              heading: "Editing Records",
+              body: "Click on any row to update the ending quantity or unit cost for a SKU. The system automatically computes the total value (quantity × unit cost).",
+            },
+            {
+              heading: "Total Inventory Value",
+              body: "The aggregate ending inventory value is surfaced on the Dashboard metric card and updates in real-time as records are modified.",
+            },
+            {
+              heading: "Export",
+              body: "Use the Export button to download the current ending inventory as a CSV or Excel file for reporting and auditing purposes.",
+            },
+          ],
+        },
+      },
+      {
+        id: "backload-inventory",
+        title: "Backload Inventory",
+        icon: "🚛",
+        content: {
+          intro: "Backload Inventory tracks goods that are being shipped back to the warehouse or supplier from delivery trucks.",
+          sections: [
+            {
+              heading: "What is Backload?",
+              body: "Backloaded items are goods returned from delivery routes — either unsold items, damaged goods, or items returned by customers during a route.",
+            },
+            {
+              heading: "Recording a Backload",
+              body: "Click '+ Add Backload'. Enter the SKU, quantity, reason (e.g. unsold, damaged, customer return), and the date. Save the record to update inventory.",
+            },
+            {
+              heading: "Impact on Inventory",
+              body: "Backloaded quantities are added back to the available stock for the relevant SKU, and a stock-in transaction is logged in the Stock Sheets.",
+            },
+            {
+              heading: "Status Tracking",
+              body: "Each backload record carries a status: Received, Pending Inspection, or Disposed. Update the status as items are processed.",
+            },
+          ],
+        },
+      },
+      {
+        id: "advance-customer-po",
+        title: "Advance Customer PO",
+        icon: "👥",
+        content: {
+          intro: "Advance Customer PO manages pre-orders placed by customers before stock is physically available for release.",
+          sections: [
+            {
+              heading: "What is an Advance PO?",
+              body: "An Advance Customer Purchase Order is a commitment from a customer to purchase a specific quantity of a SKU on a future date, often before the goods arrive at the warehouse.",
+            },
+            {
+              heading: "Creating an Advance PO",
+              body: "Click '+ Add Advance PO'. Enter the customer name, SKU, quantity, expected fulfillment date, and any notes. The system flags the stock as reserved.",
+            },
+            {
+              heading: "Reserved Stock",
+              body: "SKUs linked to an Advance PO show a 'Reserved' indicator on the Product page. Reserved quantities are deducted from available (free) stock in real-time.",
+            },
+            {
+              heading: "Fulfillment",
+              body: "When goods arrive and the PO is ready for release, update the status to 'Fulfilled'. This triggers a stock-out transaction automatically in the Stock Sheets.",
+            },
+          ],
+        },
+      },
+      {
+        id: "return",
+        title: "Return",
+        icon: "↩️",
+        content: {
+          intro: "The Return module handles all items sent back to the warehouse by customers after delivery.",
+          sections: [
+            {
+              heading: "Types of Returns",
+              body: "Returns can be categorized as: Damaged, Wrong Item, Customer Refusal, or Defective. Each category affects downstream reporting differently.",
+            },
+            {
+              heading: "Creating a Return Record",
+              body: "Click '+ Add Return'. Select the SKU, enter the quantity, choose the return reason, and input the originating delivery reference. Save to log the return.",
+            },
+            {
+              heading: "Inventory Adjustment",
+              body: "Returned items in 'Good Condition' are automatically added back to available stock. Items marked 'Damaged' or 'Defective' are quarantined and require manual disposition.",
+            },
+            {
+              heading: "Return Reports",
+              body: "View return summaries by date range, SKU, or reason. This data helps identify recurring product quality issues or delivery problems.",
+            },
+          ],
+        },
+      },
+    ],
+  },
+  {
+    id: "stock-sheets",
+    title: "Stock Sheets",
+    icon: "📊",
+    content: {
+      intro: "Stock Sheets provide a complete transaction ledger of all stock movements — both inbound (Stock In) and outbound (Stock Out).",
+      sections: [
+        {
+          heading: "Stock In",
+          body: "Records all incoming goods: supplier deliveries, backloads, and returns. Each entry captures the date, SKU, quantity, reference number, and remarks.",
+        },
+        {
+          heading: "Stock Out",
+          body: "Records all outgoing goods: customer deliveries, advance PO fulfillments, and disposals. Entries include the date, SKU, quantity, destination, and reference.",
+        },
+        {
+          heading: "Adding Transactions",
+          body: "Use the '+ Add Stock In' or '+ Add Stock Out' buttons to log new movements. The SKU's available quantity updates immediately upon saving.",
+        },
+        {
+          heading: "Filtering & Search",
+          body: "Filter by date range, transaction type, or SKU. Use the search bar for quick lookup by reference number or product description.",
+        },
+        {
+          heading: "Export",
+          body: "Export stock sheet data to Excel for external reporting, audit submissions, or integration with accounting systems.",
+        },
+      ],
+    },
+  },
+  {
+    id: "purchasing-order",
+    title: "Purchasing Order",
+    icon: "🛒",
+    content: {
+      intro: "The Purchasing Order module manages all purchase orders sent to suppliers for replenishing warehouse inventory.",
+      sections: [
+        {
+          heading: "Creating a Purchase Order",
+          body: "Click '+ New PO'. Select the supplier, add line items (SKU + quantity), set the expected delivery date, and submit. The PO status starts as 'Pending'.",
+        },
+        {
+          heading: "PO Statuses",
+          body: "Pending — awaiting delivery. Received — goods have arrived and stock has been updated. Cancelled — PO was voided before fulfillment.",
+        },
+        {
+          heading: "Receiving a PO",
+          body: "When goods arrive, open the PO and click 'Mark as Received'. The system logs a Stock In transaction for each line item and updates product quantities.",
+        },
+        {
+          heading: "Pending Deliveries",
+          body: "The Dashboard metric card shows the total count of pending POs. Click it to jump directly to the Purchasing Order page filtered by 'Pending' status.",
+        },
+      ],
+    },
+  },
+];
+
+/* ─────────────────────────────────────────────
+   TEAM DATA  (about modal)
+───────────────────────────────────────────── */
+const TEAM = [
+  {
+    name: "Chelsea Lopez",
+    role: "Frontend Developer",
+    initials: "CL",
+    color: "#e87c27",
+    bg: "#fff7ed",
+    contributions: ["Dashboard UI", "Product Page", "Stock Sheets"],
+  },
+  {
+    name: "Mark Reyes",
+    role: "Frontend Developer",
+    initials: "MR",
+    color: "#0ea5e9",
+    bg: "#e0f2fe",
+    contributions: ["Purchasing Order", "Ending Inventory", "Returns Module"],
+  },
+  {
+    name: "Alyssa Santos",
+    role: "UI/UX Designer",
+    initials: "AS",
+    color: "#8b5cf6",
+    bg: "#ede9fe",
+    contributions: ["Wireframes", "Design System", "User Flows"],
+  },
+  {
+    name: "James Villanueva",
+    role: "QA Engineer",
+    initials: "JV",
+    color: "#10b981",
+    bg: "#d1fae5",
+    contributions: ["Test Cases", "Bug Reporting", "UAT Coordination"],
+  },
+  {
+    name: "Nicole Cruz",
+    role: "Business Analyst",
+    initials: "NC",
+    color: "#f43f5e",
+    bg: "#ffe4e6",
+    contributions: ["Requirements", "Process Mapping", "Stakeholder Sync"],
+  },
+  {
+    name: "Ryan Mendoza",
+    role: "Project Manager",
+    initials: "RM",
+    color: "#64748b",
+    bg: "#f1f5f9",
+    contributions: ["Sprint Planning", "Timeline", "Deliverable Tracking"],
+  },
+];
+
+const ROLE_BADGE_COLORS = {
+  "Frontend Developer": { bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
+  "UI/UX Designer":    { bg: "#ede9fe", color: "#6d28d9", border: "#ddd6fe" },
+  "QA Engineer":       { bg: "#d1fae5", color: "#047857", border: "#a7f3d0" },
+  "Business Analyst":  { bg: "#ffe4e6", color: "#be123c", border: "#fecdd3" },
+  "Project Manager":   { bg: "#f1f5f9", color: "#334155", border: "#cbd5e1" },
+};
+
+/* ─────────────────────────────────────────────
+   MODAL SHELL
+───────────────────────────────────────────── */
+export default function SystemModal({ type, onClose, onAction, products, setProducts }) {
+  return (
+    <>
+      <style>{`
+        @keyframes wisModalIn { from { opacity:0; transform:scale(.95) translateY(8px) } to { opacity:1; transform:none } }
+        .wis-modal-overlay { position:fixed; inset:0; z-index:9000; background:rgba(15,23,42,.55); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; padding:20px; }
+        .wis-modal-box { background:#fff; border-radius:20px; width:100%; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.22); animation:wisModalIn .28s cubic-bezier(.16,1,.3,1); }
+      `}</style>
+      <div className="wis-modal-overlay" onClick={onClose}>
+        <div className="wis-modal-box" style={{ maxWidth: type === "user-guide" ? 820 : type === "contact" ? 620 : type === "faqs" ? 680 : 540, maxHeight: "92vh" }} onClick={e => e.stopPropagation()}>
+          {type === "user-guide"      && <UserGuideModal    onClose={onClose} />}
+          {type === "about"           && <AboutModal        onClose={onClose} />}
+          {type === "logout"          && <LogoutModal       onClose={onClose} onAction={onAction} />}
+          {type === "user-management" && <UserMgmtModal     onClose={onClose} />}
+          {type === "stock-limits"    && <StockLimitsModal  onClose={onClose} products={products} setProducts={setProducts} onAction={onAction} />}
+          {type === "faqs"            && <FAQsModal         onClose={onClose} />}
+          {type === "contact"         && <ContactModal      onClose={onClose} onAction={onAction} />}
+        </div>
+      </div>
+    </>
   );
-  const [guideTab, setGuideTab] = useState("getting-started");
-  const [localFaqs, setLocalFaqs] = useState({});
-  const [contactName, setContactName] = useState("Chelsea Lopez");
-  const [contactEmail, setContactEmail] = useState("chelsea.lopez@tdt.com");
-  const [contactTopic, setContactTopic] = useState("Question");
-  const [contactMessage, setContactMessage] = useState("");
-  const [stockSearch, setStockSearch] = useState("");
+}
 
-  const meta = MODAL_META[type] || MODAL_META.contact;
-  const theme = MODAL_THEME[type] || MODAL_THEME.contact;
+/* ─────────────────────────────────────────────
+   USER GUIDE MODAL
+───────────────────────────────────────────── */
+function UserGuideModal({ onClose }) {
+  const [selectedPage, setSelectedPage] = useState(GUIDE_PAGES[0]);
+  const [selectedSub,  setSelectedSub]  = useState(null);
 
-  const handleSaveLimits = () => {
-    const byId = new Map(localThresholdRows.map((r) => [r.id, r]));
-    setProducts((prev) =>
-      prev.map((p) => {
-        const row = byId.get(p.id);
-        if (!row) return p;
-        return {
-          ...p,
-          warningLevel: Math.max(1, Number(row.warningLevel) || 1),
-          targetMax: Math.max(1, Number(row.targetMax) || 1),
-        };
-      })
-    );
-    onAction("Stock limits saved successfully!", "success");
-    onClose();
+  const activePage = selectedSub || selectedPage;
+  const mgmtPage   = GUIDE_PAGES.find(p => p.isParent);
+
+  const handleNav = (page) => {
+    setSelectedPage(page);
+    setSelectedSub(null);
   };
 
-  const handleContactSubmit = (e) => {
-    e.preventDefault();
-    if (!contactMessage.trim()) {
-      onAction("Please type a message before submitting.", "error");
-      return;
-    }
-    onAction("Support ticket sent! We'll reply within 24 hours.", "success");
-    onClose();
+  const handleSubNav = (sub) => {
+    setSelectedSub(sub);
   };
-
-  const filteredUsers = users.filter(
-    (u) => !userSearch || u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase())
-  );
-
-  const stockRows = localThresholdRows;
 
   return (
-    <ModalBackdrop onClose={onClose}>
-      <ModalFrame maxWidth={meta.width}>
-        <ModalHeader
-          theme={theme}
-          title={meta.title}
-          subtitle={meta.subtitle}
-          center={meta.center}
-          hideIcon={["user-management", "stock-limits", "user-guide", "about"].includes(type)}
-          onClose={onClose}
-        />
-        <ModalBody>
-          {type === "logout" && (
-            <ModalSurface style={{ textAlign: "center", padding: "28px 24px" }}>
-              <div style={{
-                width: 64, height: 64, borderRadius: "50%", background: "#fee2e2",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#dc2626", margin: "0 auto 18px",
-              }}>
-                <IconLogOut size={28} />
-              </div>
-              <p style={{ margin: "0 0 24px", fontSize: 14, color: "#475569", lineHeight: 1.55 }}>
-                Are you sure you want to log out? Any unsaved edits might be discarded. You will be redirected to the login screen.
-              </p>
-              <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
-                <ModalBtn variant="secondary" onClick={onClose}>Cancel</ModalBtn>
-                <ModalBtn variant="danger" onClick={() => { onAction("Logged out successfully!", "success"); onClose(); }}>Yes, Log Out</ModalBtn>
-              </div>
-            </ModalSurface>
-          )}
+    <>
+      <style>{`
+        .wg-sidebar { width:220px; min-width:220px; background:#f8fafc; border-right:1px solid #e9ecef; overflow-y:auto; padding:8px 0 20px; flex-shrink:0; }
+        .wg-nav-btn { display:flex; align-items:center; gap:9px; width:100%; padding:9px 16px; border:none; background:none; text-align:left; cursor:pointer; font-size:13px; font-weight:500; color:#6b7280; border-left:3px solid transparent; transition:all .15s; font-family:inherit; }
+        .wg-nav-btn:hover { background:#f1f5f9; color:#111827; }
+        .wg-nav-btn.active { border-left-color:#e87c27; background:#fff7ed; color:#c2410c; font-weight:600; }
+        .wg-content { flex:1; overflow-y:auto; padding:28px 30px; text-align:left; }
+        .wg-content::-webkit-scrollbar { width:4px; }
+        .wg-content::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:2px; }
+        .wg-section { margin-bottom:22px; padding-bottom:22px; border-bottom:1px solid #f3f4f6; }
+        .wg-section:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
+      `}</style>
 
-          {type === "user-management" && (
-            <ModalSurface>
-              <div className="wis-modal-toolbar">
-                <ModalSearch placeholder="Search users..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
-                <ModalBtn variant="primary" onClick={() => setShowAddUser((v) => !v)}>
-                  {showAddUser ? "Cancel" : "+ Add new user"}
-                </ModalBtn>
-              </div>
-              {showAddUser && (
-                <div style={{ background: "#f8fafc", border: "1px solid #e8ecf1", borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                  <p style={{ margin: "0 0 12px", fontWeight: 700, color: "#0f172a" }}>New user</p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                    <div>
-                      <label className="wis-modal-form-label">Full name</label>
-                      <input className="wis-modal-form-input" placeholder="e.g. Maria Santos" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="wis-modal-form-label">Assign role</label>
-                      <select className="wis-modal-form-input" value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}>
-                        <option value="Administrator">Administrator</option>
-                        <option value="Warehouse Manager">Warehouse Manager</option>
-                        <option value="Staff">Staff</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                    <ModalBtn variant="secondary" onClick={() => { setShowAddUser(false); setNewUserName(""); }}>Cancel</ModalBtn>
-                    <ModalBtn variant="primary" onClick={() => {
-                      if (!newUserName.trim()) { onAction("Please enter a full name", "error"); return; }
-                      const autoEmail = `${newUserName.trim().toLowerCase().replace(/\s+/g, ".")}@wis.com`;
-                      setUsers((prev) => [...prev, { id: Date.now(), name: newUserName.trim(), email: autoEmail, role: newUserRole, status: "Active" }]);
-                      onAction(`User ${newUserName.trim()} added successfully!`, "success");
-                      setNewUserName(""); setNewUserRole("Staff"); setShowAddUser(false);
-                    }}>Save</ModalBtn>
-                  </div>
-                </div>
-              )}
-              <div className="wis-modal-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Name</th><th>Role</th><th>Last active</th><th>Status</th><th style={{ textAlign: "right" }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((u, i) => {
-                      const avatarColors = [["#E6F1FB", "#0C447C"], ["#EAF3DE", "#3B6D11"], ["#FAEEDA", "#854F0B"], ["#FAECE7", "#993C1D"]];
-                      const [avatarBg, avatarFg] = avatarColors[i % avatarColors.length];
-                      const initials = u.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-                      const lastActive = u.id <= 2 ? "Active now" : u.id === 3 ? "2 hours ago" : "Yesterday";
-                      const isNow = lastActive === "Active now";
-                      return (
-                        <tr key={u.id}>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <div style={{ width: 36, height: 36, borderRadius: "50%", background: avatarBg, color: avatarFg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{initials}</div>
-                              <div>
-                                <p style={{ margin: 0, fontWeight: 700, color: "#0f172a" }}>{u.name}</p>
-                                <p style={{ margin: "2px 0 0", fontSize: 11, color: "#94a3b8" }}>{u.email}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <select value={u.role} onChange={(e) => setUsers((prev) => prev.map((x) => x.id === u.id ? { ...x, role: e.target.value } : x))} style={{ border: "none", background: "none", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                              <option value="Administrator">Administrator</option>
-                              <option value="Warehouse Manager">Warehouse Manager</option>
-                              <option value="Staff">Staff</option>
-                            </select>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: 12, color: isNow ? "#16a34a" : "#94a3b8", display: "flex", alignItems: "center", gap: 6 }}>
-                              {isNow && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a" }} />}
-                              {lastActive}
-                            </span>
-                          </td>
-                          <td>
-                            <span onClick={() => setUsers((prev) => prev.map((x) => x.id === u.id ? { ...x, status: x.status === "Active" ? "Inactive" : "Active" } : x))} style={{
-                              fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 20, cursor: "pointer",
-                              background: u.status === "Active" ? "#dcfce7" : "#fee2e2",
-                              color: u.status === "Active" ? "#16a34a" : "#dc2626",
-                            }}>{u.status}</span>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <ModalBtn variant="secondary" disabled={u.id === 1} onClick={() => setUsers((prev) => prev.filter((x) => x.id !== u.id))} style={{ padding: "6px 12px", fontSize: 12 }}>Remove</ModalBtn>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </ModalSurface>
-          )}
+      {/* Header */}
+      <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:40, height:40, borderRadius:10, background:"linear-gradient(135deg,#e87c27,#c96b1c)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+            📖
+          </div>
+          <div>
+            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" }}>User Guide</h2>
+            <p style={{ margin:0, fontSize:11, color:"#64748b" }}>WIS Platform — How to use each module</p>
+          </div>
+        </div>
+        <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}>
+          <X s={15} />
+        </button>
+      </div>
 
-          {type === "stock-limits" && (
-            <ModalSurface>
-              <ModalCallout accent={theme.accent}>
-                Manage minimum and maximum inventory thresholds for each SKU. Warning level triggers a low-stock alert; target max is the reorder ceiling.
-              </ModalCallout>
-              <ModalSearch placeholder="Search SKU or description..." id="stock-search-input" value={stockSearch} onChange={(e) => setStockSearch(e.target.value)} />
-              <div className="wis-modal-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>SKU code</th><th>Item description</th><th style={{ textAlign: "center" }}>Current stock</th>
-                      <th style={{ textAlign: "center" }}>Warning level</th><th style={{ textAlign: "center" }}>Target max</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stockRows.filter((row) => {
-                      const q = stockSearch.trim().toLowerCase();
-                      if (!q) return true;
-                      return row.sku.toLowerCase().includes(q) || row.desc.toLowerCase().includes(q);
-                    }).map((row) => {
-                      const isLow = row.current <= row.warningLevel;
-                      return (
-                        <tr key={row.sku}>
-                          <td style={{ fontFamily: "monospace", fontSize: 12, color: "#64748b" }}>{row.sku}</td>
-                          <td style={{ fontWeight: 600, color: "#0f172a" }}>{row.desc}</td>
-                          <td style={{ textAlign: "center" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, color: isLow ? "#dc2626" : "#16a34a" }}>
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: isLow ? "#dc2626" : "#16a34a" }} />
-                              {row.current}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            <input type="number" className="wis-modal-form-input" style={{ width: 72, textAlign: "center", padding: "8px" }} value={row.warningLevel} min={1}
-                              onChange={(e) => {
-                                const v = Math.max(1, parseInt(e.target.value, 10) || 1);
-                                setLocalThresholdRows((prev) =>
-                                  prev.map((x) => (x.id === row.id ? { ...x, warningLevel: v } : x))
-                                );
-                              }} />
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            <input
-                              type="number"
-                              className="wis-modal-form-input"
-                              style={{ width: 72, textAlign: "center", padding: "8px" }}
-                              value={row.targetMax}
-                              min={1}
-                              onChange={(e) => {
-                                const v = Math.max(1, parseInt(e.target.value, 10) || 1);
-                                setLocalThresholdRows((prev) =>
-                                  prev.map((x) => (x.id === row.id ? { ...x, targetMax: v } : x))
-                                );
-                              }}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </ModalSurface>
-          )}
+      {/* Body: sidebar + content */}
+      <div style={{ display:"flex", flex:1, minHeight:0 }}>
+        {/* Sidebar nav */}
+        <div className="wg-sidebar">
+          <p style={{ fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"0.1em", textTransform:"uppercase", padding:"10px 16px 6px" }}>Modules</p>
 
-          {type === "user-guide" && (
-            <div className="wis-modal-guide-layout">
-              <div className="wis-modal-guide-sidebar">
-                {GUIDE_TABS.map((t) => (
-                  <ModalGuideTab key={t.id} active={guideTab === t.id} emoji={t.emoji} label={t.label} onClick={() => setGuideTab(t.id)} />
-                ))}
-              </div>
-              {guideTab === "getting-started" && (
-                <ModalGuidePanel title="System Introduction">
-                  <p>The Warehouse Inventory System (WIS) gives you instant tracking over steel products, stock-in pipelines, and stock-out deliveries.</p>
-                  <h5 style={{ margin: "16px 0 10px", fontSize: 13, fontWeight: 800, color: "#334155", textAlign: "left" }}>Workflow Steps</h5>
-                  <ol style={{ margin: 0, paddingLeft: 20, textAlign: "left" }}>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Access the System</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Log in using your authorized account credentials to securely access the Warehouse Inventory System (WIS).</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Review Dashboard Overview</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Upon logging in, check the dashboard for important warehouse updates and inventory summaries.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Verify Incoming Deliveries</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Before recording inventory, confirm the details of incoming deliveries. This step ensures that accurate deliveries are entered into the system.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Create or Update PO</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Proper purchase order management helps maintain organized supplier records and inventory planning.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Record Stock In/Out Transaction</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Add newly delivered items into the inventory system and all outgoing inventory. Ensures accurate monitoring of all incoming and released quantities inventory.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Monitor Inventory Level</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Regularly review inventory quantities to prevent overstocking, identify low stock items, and monitor fast-moving products. Consistent monitoring improves inventory control.</p>
-                    </li>
-                    <li style={{ marginBottom: 0 }}>
-                      <strong>Conduct Ending Inventory</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Every end of the month, users must finalize the inventory. Helps ensure that all inventory records are accurate and updated every month.</p>
-                    </li>
-                  </ol>
-                </ModalGuidePanel>
-              )}
-              {guideTab === "stock" && (
-                <ModalGuidePanel title="How to Use Stock Sheets">
-                  <p>Stock Sheets record all permanent inventory movements — Stock In (replenishing) and Stock Out (releasing) — keeping your warehouse data accurate and up to date.</p>
-                  <ol style={{ margin: "12px 0 0", paddingLeft: 20, textAlign: "left" }}>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Open Stock Sheets</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Go to the sidebar menu and click the Stock Sheets button to open the inventory records page.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Search Bar</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the search bar or filter options to quickly find specific items by item code, item name, category, or warehouse location.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>View Item Details</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Select an item to view important information such as the item description, category, warehouse location, stock quantity, and stock movement records.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Update Information</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Edit or update inventory details such as stock quantity, item description, storage location, and unit information when needed.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Record Stock-In</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Enter all newly delivered items into the system by adding the received quantity and updating the available stock balance.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Record Stock-Out</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Record all released or outgoing items by entering the released quantity and updating the remaining stock balance.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Save Changes</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>After updating inventory records, click the Save button to apply all changes and keep the inventory data updated.</p>
-                    </li>
-                    <li style={{ marginBottom: 0 }}>
-                      <strong>Export</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the export function to save copies of stock sheet records for monitoring and reporting purposes.</p>
-                    </li>
-                  </ol>
-                </ModalGuidePanel>
-              )}
-              {guideTab === "ending" && (
-                <ModalGuidePanel title="How to Use Ending Inventory">
-                  <p>Ending Inventory is conducted every end of the month to reconcile system records with actual physical counts, ensuring all stock data remains accurate and updated.</p>
-                  <ol style={{ margin: "12px 0 0", paddingLeft: 20, textAlign: "left" }}>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Open Ending Inventory</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Navigate to the Ending Inventory page from the sidebar to begin the month-end inventory process.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Import WIS Data</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Import the latest WIS Excel file to automatically populate system quantities, average unit costs, and total values for each SKU.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Perform Physical Count</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Physically count all items in the warehouse and enter the actual counted quantities in the Qty as per Counting column for each product.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Review Variances</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>The system automatically computes the variance between WIS quantity and physical count. Investigate and resolve any discrepancies before finalizing.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Add Remarks</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the Remarks column to note any damaged items, missing stock, or other relevant observations per SKU.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Finalize Inventory</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Once all counts are verified and variances are resolved, click Start Ending Inventory to lock in the final inventory for the month.</p>
-                    </li>
-                    <li style={{ marginBottom: 0 }}>
-                      <strong>Export Report</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Export the completed ending inventory as an Excel file for record-keeping, auditing, and management reporting.</p>
-                    </li>
-                  </ol>
-                </ModalGuidePanel>
-              )}
-              {guideTab === "po" && (
-                <ModalGuidePanel title="How to Use Purchase Orders">
-                  <p>Purchase Orders help track all supplier procurements from creation to delivery, keeping supplier records organized and inventory planning on schedule.</p>
-                  <ol style={{ margin: "12px 0 0", paddingLeft: 20, textAlign: "left" }}>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Open Purchase Orders</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Go to the sidebar and click Purchase Orders to access all supplier procurement records.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Create a New PO</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Click the Add PO button and fill in the required details including supplier name, product description, quantity, unit cost, and expected delivery date (ETA).</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Track PO Status</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Monitor each PO's status — Pending or Delivered — to stay updated on outstanding and completed supplier orders.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Filter and Search</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the search bar and status filters to quickly locate specific purchase orders by supplier, product, or delivery status.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Update PO Details</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Edit existing POs to update quantities, costs, ETA, or status as new information becomes available from suppliers.</p>
-                    </li>
-                    <li style={{ marginBottom: 10 }}>
-                      <strong>Mark as Delivered</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Once goods arrive, update the PO status to Delivered. This confirms receipt and supports accurate inventory and backload records.</p>
-                    </li>
-                    <li style={{ marginBottom: 0 }}>
-                      <strong>Export PO Records</strong>
-                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>Use the Export button to download PO records as an Excel file for procurement tracking, auditing, and management review.</p>
-                    </li>
-                  </ol>
-                </ModalGuidePanel>
-              )}
+          {GUIDE_PAGES.map(page => {
+            const isActive = page.isParent
+              ? (selectedPage.id === page.id)
+              : (!selectedSub && selectedPage.id === page.id);
+            return (
+              <button key={page.id} className={`wg-nav-btn ${isActive ? "active" : ""}`} onClick={() => handleNav(page)}>
+                <span>{page.icon}</span>
+                {page.title}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content area */}
+        <div className="wg-content">
+          {/* Breadcrumb */}
+          {selectedSub && (
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:16, fontSize:12, color:"#9ca3af" }}>
+              <span>Management</span>
+              <ChevR s={12} />
+              <span style={{ color:"#e87c27", fontWeight:600 }}>{selectedSub.title}</span>
             </div>
           )}
 
-          {type === "faqs" && (
+          {/* Page title */}
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+            <span style={{ fontSize:28 }}>{activePage.icon}</span>
             <div>
-              {FAQ_ITEMS.map((faq, i) => (
-                <ModalFaqItem
-                  key={faq.q}
-                  index={i}
-                  question={faq.q}
-                  answer={faq.a}
-                  open={!!localFaqs[i]}
-                  onToggle={() => setLocalFaqs((prev) => ({ ...prev, [i]: !prev[i] }))}
-                  accent={theme.accent}
-                />
+              <h2 style={{ margin:0, fontSize:20, fontWeight:800, color:"#0f172a", letterSpacing:"-0.3px" }}>{activePage.title}</h2>
+              {activePage.isParent && (
+                <p style={{ margin:"3px 0 0", fontSize:12, color:"#9ca3af" }}>Click a module below to learn more</p>
+              )}
+            </div>
+          </div>
+
+          {activePage.isParent ? (
+            /* Management parent overview */
+            <div>
+              <p style={{ fontSize:13.5, color:"#374151", lineHeight:1.7, marginBottom:20 }}>
+                The <strong>Management</strong> section contains four modules that handle the various inbound and outbound inventory scenarios beyond standard stock transactions.
+              </p>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                {mgmtPage.subPages.map(sub => (
+                  <button key={sub.id} type="button" onClick={() => { setSelectedSub(sub); }}
+                    style={{ background:"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:12, padding:"16px 18px", textAlign:"left", cursor:"pointer", transition:"all .15s", fontFamily:"inherit" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor="#e87c27"; e.currentTarget.style.background="#fff7ed"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor="#e2e8f0"; e.currentTarget.style.background="#f8fafc"; }}
+                  >
+                    <div style={{ fontSize:22, marginBottom:8 }}>{sub.icon}</div>
+                    <p style={{ margin:0, fontSize:13, fontWeight:700, color:"#0f172a" }}>{sub.title}</p>
+                    <p style={{ margin:"4px 0 0", fontSize:12, color:"#6b7280", lineHeight:1.5 }}>{sub.content.intro.slice(0, 70)}…</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Regular page content */
+            <div>
+              <p style={{ fontSize:13.5, color:"#374151", lineHeight:1.75, marginBottom:24, padding:"14px 18px", background:"#f8fafc", borderRadius:10, borderLeft:"3px solid #e87c27", textAlign:"left" }}>
+                {activePage.content.intro}
+              </p>
+              {activePage.content.sections.map((sec, i) => (
+                <div key={i} className="wg-section">
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                    <div style={{ width:6, height:6, borderRadius:"50%", background:"#e87c27", flexShrink:0 }} />
+                    <h3 style={{ margin:0, fontSize:14, fontWeight:700, color:"#111827" }}>{sec.heading}</h3>
+                  </div>
+                  <p style={{ margin:0, fontSize:13, color:"#4b5563", lineHeight:1.75, paddingLeft:14 }}>{sec.body}</p>
+                </div>
               ))}
             </div>
           )}
 
-          {type === "about" && (
-            <ModalSurface>
-              <div className="wis-modal-about-hero">
-                <div className="wis-modal-about-logo">WIS</div>
-                <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 800 }}>Warehouse Inventory System</h3>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: theme.accent }}>Version 2.4.0 (Enterprise Premium)</p>
-              </div>
-              <div className="wis-modal-about-spec">
-                {[
-                  ["Developer Partner", "TDT Steel Corp. Engineering"],
-                  ["Technical Platform", "React 19 + Vite + ES Modules"],
-                  ["Database Status", "● SECURE & SYNCED"],
-                  ["Build Stamp", "2026-05-21-PRM"],
-                ].map(([k, v]) => (
-                  <div key={k} className="wis-modal-about-spec__row">
-                    <span style={{ color: "#64748b" }}>{k}</span>
-                    <span style={{ fontWeight: 700, color: k.includes("Status") ? "#16a34a" : "#0f172a" }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#dcfce7", color: "#15803d", padding: "8px 16px", borderRadius: 24, fontSize: 12, fontWeight: 800 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a" }} />
-                  ALL SYSTEMS OPERATIONAL
-                </span>
-              </div>
-            </ModalSurface>
+          {/* Bottom nav */}
+          {!activePage.isParent && (
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:28, paddingTop:20, borderTop:"1px solid #f3f4f6" }}>
+              {/* Prev */}
+              {(() => {
+                const allFlat = GUIDE_PAGES.flatMap(p => p.isParent ? p.subPages : [p]);
+                const idx = allFlat.findIndex(p => p.id === activePage.id);
+                const prev = allFlat[idx - 1];
+                return prev ? (
+                  <button type="button" onClick={() => { if (prev.id === activePage.id) return; const parent = GUIDE_PAGES.find(p => p.isParent && p.subPages?.some(s => s.id === prev.id)); if (parent) { setSelectedSub(prev); } else { setSelectedPage(prev); setSelectedSub(null); } }}
+                    style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:8, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:12, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>
+                    <ChevL s={13} /> {prev.title}
+                  </button>
+                ) : <span />;
+              })()}
+              {/* Next */}
+              {(() => {
+                const allFlat = GUIDE_PAGES.flatMap(p => p.isParent ? p.subPages : [p]);
+                const idx = allFlat.findIndex(p => p.id === activePage.id);
+                const next = allFlat[idx + 1];
+                return next ? (
+                  <button type="button" onClick={() => { const parent = GUIDE_PAGES.find(p => p.isParent && p.subPages?.some(s => s.id === next.id)); if (parent) { setSelectedSub(next); } else { setSelectedPage(next); setSelectedSub(null); } }}
+                    style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:8, border:"none", background:"linear-gradient(135deg,#e87c27,#c96b1c)", cursor:"pointer", fontSize:12, fontWeight:700, color:"#fff", fontFamily:"inherit" }}>
+                    {next.title} <ChevR s={13} />
+                  </button>
+                ) : <span />;
+              })()}
+            </div>
           )}
+        </div>
+      </div>
+    </>
+  );
+}
 
-          {type === "contact" && (
-            <form onSubmit={handleContactSubmit}>
-              <div className="wis-modal-contact-grid">
-                <ModalContactCard icon="✉" label="Support email" value="support@tdtpowersteel.com" />
-                <ModalContactCard icon="📞" label="Phone / hotline" value="+63 (2) 8XXX-XXXX" />
-                <ModalContactCard icon="🕐" label="Hours" value="Mon–Fri, 8:00 AM – 5:00 PM" />
-                <ModalContactCard icon="⚡" label="Response time" value="Within 1 business day" />
-              </div>
-              <ModalSurface>
-                <p style={{ margin: "0 0 16px", fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
-                  Experiencing technical difficulties? Submit a help ticket and our team will respond shortly.
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                  <div>
-                    <label className="wis-modal-form-label">Your Name</label>
-                    <input className="wis-modal-form-input" value={contactName} onChange={(e) => setContactName(e.target.value)} required />
-                  </div>
-                  <div>
-                    <label className="wis-modal-form-label">Email Address</label>
-                    <input type="email" className="wis-modal-form-input" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} required />
-                  </div>
+/* ─────────────────────────────────────────────
+   ABOUT MODAL  (renamed, with team)
+───────────────────────────────────────────── */
+function AboutModal({ onClose }) {
+  const [tab, setTab] = useState("system");
+
+  return (
+    <>
+      <style>{`
+        .about-tab { padding:8px 18px; border:none; background:none; cursor:pointer; font-size:13px; font-weight:600; color:#9ca3af; border-bottom:2px solid transparent; transition:all .15s; font-family:inherit; }
+        .about-tab.active { color:#e87c27; border-bottom-color:#e87c27; }
+        .about-tab:hover { color:#374151; }
+        .team-card { background:#f8fafc; border:1px solid #e9ecef; border-radius:12px; padding:16px; transition:all .15s; }
+        .team-card:hover { border-color:#e87c27; background:#fff7ed; }
+        @keyframes rotateBadge { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ padding:"20px 24px 0", borderBottom:"1px solid #e9ecef", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:52, height:52, borderRadius:"50%", background:"linear-gradient(135deg,#c96b1c,#7c3a0a)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:17, letterSpacing:"-0.5px", boxShadow:"0 4px 14px rgba(201,107,28,.35)" }}>
+              WIS
+            </div>
+            <div>
+              <h2 style={{ margin:0, fontSize:17, fontWeight:900, color:"#0f172a" }}>About WIS Platform</h2>
+              <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Technical details and software information</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}>
+            <X s={15} />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display:"flex", gap:2 }}>
+          {[["system","System Info"],["team","Our Team"]].map(([k,l]) => (
+            <button key={k} className={`about-tab ${tab===k?"active":""}`} onClick={() => setTab(k)}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex:1, overflowY:"auto", padding:"24px" }}>
+        {tab === "system" && (
+          <div>
+            {/* System identity block */}
+            <div style={{ textAlign:"center", marginBottom:24 }}>
+              <div style={{ width:80, height:80, borderRadius:"50%", background:"linear-gradient(135deg,#c96b1c,#7c3a0a)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:22, margin:"0 auto 14px", boxShadow:"0 6px 20px rgba(201,107,28,.3)", letterSpacing:"-0.5px" }}>WIS</div>
+              <p style={{ margin:0, fontSize:16, fontWeight:800, color:"#94a3b8", letterSpacing:"0.06em", textTransform:"uppercase" }}>Warehouse Inventory System</p>
+              <p style={{ margin:"4px 0 0", fontSize:14, fontWeight:700, color:"#e87c27" }}>Version 2.4.0 (Enterprise Premium)</p>
+            </div>
+
+            {/* Info rows */}
+            <div style={{ border:"1px solid #e9ecef", borderRadius:12, overflow:"hidden", marginBottom:20 }}>
+              {[
+                ["Developer Partner", "TDT Steel Corp. Engineering"],
+                ["Technical Platform", "React 19 + Vite + ES Modules"],
+                ["Database Status", null],
+                ["Build Stamp", "2026-05-21-PRM"],
+              ].map(([label, val], i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"13px 18px", borderBottom: i < 3 ? "1px solid #f3f4f6" : "none", background: i%2===0?"#fff":"#fafafa" }}>
+                  <span style={{ fontSize:13, color:"#6b7280" }}>{label}</span>
+                  {label === "Database Status" ? (
+                    <span style={{ fontSize:12, fontWeight:700, color:"#16a34a", display:"flex", alignItems:"center", gap:5 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:"#22c55e", display:"inline-block" }} />
+                      SECURE &amp; SYNCED
+                    </span>
+                  ) : (
+                    <span style={{ fontSize:13, fontWeight:700, color:"#111827" }}>{val}</span>
+                  )}
                 </div>
-                <div style={{ marginBottom: 14 }}>
-                  <label className="wis-modal-form-label">Inquiry Category</label>
-                  <select className="wis-modal-form-input" value={contactTopic} onChange={(e) => setContactTopic(e.target.value)}>
-                    <option value="Question">General Question</option>
-                    <option value="Bug">Technical Bug Report</option>
-                    <option value="Feature">Feature Request</option>
-                    <option value="Other">Other Topic</option>
-                  </select>
-                </div>
-                <div style={{ marginBottom: 18 }}>
-                  <label className="wis-modal-form-label">Message</label>
-                  <textarea className="wis-modal-form-input" rows={4} style={{ resize: "none" }} placeholder="Describe your issue or request..." value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} required />
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-                  <ModalBtn variant="secondary" onClick={onClose}>Cancel</ModalBtn>
-                  <button type="submit" className="wis-modal-btn wis-modal-btn--primary">Submit Support Ticket</button>
-                </div>
-              </ModalSurface>
-            </form>
-          )}
-        </ModalBody>
-        {type === "stock-limits" && (
-          <ModalFooter>
-            <ModalBtn variant="secondary" onClick={onClose}>Cancel</ModalBtn>
-            <ModalBtn variant="primary" onClick={handleSaveLimits}>Save changes</ModalBtn>
-          </ModalFooter>
+              ))}
+            </div>
+
+            {/* Status pill */}
+            <div style={{ background:"#dcfce7", borderRadius:50, padding:"10px 0", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              <span style={{ width:8, height:8, borderRadius:"50%", background:"#16a34a", display:"inline-block" }} />
+              <span style={{ fontSize:12, fontWeight:800, color:"#15803d", letterSpacing:"0.06em", textTransform:"uppercase" }}>All Systems Operational</span>
+            </div>
+          </div>
         )}
-      </ModalFrame>
-    </ModalBackdrop>
+
+        {tab === "team" && (
+          <div>
+            <p style={{ margin:"0 0 18px", fontSize:13, color:"#6b7280", lineHeight:1.6 }}>
+              The WIS Platform was built and maintained by the following team at TDT Steel Corp. Engineering.
+            </p>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              {TEAM.map((member, i) => {
+                const badge = ROLE_BADGE_COLORS[member.role] || { bg:"#f1f5f9", color:"#334155", border:"#cbd5e1" };
+                return (
+                  <div key={i} className="team-card">
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                      <div style={{ width:40, height:40, borderRadius:"50%", background:member.bg, border:`2px solid ${member.color}33`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:member.color, flexShrink:0 }}>
+                        {member.initials}
+                      </div>
+                      <div style={{ minWidth:0 }}>
+                        <p style={{ margin:0, fontSize:13, fontWeight:700, color:"#111827", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{member.name}</p>
+                        <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20, background:badge.bg, color:badge.color, border:`1px solid ${badge.border}`, display:"inline-block", marginTop:2 }}>
+                          {member.role}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                      {member.contributions.map((c, j) => (
+                        <span key={j} style={{ fontSize:10, padding:"2px 8px", borderRadius:20, background:"#f3f4f6", color:"#6b7280", fontWeight:500 }}>{c}</span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer note */}
+            <div style={{ marginTop:18, padding:"12px 16px", background:"#f8fafc", borderRadius:10, border:"1px solid #e9ecef" }}>
+              <p style={{ margin:0, fontSize:12, color:"#9ca3af", textAlign:"center", lineHeight:1.6 }}>
+                Built with ❤️ for TDT PowerSteel Corp. · Marilao, Bulacan<br/>
+                <span style={{ color:"#e87c27", fontWeight:600 }}>WIS v2.4.0</span> · Enterprise Premium · Build 2026-05-21-PRM
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   LOGOUT MODAL
+───────────────────────────────────────────── */
+function LogoutModal({ onClose, onAction }) {
+  return (
+    <div style={{ padding:"32px 28px", textAlign:"center" }}>
+      <div style={{ width:60, height:60, borderRadius:"50%", background:"#fee2e2", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px" }}>
+        <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+        </svg>
+      </div>
+      <h2 style={{ margin:"0 0 8px", fontSize:18, fontWeight:800, color:"#0f172a" }}>Sign Out?</h2>
+      <p style={{ margin:"0 0 24px", fontSize:13, color:"#64748b", lineHeight:1.6 }}>
+        You will be returned to the login screen.<br/>Any unsaved changes will be lost.
+      </p>
+      <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+        <button type="button" onClick={onClose} style={{ padding:"10px 24px", borderRadius:10, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:13, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>Cancel</button>
+        <button type="button" onClick={() => onAction?.("Logged out successfully!", "success")} style={{ padding:"10px 24px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"inherit" }}>Sign Out</button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   USER MANAGEMENT MODAL  (stub)
+───────────────────────────────────────────── */
+function UserMgmtModal({ onClose }) {
+  const USERS = [
+    { name:"Chelsea Lopez",    email:"chelsea.lopez@tdt.com",  role:"Admin",    status:"Active"   },
+    { name:"Mark Reyes",       email:"mark.reyes@tdt.com",     role:"Staff",    status:"Active"   },
+    { name:"Alyssa Santos",    email:"alyssa.santos@tdt.com",  role:"Viewer",   status:"Inactive" },
+  ];
+  return (
+    <>
+      <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)" }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" }}>User Management</h2>
+          <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Manage system users and access roles</p>
+        </div>
+        <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {USERS.map((u, i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", background:"#f8fafc", borderRadius:10, border:"1px solid #e9ecef" }}>
+              <div>
+                <p style={{ margin:0, fontSize:13, fontWeight:700, color:"#111827" }}>{u.name}</p>
+                <p style={{ margin:"2px 0 0", fontSize:11, color:"#9ca3af" }}>{u.email}</p>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background: u.role==="Admin"?"#fff7ed":"#f1f5f9", color: u.role==="Admin"?"#c2410c":"#374151", border: u.role==="Admin"?"1px solid #fed7aa":"1px solid #e2e8f0" }}>{u.role}</span>
+                <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background: u.status==="Active"?"#dcfce7":"#f3f4f6", color: u.status==="Active"?"#15803d":"#9ca3af" }}>{u.status}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop:16, fontSize:12, color:"#9ca3af", textAlign:"center" }}>Full user management features coming in v2.5.0</p>
+      </div>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   STOCK LIMITS MODAL
+───────────────────────────────────────────── */
+function StockLimitsModal({ onClose, products, setProducts, onAction }) {
+  const [search, setSearch] = useState("");
+  const [edits, setEdits]   = useState({});
+
+  const filtered = (products || []).filter(p =>
+    (p.description || "").toLowerCase().includes(search.toLowerCase()) ||
+    (p.sku || "").toLowerCase().includes(search.toLowerCase())
+  ).slice(0, 20);
+
+  const handleSave = () => {
+    if (!setProducts) return;
+    setProducts(prev => prev.map(p => edits[p.sku] != null ? { ...p, warningLevel: Number(edits[p.sku]) } : p));
+    onAction?.("Stock limits updated!", "success");
+    onClose();
+  };
+
+  return (
+    <>
+      <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" }}>Stock Limits</h2>
+          <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Set warning levels per SKU</p>
+        </div>
+        <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
+      </div>
+      <div style={{ padding:"12px 24px", borderBottom:"1px solid #f3f4f6", flexShrink:0 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search SKU or description…" style={{ width:"100%", padding:"8px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} />
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"8px 24px 16px" }}>
+        {filtered.map(p => (
+          <div key={p.sku} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 0", borderBottom:"1px solid #f3f4f6" }}>
+            <div style={{ minWidth:0, flex:1, marginRight:12 }}>
+              <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.description}</p>
+              <p style={{ margin:"1px 0 0", fontSize:11, color:"#9ca3af" }}>{p.sku}</p>
+            </div>
+            <input type="number" min={0} value={edits[p.sku] ?? p.warningLevel ?? 0}
+              onChange={e => setEdits(prev => ({ ...prev, [p.sku]: e.target.value }))}
+              style={{ width:80, padding:"6px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:13, fontWeight:600, textAlign:"center", outline:"none", fontFamily:"inherit" }} />
+          </div>
+        ))}
+      </div>
+      <div style={{ padding:"14px 24px", borderTop:"1px solid #e9ecef", display:"flex", justifyContent:"flex-end", gap:10, background:"#f8fafc", flexShrink:0 }}>
+        <button type="button" onClick={onClose} style={{ padding:"9px 18px", borderRadius:9, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:13, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>Cancel</button>
+        <button type="button" onClick={handleSave} style={{ padding:"9px 18px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#e87c27,#c96b1c)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"inherit" }}>Save Changes</button>
+      </div>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   FAQs MODAL
+───────────────────────────────────────────── */
+function FAQsModal({ onClose }) {
+  const FAQS = [
+    { q:"How are stock alert levels determined?", a:"Stock alerts are triggered when the quantity of a product falls below the threshold set in Settings → Stock Limits. Limits apply per SKU and update as you save changes." },
+    { q:"Can I undo a Stock Out transaction?", a:"Yes. Record a corrective Stock In entry on Stock Sheets to balance the ledger, or register a customer Return on the Returns page to restore on-hand quantity." },
+    { q:"How do I add new system operator accounts?", a:"Administrators open Settings → User Management, choose Add new user, then enter the full name and role. The account appears in the list right away." },
+    { q:"Where do I track pending supplier deliveries?", a:"Open Purchasing Order and filter by Pending status, or use the Home dashboard Pending Deliveries metric to jump there directly." },
+    { q:"How do I generate inventory reports?", a:"Use Export on Ending Inventory, Stock Sheets, or Backload Inventory to download Excel files. Purchasing Order also supports export for PO summaries." },
+    { q:"How do I reset my password?", a:"On the login screen, use Forgot password and follow the email link. If you are already signed in, contact your administrator or IT support to reset access." },
+  ];
+  const [open, setOpen] = useState(null);
+
+  return (
+    <>
+      {/* Header — centered with ? icon */}
+      <div style={{ position:"relative", padding:"28px 24px 20px", textAlign:"center", borderBottom:"1px solid #f0f2f5" }}>
+        {/* Close button */}
+        <button type="button" onClick={onClose} style={{ position:"absolute", top:16, right:16, width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}>
+          <X s={15} />
+        </button>
+        {/* ? icon */}
+        <div style={{ width:52, height:52, borderRadius:14, background:"#fff7ed", border:"1px solid #fcd9b0", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", fontSize:22 }}>
+          ?
+        </div>
+        <h2 style={{ margin:"0 0 4px", fontSize:20, fontWeight:900, color:"#0f172a" }}>Frequently Asked Questions</h2>
+        <p style={{ margin:0, fontSize:13, color:"#94a3b8" }}>Answers to typical issues and questions</p>
+      </div>
+
+      {/* FAQ list */}
+      <div style={{ flex:1, overflowY:"auto", padding:"16px 24px 24px" }}>
+        {FAQS.map((f, i) => (
+          <div key={i} style={{
+            border: open===i ? "1.5px solid #e87c27" : "1px solid #e9ecef",
+            borderRadius:12, marginBottom:10,
+            overflow:"hidden", transition:"border-color .15s, box-shadow .15s",
+            boxShadow: open===i ? "0 2px 12px rgba(232,124,39,0.10)" : "none",
+          }}>
+            <button
+              type="button"
+              onClick={() => setOpen(open===i ? null : i)}
+              style={{ display:"flex", alignItems:"center", gap:14, width:"100%", padding:"14px 16px", background:"#fff", border:"none", cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}
+            >
+              {/* Number badge */}
+              <div style={{ width:30, height:30, borderRadius:8, background:"#e87c27", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, flexShrink:0 }}>
+                {i + 1}
+              </div>
+              <span style={{ flex:1, fontSize:14, fontWeight:700, color:"#0f172a" }}>{f.q}</span>
+              {/* Chevron */}
+              <span style={{ color:"#94a3b8", fontSize:11, flexShrink:0, transform: open===i?"rotate(180deg)":"rotate(0deg)", transition:"transform .2s", display:"inline-block" }}>▼</span>
+            </button>
+            {open===i && (
+              <div style={{ padding:"12px 16px 16px 16px", background:"#fff" }}>
+                <div style={{ background:"#f8fafc", borderRadius:8, padding:"14px 18px", textAlign:"center" }}>
+                  <p style={{ margin:0, fontSize:13, color:"#475569", lineHeight:1.75 }}>{f.a}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   CONTACT SUPPORT MODAL
+───────────────────────────────────────────── */
+function ContactModal({ onClose, onAction }) {
+  const [contactName, setContactName]       = useState("Chelsea Lopez");
+  const [contactEmail, setContactEmail]     = useState("chelsea.lopez@tdt.com");
+  const [contactTopic, setContactTopic]     = useState("Question");
+  const [contactMessage, setContactMessage] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!contactMessage.trim()) {
+      onAction?.("Please type a message before submitting.", "error");
+      return;
+    }
+    onAction?.("Support ticket sent! We'll reply within 24 hours.", "success");
+    onClose();
+  };
+
+  return (
+    <>
+      <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" }}>Contact Support</h2>
+          <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p>
+        </div>
+        <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
+        {/* Contact cards */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
+          {[
+            { icon:"✉", label:"Support email",  value:"support@tdtpowersteel.com" },
+            { icon:"📞", label:"Phone / hotline", value:"+63 (2) 8XXX-XXXX" },
+            { icon:"🕐", label:"Hours",           value:"Mon–Fri, 8:00 AM – 5:00 PM" },
+            { icon:"⚡", label:"Response time",   value:"Within 1 business day" },
+          ].map((c, i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", background:"#f8fafc", borderRadius:10, border:"1px solid #e9ecef" }}>
+              <div style={{ width:36, height:36, borderRadius:8, background:"#fff7ed", border:"1px solid #fed7aa", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>{c.icon}</div>
+              <div>
+                <p style={{ margin:0, fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em" }}>{c.label}</p>
+                <p style={{ margin:"2px 0 0", fontSize:12, fontWeight:700, color:"#111827" }}>{c.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit}>
+          <p style={{ margin:"0 0 14px", fontSize:13, color:"#475569", lineHeight:1.5 }}>
+            Experiencing technical difficulties? Submit a help ticket and our team will respond shortly.
+          </p>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+            <div>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Your Name</label>
+              <input value={contactName} onChange={e => setContactName(e.target.value)} required
+                style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
+            </div>
+            <div>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Email Address</label>
+              <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required
+                style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
+            </div>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Inquiry Category</label>
+            <select value={contactTopic} onChange={e => setContactTopic(e.target.value)}
+              style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", background:"#fff", boxSizing:"border-box" }}>
+              <option value="Question">General Question</option>
+              <option value="Bug">Technical Bug Report</option>
+              <option value="Feature">Feature Request</option>
+              <option value="Other">Other Topic</option>
+            </select>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Message</label>
+            <textarea rows={4} value={contactMessage} onChange={e => setContactMessage(e.target.value)}
+              placeholder="Describe your issue or request..." required
+              style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", resize:"none", boxSizing:"border-box" }} />
+          </div>
+          <div style={{ display:"flex", justifyContent:"flex-end", gap:10 }}>
+            <button type="button" onClick={onClose} style={{ padding:"9px 18px", borderRadius:9, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:13, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>Cancel</button>
+            <button type="submit" style={{ padding:"9px 18px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#e87c27,#c96b1c)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"inherit" }}>Submit Support Ticket</button>
+          </div>
+        </form>
+      </div>
+    </>
   );
 }

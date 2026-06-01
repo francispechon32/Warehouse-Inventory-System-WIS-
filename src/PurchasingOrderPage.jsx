@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import {
   cellStr,
@@ -344,37 +345,278 @@ function useSheetJS() {
 
 function IconUpload({ size = 16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
 
-/* ─── EXPORT ── */
+/* ─── EXPORT (Purchase Order Control layout) ── */
+const PO_PURCH_COLS = 16;
+const PO_WH_COLS = 9;
+const PO_TOTAL_COLS = PO_PURCH_COLS + PO_WH_COLS;
+
+const PO_PURCH_HEADERS = [
+  "TRANS NO.",
+  "INSERT DATE OF P.O.",
+  "INSERT ETA",
+  "INSERT NAME OF PURCHASER",
+  "INSERT TDT PURCHASE ORDER #",
+  "INSERT VENDOR OR SUPPLIER'S NAME",
+  "INSERT PRODUCT DESCRIPTION",
+  "INSERT WAREHOUSE OR CUSTOMER ORGANIZATION",
+  "INSERT IF FOR TRADING OR STOCKS",
+  "IF TO WAREHOUSE, INSERT STORE OF DESTINATION",
+  "INSERT RETENTION",
+  "INSERT QUANTITY AS PER PURCHASE ORDER",
+  "INSERT WEIGHT (IF NEEDED)",
+  "COST PER KILO",
+  "INSERT COST PER UNIT (FOR PURCHASING)",
+  "INSERT TOTAL COST OF PURCHASE",
+];
+
+const PO_WH_HEADERS = [
+  "INSERT DATE OF ACTUAL RECEIPT",
+  "INSERT SUPPLIER'S DELIVERY RECEIPT NO.",
+  "INSERT ACTUAL QUANTITY RECEIVED",
+  "QUANTITY VARIANCE (DIFF/SHORT)",
+  "VARIANCE AMOUNT (DIFF/SHORT)",
+  "INSERT NAME OF CHECKER",
+  "INSERT NAME OF RECEIVER",
+  "INSERT NAME OF STORER",
+  "REMARKS / VARIANCE",
+];
+
 function exportToWis(rows) {
-  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
-  const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
-  const headers = [
-    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
-    ["Purchasing Orders"],
-    ["LOCATION:", "MARILAO WAREHOUSE"],
-    ["AS OF", new Date().toLocaleString()],
-    [],
-    ["NO.", "TRANS #", "PO DATE", "ETA", "PURCHASER", "TDT PO #", "VENDOR", "PRODUCT DESC", "DESTINATION", "METRIC TONS", "QTY PER PO", "STATUS"],
-  ];
-  const dataRows = rows.map((r, i) => [i+1, r.transNo, r.poDate, r.eta, r.purchaser, r.tdtPo, r.vendor, r.productDesc, r.destination, r.metricTons, r.qtyPerPo, r.status]);
-  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:5},{wch:8},{wch:12},{wch:12},{wch:18},{wch:16},{wch:20},{wch:45},{wch:20},{wch:12},{wch:12},{wch:12}];
-  const numCols = ws["!cols"].length;
-  // Style header row 6
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(0, numCols).split("").forEach(c => {
-    const addr = `${c}6`;
-    if (ws[addr]) ws[addr].s = { font: { bold: true, sz: 9, color: { rgb: "FFFFFF" }, name: "Arial" }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center", wrapText: true } };
+  const C = (r, c) => XLSX.utils.encode_cell({ r, c });
+
+  const purchDark = { patternType: "solid", fgColor: { rgb: "2F5597" } };
+  const purchMid = { patternType: "solid", fgColor: { rgb: "4472C4" } };
+  const whDark = { patternType: "solid", fgColor: { rgb: "548235" } };
+  const whMid = { patternType: "solid", fgColor: { rgb: "70AD47" } };
+  const dataFill = { patternType: "solid", fgColor: { rgb: "DDEBF7" } };
+  const grandFill = { patternType: "solid", fgColor: { rgb: "FFF2CC" } };
+
+  const cellBorder = {
+    top: { style: "thin", color: { rgb: "2F5597" } },
+    bottom: { style: "thin", color: { rgb: "2F5597" } },
+    left: { style: "thin", color: { rgb: "2F5597" } },
+    right: { style: "thin", color: { rgb: "2F5597" } },
+  };
+  const hdrBorder = {
+    top: { style: "thin", color: { rgb: "FFFFFF" } },
+    bottom: { style: "thin", color: { rgb: "FFFFFF" } },
+    left: { style: "thin", color: { rgb: "FFFFFF" } },
+    right: { style: "thin", color: { rgb: "FFFFFF" } },
+  };
+
+  const f = {
+    note: () => ({ name: "Arial", sz: 9, color: { rgb: "000000" } }),
+    section: () => ({ name: "Arial", sz: 11, bold: true, color: { rgb: "FFFFFF" } }),
+    colHdr: () => ({ name: "Arial", sz: 8, bold: true, color: { rgb: "FFFFFF" } }),
+    grand: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
+    body: (bold = false) => ({ name: "Arial", sz: 9, bold, color: { rgb: "000000" } }),
+  };
+  const a = {
+    ctr: (wrap = true) => ({ horizontal: "center", vertical: "center", wrapText: wrap }),
+    left: (wrap = true) => ({ horizontal: "left", vertical: "center", wrapText: wrap }),
+    right: () => ({ horizontal: "right", vertical: "center" }),
+  };
+
+  const phpFmt = '"₱"#,##0.00';
+  const qtyFmt = "#,##0";
+  const varFmt = "#,##0.00";
+
+  const ws = {};
+
+  const put = (r, c, v, style) => {
+    const empty = v === null || v === undefined || v === "";
+    ws[C(r, c)] = {
+      v: empty ? "" : v,
+      t: typeof v === "number" && !Number.isNaN(v) ? "n" : "s",
+      s: style,
+    };
+  };
+
+  const hdrStyle = (fill, border = hdrBorder) => ({
+    font: f.colHdr(),
+    fill,
+    alignment: a.ctr(),
+    border,
   });
-  // Style title rows
-  ["A1","A2","A3","B3","A4","B4"].forEach(cell => {
-    if (ws[cell]) ws[cell].s = { font: { bold: true, sz: 13, name: "Arial" }, alignment: { horizontal: "left" } };
+  const dataStyle = (align, numFmt = null, bold = false) => ({
+    font: f.body(bold),
+    fill: dataFill,
+    alignment: align,
+    border: cellBorder,
+    ...(numFmt ? { numFmt } : {}),
   });
+
+  // Row 0–1: layout instructions
+  put(0, 0, "1. Purchase Order System Layout should be followed.", {
+    font: f.note(),
+    alignment: a.left(false),
+  });
+  put(1, 0, "2. IF FOR THE UNIT COST IS OPTIONAL, IT SHOULD BE ADDED IF THE STORE HAS IT ON THEIR SUMMARY. IT SHOULD BE THE SAME AS THE UNIT PRICE OF THE SPECIFIC PRODUCT.", {
+    font: f.note(),
+    alignment: a.left(true),
+  });
+
+  // Row 2: PURCHASING / WAREHOUSE section banners
+  put(2, 0, "PURCHASING", {
+    font: f.section(),
+    fill: purchDark,
+    alignment: a.ctr(false),
+    border: hdrBorder,
+  });
+  put(2, PO_PURCH_COLS, "WAREHOUSE", {
+    font: f.section(),
+    fill: whDark,
+    alignment: a.ctr(false),
+    border: hdrBorder,
+  });
+
+  // Row 3: column sub-headers
+  PO_PURCH_HEADERS.forEach((h, ci) => {
+    put(3, ci, h, hdrStyle(purchMid));
+  });
+  PO_WH_HEADERS.forEach((h, ci) => {
+    put(3, PO_PURCH_COLS + ci, h, hdrStyle(whMid));
+  });
+
+  // Totals for grand-total row
+  let sumQty = 0;
+  let sumTotalCost = 0;
+  let sumWeight = 0;
+  rows.forEach((r) => {
+    sumQty += r.qtyPerPo || 0;
+    sumWeight += r.metricTons || 0;
+    sumTotalCost += lineValSum(r.lineItems || []);
+  });
+
+  // Row 4: GRAND TOTAL
+  const grandStyle = {
+    font: f.grand(),
+    fill: grandFill,
+    alignment: a.ctr(),
+    border: cellBorder,
+  };
+  for (let c = 0; c < PO_TOTAL_COLS; c++) {
+    put(4, c, "", grandStyle);
+  }
+  put(4, 9, "GRAND TOTAL>>>>>", { ...grandStyle, alignment: a.left(false) });
+  put(4, 11, sumQty, { ...grandStyle, numFmt: qtyFmt });
+  put(4, 12, sumWeight || 0, { ...grandStyle, numFmt: varFmt });
+  put(4, 13, "₱ -", grandStyle);
+  put(4, 14, "₱ -", grandStyle);
+  put(4, 15, sumTotalCost || 0, { ...grandStyle, numFmt: phpFmt, alignment: a.right() });
+  put(4, 18, 0, { ...grandStyle, numFmt: qtyFmt });
+  put(4, 19, 0, { ...grandStyle, numFmt: varFmt });
+  put(4, 20, 0, { ...grandStyle, numFmt: phpFmt, alignment: a.right() });
+
+  // Row 5+: data
+  rows.forEach((r, i) => {
+    const ri = 5 + i;
+    const lines = r.lineItems || [];
+    const totalCost = lineValSum(lines);
+    const totalQty = lineQtySum(lines);
+    const unitCost = totalQty > 0 ? totalCost / totalQty : null;
+    const weightStr = r.weight && r.weight !== "—" ? r.weight : (r.metricTons ? String(r.metricTons) : "");
+
+    const purchVals = [
+      r.transNo || i + 1,
+      r.poDate || "",
+      r.eta || "",
+      r.purchaser || "",
+      r.tdtPo || "",
+      r.vendor || "",
+      r.productDesc || "",
+      r.destination || "",
+      r.tradingOrStocks || "",
+      r.warehouseType || "",
+      "",
+      r.qtyPerPo ?? 0,
+      weightStr,
+      "",
+      unitCost,
+      totalCost || 0,
+    ];
+
+    purchVals.forEach((v, ci) => {
+      const isQty = ci === 11;
+      const isKilo = ci === 13;
+      const isUnit = ci === 14;
+      const isTotal = ci === 15;
+      if (isKilo || (isUnit && (v === null || v === "" || v === 0))) {
+        put(ri, ci, "₱ -", dataStyle(a.ctr()));
+        return;
+      }
+      if (isTotal && (!v || v === 0)) {
+        put(ri, ci, "₱ -", dataStyle(a.right()));
+        return;
+      }
+      put(ri, ci, v, dataStyle(
+        isUnit || isTotal ? a.right() : ci <= 6 ? a.left() : a.ctr(),
+        isQty ? qtyFmt : isUnit || isTotal ? phpFmt : null,
+        ci === 0
+      ));
+    });
+
+    const whDefaults = ["", "", 0, 0, 0, "", "", "", ""];
+    whDefaults.forEach((v, ci) => {
+      const col = PO_PURCH_COLS + ci;
+      const isNum = ci === 2 || ci === 3;
+      const isAmt = ci === 4;
+      put(ri, col, v, dataStyle(
+        isAmt ? a.right() : a.ctr(),
+        isNum ? qtyFmt : isAmt ? varFmt : null
+      ));
+    });
+  });
+
+  const lastRow = Math.max(5 + rows.length - 1, 4);
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: PO_TOTAL_COLS - 1 });
+
   ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: PO_TOTAL_COLS - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: PO_TOTAL_COLS - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: PO_PURCH_COLS - 1 } },
+    { s: { r: 2, c: PO_PURCH_COLS }, e: { r: 2, c: PO_TOTAL_COLS - 1 } },
   ];
-  XLSX.utils.book_append_sheet(wb, ws, "PURCHASING ORDER");
+
+  ws["!cols"] = [
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 36 },
+    { wch: 22 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 18 },
+  ];
+
+  ws["!rows"] = [
+    { hpt: 16 },
+    { hpt: 28 },
+    { hpt: 22 },
+    { hpt: 48 },
+    { hpt: 20 },
+    ...rows.map(() => ({ hpt: 22 })),
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "PURCHASING");
   XLSX.writeFile(wb, "TDT_WIS_Purchasing_Order_Export.xlsx");
 }
 
@@ -537,10 +779,7 @@ export default function PurchasingOrderPage({
           },
           importing,
           importDisabled: !xlsxReady,
-          onExport: () => {
-            if (!xlsxReady) { showToast("SheetJS not ready yet.", "error"); return; }
-            exportToWis(orders);
-          },
+          onExport: () => exportToWis(orders),
         }}
       />
 

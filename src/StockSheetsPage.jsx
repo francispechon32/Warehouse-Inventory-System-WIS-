@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import { SEED_STOCK_IN, SEED_STOCK_OUT } from "./stockTransactionSeeds";
 
@@ -137,40 +138,401 @@ function IconUpload2({ size = 16 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
 }
 
+const SS_PESO_FMT = '"₱"#,##0.00';
+const SS_QTY_FMT = "#,##0";
+const SS_MIN_DATA_ROWS = 15;
+const SS_TRANS_START = 33;
+
+function formatSsDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function parseSkuWeight(weightStr) {
+  if (!weightStr || weightStr === "—") return weightStr;
+  const m = String(weightStr).match(/[\d.]+/);
+  return m ? m[0] : weightStr;
+}
+
+function ssTransNo(row, index, base = SS_TRANS_START) {
+  const m = String(row?.transNo ?? "").match(/\d+/);
+  return m ? Number(m[0]) : base + index;
+}
+
+function buildSsSheetStyles() {
+  const sheetFill = { patternType: "solid", fgColor: { rgb: "FFF9E6" } };
+  const hdrFill = { patternType: "solid", fgColor: { rgb: "F4B084" } };
+  const yellowFill = { patternType: "solid", fgColor: { rgb: "FFEB9C" } };
+  const totalFill = { patternType: "solid", fgColor: { rgb: "C65911" } };
+  const greyFill = { patternType: "solid", fgColor: { rgb: "D9D9D9" } };
+  const solidBorder = {
+    top: { style: "thin", color: { rgb: "000000" } },
+    bottom: { style: "thin", color: { rgb: "000000" } },
+    left: { style: "thin", color: { rgb: "000000" } },
+    right: { style: "thin", color: { rgb: "000000" } },
+  };
+  const dottedRed = {
+    top: { style: "dotted", color: { rgb: "C00000" } },
+    bottom: { style: "dotted", color: { rgb: "C00000" } },
+    left: { style: "thin", color: { rgb: "000000" } },
+    right: { style: "thin", color: { rgb: "000000" } },
+  };
+  const underline = { bottom: { style: "thin", color: { rgb: "843C0C" } } };
+  const f = {
+    title: () => ({ name: "Arial", sz: 14, bold: true, color: { rgb: "E87C27" } }),
+    metaLabel: () => ({ name: "Arial", sz: 10, bold: true, color: { rgb: "000000" } }),
+    metaVal: () => ({ name: "Arial", sz: 10, color: { rgb: "000000" } }),
+    insert: () => ({ name: "Arial", sz: 8, bold: true, color: { rgb: "E87C27" } }),
+    hdr: (white = false) => ({
+      name: "Arial", sz: 8, bold: true,
+      color: { rgb: white ? "FFFFFF" : "000000" },
+    }),
+    body: () => ({ name: "Arial", sz: 9, color: { rgb: "000000" } }),
+    link: () => ({ name: "Arial", sz: 9, color: { rgb: "0563C1" }, underline: true }),
+  };
+  const center = { horizontal: "center", vertical: "center", wrapText: true };
+  const left = { horizontal: "left", vertical: "center", wrapText: true, indent: 1 };
+  const right = { horizontal: "right", vertical: "center" };
+  return {
+    sheetFill, hdrFill, yellowFill, totalFill, greyFill,
+    solidBorder, dottedRed, underline, f, center, left, right,
+  };
+}
+
+function writeSsMeta(ws, C, put, merges, styles, sku, skuInfo, location = "POLYLAND WAREHOUSE") {
+  const { sheetFill, underline, f, left, center } = styles;
+  put(0, 0, "TDT WAREHOUSE INVENTORY SHEET (TDT WIS)", "s", {
+    font: f.title(), alignment: left, fill: sheetFill,
+  });
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } });
+  put(0, 9, "HOME", "s", { font: f.link(), alignment: center, fill: sheetFill });
+
+  const meta = [
+    ["LOCATION", location],
+    ["PRODUCT DESCRIPTION", skuInfo.desc || "—"],
+    ["SKU NUMBER", sku],
+    ["WEIGHT", parseSkuWeight(skuInfo.weight)],
+  ];
+  meta.forEach(([label, value], i) => {
+    const row = 1 + i;
+    put(row, 0, label, "s", { font: f.metaLabel(), alignment: left, fill: sheetFill });
+    put(row, 1, ":", "s", { font: f.metaLabel(), alignment: center, fill: sheetFill });
+    put(row, 2, value, "s", {
+      font: f.metaVal(), alignment: left, fill: sheetFill, border: underline,
+    });
+    merges.push({ s: { r: row, c: 2 }, e: { r: row, c: 6 } });
+  });
+
+  put(0, 12, "TDT POWERSTEEL", "s", {
+    font: { name: "Arial", sz: 12, bold: true, color: { rgb: "E87C27" } },
+    alignment: center, fill: sheetFill,
+  });
+  put(1, 12, "THE NO. 1 STEEL SUPPLIER", "s", {
+    font: { name: "Arial", sz: 8, bold: true, color: { rgb: "000000" } },
+    alignment: center, fill: sheetFill,
+  });
+  merges.push({ s: { r: 0, c: 12 }, e: { r: 0, c: 15 } });
+  merges.push({ s: { r: 1, c: 12 }, e: { r: 1, c: 15 } });
+}
+
+function putPeso(put, r, c, val, styleBase) {
+  const n = Number(val);
+  if (!n) {
+    put(r, c, "₱ -", "s", styleBase);
+    return;
+  }
+  put(r, c, n, "n", { ...styleBase, numFmt: SS_PESO_FMT });
+}
+
+function buildStockInWorksheet(sku, skuInfo, rows) {
+  const styles = buildSsSheetStyles();
+  const ws = {};
+  const merges = [];
+  const C = (r, col) => XLSX.utils.encode_cell({ r, c: col });
+  const put = (r, c, v, t, s) => { ws[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s }; };
+
+  writeSsMeta(ws, C, put, merges, styles, sku, skuInfo);
+
+  const HDR_GROUP = 5;
+  const HDR_DETAIL = 6;
+  const DATA_START = 7;
+  const GAP = 7;
+  const COL = {
+    TRANS: 0, DATE: 1, PO: 2, PO_DATE: 3, V_DR: 4, V_NAME: 5, CUSTOMER: 6,
+    WO: 8, ACCEPT: 9, QTY: 10, COST_K: 11, COST_U: 12, TOTAL: 13,
+    DISP: 14, D_QTY: 15, D_UNIT: 16, D_PRICE: 17, TDT_DR: 18, BRANCH: 19,
+  };
+  const LAST_COL = COL.BRANCH;
+
+  const { hdrFill, yellowFill, totalFill, greyFill, solidBorder, dottedRed, f, center, left, right } = styles;
+
+  put(HDR_GROUP, COL.TRANS, "TRANS", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.TRANS }, e: { r: HDR_DETAIL, c: COL.TRANS } });
+  for (let c = COL.DATE; c <= COL.CUSTOMER; c++) {
+    put(HDR_GROUP, c, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
+  }
+  merges.push({ s: { r: HDR_GROUP, c: COL.DATE }, e: { r: HDR_GROUP, c: COL.CUSTOMER } });
+  put(HDR_GROUP, COL.WO, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.WO }, e: { r: HDR_GROUP, c: COL.ACCEPT } });
+  put(HDR_GROUP, COL.QTY, "RECEIVED PURCHASES", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.QTY }, e: { r: HDR_GROUP, c: COL.COST_U } });
+  put(HDR_GROUP, COL.TOTAL, "TOTAL PURCHASES", "s", { font: f.hdr(true), fill: totalFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.TOTAL }, e: { r: HDR_DETAIL, c: COL.TOTAL } });
+  put(HDR_GROUP, COL.DISP, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
+  put(HDR_GROUP, COL.D_QTY, "DELIVERED GOODS", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.D_QTY }, e: { r: HDR_GROUP, c: COL.D_PRICE } });
+  put(HDR_GROUP, COL.TDT_DR, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
+  put(HDR_GROUP, COL.BRANCH, "", "s", { fill: hdrFill, border: solidBorder });
+
+  const detailHdrs = [
+    [COL.TRANS, "NOS."],
+    [COL.DATE, "DATE TODAY"],
+    [COL.PO, "TDT PO#"],
+    [COL.PO_DATE, "TDT PO DATE"],
+    [COL.V_DR, "VENDOR'S DR#"],
+    [COL.V_NAME, "VENDOR'S NAME"],
+    [COL.CUSTOMER, "CUSTOMER'S NAME AS PER DR"],
+    [COL.WO, "TDT WO#"],
+    [COL.ACCEPT, "ACCEPTANCE DATE"],
+    [COL.QTY, "QUANTITY"],
+    [COL.COST_K, "COST PER KILO"],
+    [COL.COST_U, "COST PER UNIT"],
+    [COL.TOTAL, "TOTAL PURCHASES"],
+    [COL.DISP, "DISPATCH DATE"],
+    [COL.D_QTY, "QUANTITY"],
+    [COL.D_UNIT, "UNIT COST"],
+    [COL.D_PRICE, "PRICE"],
+    [COL.TDT_DR, "TDT DR#"],
+    [COL.BRANCH, "BRANCH"],
+  ];
+  detailHdrs.forEach(([c, h]) => {
+    const isYellow = c >= COL.QTY && c <= COL.COST_U;
+    const isTotal = c === COL.TOTAL;
+    const isGrey = c === COL.D_UNIT;
+    put(HDR_DETAIL, c, h, "s", {
+      font: f.hdr(isTotal),
+      fill: isTotal ? totalFill : isYellow ? yellowFill : isGrey ? greyFill : hdrFill,
+      alignment: center,
+      border: solidBorder,
+    });
+  });
+  put(HDR_DETAIL, GAP, "", "s", { fill: styles.sheetFill, border: solidBorder });
+
+  const slotCount = Math.max(rows.length, SS_MIN_DATA_ROWS);
+  for (let i = 0; i < slotCount; i++) {
+    const ri = DATA_START + i;
+    const row = rows[i];
+    const fill = styles.sheetFill;
+    const dataStyle = { font: f.body(), fill, border: dottedRed };
+
+    put(ri, COL.TRANS, ssTransNo(row, i), "n", { ...dataStyle, alignment: center, numFmt: SS_QTY_FMT });
+    if (!row) {
+      for (let c = 1; c <= LAST_COL; c++) {
+        if (c === GAP) continue;
+        const isPeso = [COL.COST_K, COL.COST_U, COL.TOTAL, COL.D_UNIT, COL.D_PRICE].includes(c);
+        const isQty = [COL.QTY, COL.D_QTY].includes(c);
+        put(ri, c, isPeso ? "₱ -" : isQty ? 0 : "", isPeso || isQty ? (isQty ? "n" : "s") : "s", {
+          ...dataStyle,
+          alignment: isPeso || c >= COL.D_UNIT ? right : center,
+          ...(isQty ? { numFmt: SS_QTY_FMT } : {}),
+          ...(c === COL.D_UNIT ? { fill: greyFill } : {}),
+          ...(c === COL.TOTAL ? { fill: totalFill, font: f.hdr(true) } : {}),
+          ...(c >= COL.QTY && c <= COL.COST_U ? { fill: yellowFill } : {}),
+        });
+      }
+      put(ri, GAP, "", "s", { fill, border: dottedRed });
+      continue;
+    }
+
+    put(ri, COL.DATE, formatSsDate(row.date), "s", { ...dataStyle, alignment: center });
+    put(ri, COL.PO, row.tdtPo || "", "s", { ...dataStyle, alignment: center, font: f.link() });
+    put(ri, COL.PO_DATE, formatSsDate(row.tdtPoDate), "s", { ...dataStyle, alignment: center });
+    put(ri, COL.V_DR, row.vendorNo || "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.V_NAME, row.vendorName || "", "s", { ...dataStyle, alignment: left });
+    put(ri, COL.CUSTOMER, row.customerDr || "", "s", { ...dataStyle, alignment: left });
+    put(ri, GAP, "", "s", { fill, border: dottedRed });
+    put(ri, COL.WO, row.tdtWo || "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.ACCEPT, formatSsDate(row.acceptDate), "s", { ...dataStyle, alignment: center });
+    put(ri, COL.QTY, row.qty ?? 0, "n", { ...dataStyle, alignment: center, fill: yellowFill, numFmt: SS_QTY_FMT });
+    putPeso(put, ri, COL.COST_K, row.costKilo, { ...dataStyle, alignment: right, fill: yellowFill });
+    putPeso(put, ri, COL.COST_U, row.costUnit, { ...dataStyle, alignment: right, fill: yellowFill });
+    const totalStyle = { ...dataStyle, alignment: right, fill: totalFill, font: f.hdr(true) };
+    putPeso(put, ri, COL.TOTAL, row.totalPurchase, totalStyle);
+    put(ri, COL.DISP, "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.D_QTY, 0, "n", { ...dataStyle, alignment: center, numFmt: SS_QTY_FMT });
+    putPeso(put, ri, COL.D_UNIT, null, { ...dataStyle, alignment: right, fill: greyFill });
+    putPeso(put, ri, COL.D_PRICE, null, { ...dataStyle, alignment: right });
+    put(ri, COL.TDT_DR, "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.BRANCH, "", "s", { ...dataStyle, alignment: center });
+  }
+
+  const lastRow = DATA_START + slotCount - 1;
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
+  ws["!merges"] = merges;
+  ws["!cols"] = [
+    { wch: 6 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
+    { wch: 28 }, { wch: 2 }, { wch: 11 }, { wch: 14 }, { wch: 10 }, { wch: 14 },
+    { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+    { wch: 12 }, { wch: 10 },
+  ];
+  ws["!rows"] = [
+    { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
+    { hpt: 8 }, { hpt: 20 }, { hpt: 36 },
+    ...Array(slotCount).fill({ hpt: 22 }),
+  ];
+  return ws;
+}
+
+function buildStockOutWorksheet(sku, skuInfo, rows) {
+  const styles = buildSsSheetStyles();
+  const ws = {};
+  const merges = [];
+  const C = (r, col) => XLSX.utils.encode_cell({ r, c: col });
+  const put = (r, c, v, t, s) => { ws[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s }; };
+
+  writeSsMeta(ws, C, put, merges, styles, sku, skuInfo);
+
+  const HDR_GROUP = 5;
+  const HDR_DETAIL = 6;
+  const DATA_START = 7;
+  const GAP = 7;
+  const COL = {
+    TRANS: 0, DATE: 1, PO: 2, PO_DATE: 3, V_DR: 4, V_NAME: 5, CUSTOMER: 6,
+    TDT_DR: 8, BRANCH: 9, BDR: 10, SI: 11, QTY: 12, UNIT: 13, PRICE: 14, REMARKS: 15,
+  };
+  const LAST_COL = COL.REMARKS;
+  const { hdrFill, totalFill, greyFill, solidBorder, dottedRed, f, center, left, right } = styles;
+
+  put(HDR_GROUP, COL.TRANS, "TRANS", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.TRANS }, e: { r: HDR_DETAIL, c: COL.TRANS } });
+  for (let c = COL.DATE; c <= COL.CUSTOMER; c++) {
+    put(HDR_GROUP, c, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
+  }
+  merges.push({ s: { r: HDR_GROUP, c: COL.DATE }, e: { r: HDR_GROUP, c: COL.CUSTOMER } });
+  put(HDR_GROUP, COL.TDT_DR, "INSERT", "s", { font: f.insert(), fill: hdrFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.TDT_DR }, e: { r: HDR_GROUP, c: COL.SI } });
+  put(HDR_GROUP, COL.QTY, "BALANCE", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.QTY }, e: { r: HDR_GROUP, c: COL.PRICE } });
+  put(HDR_GROUP, COL.REMARKS, "REMARKS", "s", { font: f.hdr(), fill: hdrFill, alignment: center, border: solidBorder });
+  merges.push({ s: { r: HDR_GROUP, c: COL.REMARKS }, e: { r: HDR_DETAIL, c: COL.REMARKS } });
+
+  const detailHdrs = [
+    [COL.TRANS, "NOS."],
+    [COL.DATE, "DATE TODAY"],
+    [COL.PO, "TDT PO#"],
+    [COL.PO_DATE, "TDT PO DATE"],
+    [COL.V_DR, "VENDOR'S DR#"],
+    [COL.V_NAME, "VENDOR'S NAME"],
+    [COL.CUSTOMER, "CUSTOMER'S NAME AS PER DR"],
+    [COL.TDT_DR, "TDT DR#"],
+    [COL.BRANCH, "BRANCH"],
+    [COL.BDR, "TDT BDR'S #"],
+    [COL.SI, "TDT SI#"],
+    [COL.QTY, "QUANTITY"],
+    [COL.UNIT, "UNIT COST"],
+    [COL.PRICE, "PRICE"],
+    [COL.REMARKS, "REMARKS"],
+  ];
+  detailHdrs.forEach(([c, h]) => {
+    const accent = [COL.TRANS, COL.BDR, COL.QTY, COL.UNIT, COL.PRICE].includes(c);
+    put(HDR_DETAIL, c, h, "s", {
+      font: f.hdr(),
+      fill: accent ? totalFill : c === COL.UNIT ? greyFill : hdrFill,
+      alignment: center,
+      border: solidBorder,
+    });
+  });
+  put(HDR_DETAIL, GAP, "", "s", { fill: styles.sheetFill, border: solidBorder });
+
+  const slotCount = Math.max(rows.length, SS_MIN_DATA_ROWS);
+  for (let i = 0; i < slotCount; i++) {
+    const ri = DATA_START + i;
+    const row = rows[i];
+    const fill = styles.sheetFill;
+    const dataStyle = { font: f.body(), fill, border: dottedRed };
+    const accentFill = { ...dataStyle, fill: totalFill, font: f.hdr(true) };
+
+    put(ri, COL.TRANS, ssTransNo(row, i), "n", { ...accentFill, alignment: center, numFmt: SS_QTY_FMT });
+    if (!row) {
+      for (let c = 1; c <= LAST_COL; c++) {
+        if (c === GAP) continue;
+        const isPeso = c === COL.UNIT || c === COL.PRICE;
+        const isQty = c === COL.QTY || c === COL.BDR;
+        put(ri, c, isPeso ? "₱ -" : isQty ? 0 : "", isPeso ? "s" : "n", {
+          ...dataStyle,
+          alignment: isPeso ? right : center,
+          ...(isQty && c === COL.QTY ? { numFmt: SS_QTY_FMT, ...accentFill } : {}),
+          ...(c === COL.UNIT ? { fill: greyFill } : {}),
+        });
+      }
+      put(ri, GAP, "", "s", { fill, border: dottedRed });
+      continue;
+    }
+
+    put(ri, COL.DATE, formatSsDate(row.dispatchDate), "s", { ...dataStyle, alignment: center });
+    put(ri, COL.PO, row.tdtWo || "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.PO_DATE, "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.V_DR, "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.V_NAME, "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.CUSTOMER, row.customer || "", "s", { ...dataStyle, alignment: left });
+    put(ri, GAP, "", "s", { fill, border: dottedRed });
+    put(ri, COL.TDT_DR, row.tdtDr || "", "s", { ...dataStyle, alignment: center, font: f.link() });
+    put(ri, COL.BRANCH, row.branch || "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.BDR, row.bdrSummary || "0", "s", { ...accentFill, alignment: center });
+    put(ri, COL.SI, row.tdtSi || "", "s", { ...dataStyle, alignment: center });
+    put(ri, COL.QTY, row.qtyOut ?? 0, "n", { ...accentFill, alignment: center, numFmt: SS_QTY_FMT });
+    putPeso(put, ri, COL.UNIT, row.unitCost, { ...dataStyle, alignment: right, fill: greyFill });
+    putPeso(put, ri, COL.PRICE, row.totalPrice, { ...accentFill, alignment: right });
+    put(ri, COL.REMARKS, row.remarks || "", "s", { ...dataStyle, alignment: left });
+  }
+
+  const lastRow = DATA_START + slotCount - 1;
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
+  ws["!merges"] = merges;
+  ws["!cols"] = [
+    { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 },
+    { wch: 26 }, { wch: 2 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 12 },
+    { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 24 },
+  ];
+  ws["!rows"] = [
+    { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
+    { hpt: 8 }, { hpt: 20 }, { hpt: 36 },
+    ...Array(slotCount).fill({ hpt: 22 }),
+  ];
+  return ws;
+}
+
+function downloadWorkbook(wb, filename) {
+  try {
+    XLSX.writeFile(wb, filename);
+  } catch {
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
 function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows) {
-  if (!window.XLSX) { alert("SheetJS not loaded."); return; }
-  const XLSX = window.XLSX;
+  const safeSku = String(sku || "SKU").trim() || "SKU";
   const wb = XLSX.utils.book_new();
-
-  // Stock IN sheet
-  const inHeaders = [
-    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
-    ["Stock Sheet — Stock IN for SKU: " + sku],
-    ["PRODUCT:", skuInfo.desc, "", "WEIGHT:", skuInfo.weight],
-    ["AS OF:", new Date().toLocaleString()],
-    [],
-    ["TRANS #","DATE","TDT PO #","TDT PO DATE","VENDOR #","VENDOR NAME","CUSTOMER'S NAME AS PER DR","TDT WO #","ACCEPTANCE DATE","QTY","COST/KILO","COST/UNIT","TOTAL PURCHASE","RUNNING QTY","AVG UNIT COST","TOTAL VALUE","REMARK"],
-  ];
-  const inData = stockInRows.map(r => [r.transNo, r.date, r.tdtPo, r.tdtPoDate, r.vendorNo, r.vendorName, r.customerDr, r.tdtWo, r.acceptDate, r.qty, r.costKilo != null ? parseFloat(Number(r.costKilo).toFixed(2)) : "", r.costUnit, r.totalPurchase, r.runningQty, r.avgUnitCost, r.totalValue, r.remark||"—"]);
-  const wsIn = XLSX.utils.aoa_to_sheet([...inHeaders, ...inData]);
-  wsIn["!cols"] = [{wch:10},{wch:12},{wch:16},{wch:12},{wch:10},{wch:18},{wch:22},{wch:10},{wch:14},{wch:8},{wch:10},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14},{wch:18}];
-  XLSX.utils.book_append_sheet(wb, wsIn, sku + " STOCK IN");
-
-  // Stock OUT sheet
-  const outHeaders = [
-    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
-    ["Stock Sheet — Stock OUT for SKU: " + sku],
-    ["PRODUCT:", skuInfo.desc],
-    ["AS OF:", new Date().toLocaleString()],
-    [],
-    ["TRANS #","DISPATCH DATE","TDT WO#","CUSTOMER NAME","TDT DR#","BRANCH","SUMMARY OF TDT BDR#","TDT SI#","QTY OUT","UNIT COST","TOTAL PRICE","SERIES 1 — QTY / DATE","SERIES 2 — QTY / DATE","SERIES 3 — QTY / DATE","RUNNING QTY","RUNNING VALUE","REMARKS"],
-  ];
-  const outData = stockOutRows.map(r => [r.transNo, r.dispatchDate, r.tdtWo, r.customer, r.tdtDr, r.branch, r.bdrSummary, r.tdtSi, r.qtyOut, r.unitCost, r.totalPrice, r.s1, r.s2, r.s3, r.runningQty, r.runningValue, r.remarks||"—"]);
-  const wsOut = XLSX.utils.aoa_to_sheet([...outHeaders, ...outData]);
-  wsOut["!cols"] = [{wch:10},{wch:14},{wch:12},{wch:20},{wch:14},{wch:10},{wch:14},{wch:12},{wch:8},{wch:12},{wch:14},{wch:18},{wch:18},{wch:18},{wch:12},{wch:14},{wch:14}];
-  XLSX.utils.book_append_sheet(wb, wsOut, sku + " STOCK OUT");
-
-  XLSX.writeFile(wb, "TDT_WIS_Stock_Sheet_" + sku + ".xlsx");
+  const inSheet = buildStockInWorksheet(safeSku, skuInfo, stockInRows);
+  const outSheet = buildStockOutWorksheet(safeSku, skuInfo, stockOutRows);
+  XLSX.utils.book_append_sheet(wb, inSheet, `${safeSku} STOCK IN`.slice(0, 31));
+  XLSX.utils.book_append_sheet(wb, outSheet, `${safeSku} STOCK OUT`.slice(0, 31));
+  downloadWorkbook(wb, `TDT_WIS_Stock_Sheet_${safeSku}.xlsx`);
 }
 
 function importStockSheets(file, onInDone, onOutDone, onError) {
@@ -284,34 +646,8 @@ export default function StockSheetsPage({
       <PageToolbar
         searchValue={searchSku}
         onSearchChange={(v) => { setSearchSku(v); setInPage(1); setOutPage(1); }}
+        showDateRange={false}
         primaryAction={{ label: "New Stock Sheet", onClick: () => setShowCreate(true) }}
-        row1End={
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flex: "1 1 300px" }}>
-            <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>Recent:</span>
-            {RECENT_SKUS.map((sku) => {
-              const active = skuKey === sku;
-              return (
-                <button
-                  key={sku}
-                  type="button"
-                  onClick={() => { setSearchSku(sku); setInPage(1); setOutPage(1); }}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: 20,
-                    border: "none",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    background: active ? "#e87c27" : "#f3f4f6",
-                    color: active ? "#fff" : "#6b7280",
-                  }}
-                >
-                  {sku}
-                </button>
-              );
-            })}
-          </div>
-        }
         importExport={{
           fileInputRef: importRef,
           onFileChange: (e) => {
@@ -328,9 +664,52 @@ export default function StockSheetsPage({
           importing,
           importDisabled: !xlsxReady,
           importLabel: "Import WIS",
-          onExport: () => exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows),
+          onExport: () => {
+            try {
+              exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows);
+              showToast(`Exported stock sheet for ${skuKey || "SKU"}.`);
+            } catch (err) {
+              console.error("Stock sheet export failed:", err);
+              showToast(err?.message || "Export failed. Check the browser console.", "error");
+            }
+          },
         }}
       />
+
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+        background: "#fff",
+        borderRadius: 14,
+        padding: "12px 16px",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.07)",
+      }}>
+        <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>Recent SKUs:</span>
+        {RECENT_SKUS.map((sku) => {
+          const active = skuKey === sku;
+          return (
+            <button
+              key={sku}
+              type="button"
+              onClick={() => { setSearchSku(sku); setInPage(1); setOutPage(1); }}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 20,
+                border: "none",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                background: active ? "#e87c27" : "#f3f4f6",
+                color: active ? "#fff" : "#6b7280",
+              }}
+            >
+              {sku}
+            </button>
+          );
+        })}
+      </div>
 
       <div style={{ background: "#fff", borderRadius: 14, padding: "20px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 20 }}>
         <div style={{ display: "flex", flex: "1 1 0", gap: 28, flexWrap: "wrap", minWidth: 0 }}>

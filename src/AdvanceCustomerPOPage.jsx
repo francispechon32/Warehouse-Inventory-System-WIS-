@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import {
   cellStr,
@@ -318,38 +319,245 @@ function useSheetJS() {
 
 function IconUpload({ size = 16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
 
-/* ─── EXPORT ── */
+/* ─── EXPORT (horizontal SKU blocks) ── */
+const ACPO_BLOCK_COLS = 6;
+const ACPO_BLOCK_GAP = 1;
+const ACPO_BLOCK_WIDTH = ACPO_BLOCK_COLS + ACPO_BLOCK_GAP;
+const ACPO_DATA_SLOTS = 20;
+const ACPO_ROW_LOGO1 = 0;
+const ACPO_ROW_LOGO2 = 1;
+const ACPO_ROW_INFO_START = 2;
+const ACPO_ROW_SECTION = 5;
+const ACPO_ROW_HDR = 6;
+const ACPO_ROW_SUMMARY = 7;
+const ACPO_ROW_DATA_START = 8;
+
+function formatAcpoExportDateTime(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatAcpoExportDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function acpoTransSlotLabels(count = ACPO_DATA_SLOTS) {
+  const slots = [1, 2, 3, 4];
+  while (slots.length < count) slots.push(slots[slots.length - 1] + 5);
+  return slots.slice(0, count);
+}
+
+function groupReservationsBySku(rows) {
+  const groups = [];
+  const map = new Map();
+  rows.forEach((row) => {
+    const { sku, item, estQtyEnding } = getSummaryFields(row);
+    const key = sku === "—" ? `__${row.id}` : sku;
+    if (!map.has(key)) {
+      const g = { sku, item, estQtyEnding, rows: [] };
+      map.set(key, g);
+      groups.push(g);
+    }
+    map.get(key).rows.push(row);
+  });
+  return groups;
+}
+
+function resolveSectionEstEnding(estQtyEnding, groupRows) {
+  if (estQtyEnding !== "—" && estQtyEnding !== "" && estQtyEnding != null) {
+    const n = Number(estQtyEnding);
+    if (!Number.isNaN(n)) return n;
+  }
+  return groupRows.reduce((s, r) => s + (Number(r.estEnding) || 0), 0);
+}
+
 function exportToWis(rows) {
-  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
-  const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
-  const headers = [
-    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
-    ["Advance Customer Purchase Orders"],
-    ["LOCATION:", "MARILAO WAREHOUSE"],
-    ["AS OF", new Date().toLocaleString()],
-    [],
-    ["NO.", "TRANS #", "DATE", "SO/WO", "TDT DR", "CUSTOMER", "PLACE", "RESERVED QTY", "CURRENT STOCK", "EST. ENDING", "APPROVED BY", "STATUS"],
+  const C = (r, c) => XLSX.utils.encode_cell({ r, c });
+  const groups = groupReservationsBySku(rows);
+  if (!groups.length) groups.push({ sku: "—", item: "—", estQtyEnding: "—", rows: [] });
+
+  const sheetFill = { patternType: "solid", fgColor: { rgb: "FFF9E6" } };
+  const goldFill = { patternType: "solid", fgColor: { rgb: "FFD966" } };
+  const hdrFill = { patternType: "solid", fgColor: { rgb: "806000" } };
+  const summaryFill = { patternType: "solid", fgColor: { rgb: "FFEB9C" } };
+  const dataFill = { patternType: "solid", fgColor: { rgb: "FCE4D6" } };
+
+  const thickBorder = {
+    top: { style: "medium", color: { rgb: "000000" } },
+    bottom: { style: "medium", color: { rgb: "000000" } },
+    left: { style: "medium", color: { rgb: "000000" } },
+    right: { style: "medium", color: { rgb: "000000" } },
+  };
+  const blackBorder = {
+    top: { style: "thin", color: { rgb: "000000" } },
+    bottom: { style: "thin", color: { rgb: "000000" } },
+    left: { style: "thin", color: { rgb: "000000" } },
+    right: { style: "thin", color: { rgb: "000000" } },
+  };
+  const dataBorder = {
+    top: { style: "thin", color: { rgb: "B4C6E7" } },
+    bottom: { style: "thin", color: { rgb: "B4C6E7" } },
+    left: { style: "thin", color: { rgb: "B4C6E7" } },
+    right: { style: "thin", color: { rgb: "B4C6E7" } },
+  };
+
+  const f = {
+    brand: () => ({ name: "Arial", sz: 11, bold: true, color: { rgb: "E87C27" } }),
+    brandDark: () => ({ name: "Arial", sz: 11, bold: true, color: { rgb: "000000" } }),
+    tagline: () => ({ name: "Arial", sz: 8, bold: true, color: { rgb: "000000" } }),
+    infoLabel: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
+    sectionNum: () => ({ name: "Arial", sz: 10, bold: true, color: { rgb: "000000" } }),
+    hdr: () => ({ name: "Arial", sz: 8, bold: true, color: { rgb: "FFFFFF" } }),
+    summary: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
+    body: () => ({ name: "Arial", sz: 9, color: { rgb: "000000" } }),
+  };
+  const center = { horizontal: "center", vertical: "center", wrapText: true };
+  const left = { horizontal: "left", vertical: "center", wrapText: true, indent: 1 };
+  const qtyFmt = "#,##0";
+
+  const ws = {};
+  const merges = [];
+  const put = (r, c, v, t, style) => {
+    ws[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s: style };
+  };
+  const blockStart = (bi) => bi * ACPO_BLOCK_WIDTH;
+  const now = formatAcpoExportDateTime();
+  const transSlots = acpoTransSlotLabels();
+
+  const tableHdrs = [
+    "TRANS #", "INSERT DATE", "INSERT DR #",
+    "INSERT CUSTOMER NAME", "INSERT PLACE OF DELIVERY", "EST ENDING BALANCE",
   ];
-  const dataRows = rows.map((r, i) => [i+1, r.transNo, r.resDate, r.soWo, r.tdtDr, r.customer, r.place, r.reservedQty, r.currentStock, r.estEnding ?? "—", r.approvedBy, r.status]);
-  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:5},{wch:8},{wch:12},{wch:12},{wch:12},{wch:30},{wch:14},{wch:14},{wch:14},{wch:12},{wch:14},{wch:12}];
-  const numCols = ws["!cols"].length;
-  // Style header row 6
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(0, numCols).split("").forEach(c => {
-    const addr = `${c}6`;
-    if (ws[addr]) ws[addr].s = { font: { bold: true, sz: 9, color: { rgb: "FFFFFF" }, name: "Arial" }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center", wrapText: true } };
+
+  groups.forEach((group, bi) => {
+    const sc = blockStart(bi);
+    const endC = sc + ACPO_BLOCK_COLS - 1;
+    const actualBal = resolveSectionEstEnding(group.estQtyEnding, group.rows);
+
+    put(ACPO_ROW_LOGO1, sc, "TDT POWERSTEEL", "s", { font: f.brand(), alignment: center, fill: sheetFill });
+    merges.push({ s: { r: ACPO_ROW_LOGO1, c: sc }, e: { r: ACPO_ROW_LOGO1, c: endC } });
+
+    put(ACPO_ROW_LOGO2, sc, "THE NO. 1 STEEL SUPPLIER", "s", {
+      font: f.tagline(), alignment: center, fill: sheetFill,
+    });
+    merges.push({ s: { r: ACPO_ROW_LOGO2, c: sc }, e: { r: ACPO_ROW_LOGO2, c: endC } });
+
+    const infoRows = [
+      ["SKU", group.sku],
+      ["ITEM", group.item],
+      ["EST QTY ENDING", group.estQtyEnding],
+    ];
+    infoRows.forEach(([label, value], ri) => {
+      const row = ACPO_ROW_INFO_START + ri;
+      put(row, sc, label, "s", {
+        font: f.infoLabel(), fill: goldFill, alignment: left, border: thickBorder,
+      });
+      merges.push({ s: { r: row, c: sc }, e: { r: row, c: sc + 1 } });
+      put(row, sc + 2, value, "s", {
+        font: f.body(), fill: goldFill, alignment: center, border: thickBorder,
+      });
+      merges.push({ s: { r: row, c: sc + 2 }, e: { r: row, c: endC } });
+    });
+
+    put(ACPO_ROW_SECTION, sc, bi + 1, "n", {
+      font: f.sectionNum(), alignment: center, fill: sheetFill,
+    });
+
+    tableHdrs.forEach((h, ci) => {
+      put(ACPO_ROW_HDR, sc + ci, h, "s", {
+        font: f.hdr(), fill: hdrFill, alignment: center, border: blackBorder,
+      });
+    });
+
+    put(ACPO_ROW_SUMMARY, sc, "", "s", { fill: summaryFill, border: blackBorder });
+    put(ACPO_ROW_SUMMARY, sc + 1, now, "s", {
+      font: f.summary(), fill: summaryFill, alignment: center, border: blackBorder,
+    });
+    put(ACPO_ROW_SUMMARY, sc + 2, "ACTUAL ENDING BALANCE >>>", "s", {
+      font: f.summary(), fill: summaryFill, alignment: center, border: blackBorder,
+    });
+    merges.push({ s: { r: ACPO_ROW_SUMMARY, c: sc + 2 }, e: { r: ACPO_ROW_SUMMARY, c: sc + 4 } });
+    put(ACPO_ROW_SUMMARY, sc + 5, actualBal, "n", {
+      font: f.summary(), fill: summaryFill, alignment: center, border: blackBorder, numFmt: qtyFmt,
+    });
+
+    transSlots.forEach((slotLabel, si) => {
+      const row = ACPO_ROW_DATA_START + si;
+      const data = group.rows[si];
+      put(row, sc, slotLabel, "n", {
+        font: f.body(), fill: dataFill, alignment: center, border: dataBorder, numFmt: qtyFmt,
+      });
+      if (data) {
+        const dr = data.drNo || data.tdtDr || "";
+        const est = data.estEnding ?? "";
+        put(row, sc + 1, formatAcpoExportDate(data.resDate), "s", {
+          font: f.body(), fill: dataFill, alignment: center, border: dataBorder,
+        });
+        put(row, sc + 2, dr, "s", { font: f.body(), fill: dataFill, alignment: center, border: dataBorder });
+        put(row, sc + 3, data.customer || "", "s", {
+          font: f.body(), fill: dataFill, alignment: left, border: dataBorder,
+        });
+        put(row, sc + 4, data.place || "", "s", {
+          font: f.body(), fill: dataFill, alignment: center, border: dataBorder,
+        });
+        put(row, sc + 5, est === "" || est === null ? "" : est, typeof est === "number" ? "n" : "s", {
+          font: f.body(), fill: dataFill, alignment: center, border: dataBorder,
+          ...(typeof est === "number" ? { numFmt: qtyFmt } : {}),
+        });
+      } else {
+        for (let ci = 1; ci < ACPO_BLOCK_COLS; ci++) {
+          put(row, sc + ci, "", "s", { fill: dataFill, border: dataBorder, alignment: center });
+        }
+      }
+    });
   });
-  // Style title rows
-  ["A1","A2","A3","B3","A4","B4"].forEach(cell => {
-    if (ws[cell]) ws[cell].s = { font: { bold: true, sz: 13, name: "Arial" }, alignment: { horizontal: "left" } };
+
+  const lastRow = ACPO_ROW_DATA_START + ACPO_DATA_SLOTS - 1;
+  const lastCol = blockStart(groups.length) - 1;
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: Math.max(lastCol, 0) });
+
+  for (let r = 0; r <= lastRow; r++) {
+    for (let c = 0; c <= lastCol; c++) {
+      if (!ws[C(r, c)]) {
+        put(r, c, "", "s", { fill: sheetFill, border: dataBorder, alignment: center });
+      }
+    }
+  }
+
+  ws["!merges"] = merges;
+
+  const colWidths = [];
+  groups.forEach((_, bi) => {
+    const sc = blockStart(bi);
+    colWidths[sc] = { wch: 7 };
+    colWidths[sc + 1] = { wch: 12 };
+    colWidths[sc + 2] = { wch: 11 };
+    colWidths[sc + 3] = { wch: 24 };
+    colWidths[sc + 4] = { wch: 14 };
+    colWidths[sc + 5] = { wch: 12 };
+    if (bi < groups.length - 1) colWidths[sc + ACPO_BLOCK_COLS] = { wch: 2 };
   });
-  ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } },
+  ws["!cols"] = colWidths;
+
+  ws["!rows"] = [
+    { hpt: 20 },
+    { hpt: 16 },
+    { hpt: 18 },
+    { hpt: 22 },
+    { hpt: 18 },
+    { hpt: 14 },
+    { hpt: 38 },
+    { hpt: 22 },
+    ...Array(ACPO_DATA_SLOTS).fill({ hpt: 20 }),
   ];
+
   XLSX.utils.book_append_sheet(wb, ws, "ADVANCE CUSTOMER PO");
-  XLSX.writeFile(wb, "TDT_WIS_Advance_Customer_PO_Export.xlsx");
+  XLSX.writeFile(wb, "TDT_Advance_Customer_PO_Summary.xlsx");
 }
 
 /* ─── IMPORT parser ── */
@@ -517,10 +725,7 @@ export default function AdvanceCustomerPOPage() {
           },
           importing,
           importDisabled: !xlsxReady,
-          onExport: () => {
-            if (!xlsxReady) { showToast("SheetJS not ready yet.", "error"); return; }
-            exportToWis(reservations);
-          },
+          onExport: () => exportToWis(reservations),
         }}
       />
 

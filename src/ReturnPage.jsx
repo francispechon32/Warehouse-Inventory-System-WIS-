@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import {
   cellStr,
@@ -134,23 +135,239 @@ function useSheetJS() {
   return ready;
 }
 
+const RT_OUT_TRACK_PAIRS = 6;
+const RT_MAIN_COLS = 12;
+const RT_TOTAL_COLS = RT_MAIN_COLS + RT_OUT_TRACK_PAIRS * 2;
+const RT_HDR_ROW = 3;
+const RT_DATA_START = 4;
+const RT_MIN_DATA_ROWS = 20;
+const RT_PESO_FMT = '_-"P"* #,##0.00_-;_-"P"* "-"??_-;_-"P"* "-"??_-;_-@_-';
+
+function formatReturnExportDateTime(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatReturnExportDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function formatReturnShortDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${String(d.getDate()).padStart(2, "0")}-${months[d.getMonth()]}`;
+}
+
+function returnTransDisplay(row, index, base = 11) {
+  if (row?.transNo) {
+    const n = parseInt(String(row.transNo).replace(/\D/g, ""), 10);
+    if (!Number.isNaN(n)) return n;
+  }
+  return row?.id ?? base + index;
+}
+
+function returnRemarks(row) {
+  if (!row) return "";
+  const parts = [row.reason, row.disposition, row.returnNo ? `RTN: ${row.returnNo}` : ""].filter(Boolean);
+  return parts.join(" — ");
+}
+
+function downloadReturnWorkbook(wb, filename) {
+  try {
+    XLSX.writeFile(wb, filename);
+  } catch {
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
 function exportReturns(rows) {
-  if (!window.XLSX) { alert("SheetJS not loaded."); return; }
-  const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
-  const headers = [
-    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
-    ["Return Inventory"],
-    ["LOCATION:", "MARILAO WAREHOUSE"],
-    ["AS OF:", new Date().toLocaleString()],
-    [],
-    ["TRANS #", "RETURN DATE", "DR#", "SKU", "ITEM", "QTY RETURNED", "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "TOTAL QTY OUT", "QTY BALANCE", "AMOUNT BALANCE", "DISPOSITION", "STATUS", "RETURN NO.", "WAREHOUSE"],
+  const C = (r, c) => XLSX.utils.encode_cell({ r, c });
+
+  const sheetFill = { patternType: "solid", fgColor: { rgb: "FFF9E6" } };
+  const greenFill = { patternType: "solid", fgColor: { rgb: "E2EFDA" } };
+  const peachFill = { patternType: "solid", fgColor: { rgb: "FCE4D6" } };
+  const hdrFill = { patternType: "solid", fgColor: { rgb: "D6DCE4" } };
+
+  const cellBorder = {
+    top: { style: "thin", color: { rgb: "000000" } },
+    bottom: { style: "thin", color: { rgb: "000000" } },
+    left: { style: "thin", color: { rgb: "000000" } },
+    right: { style: "thin", color: { rgb: "000000" } },
+  };
+
+  const f = {
+    brand: () => ({ name: "Arial", sz: 18, bold: true, color: { rgb: "E87C27" } }),
+    brandDark: () => ({ name: "Arial", sz: 18, bold: true, color: { rgb: "000000" } }),
+    tagline: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
+    title: () => ({ name: "Arial", sz: 13, bold: true, color: { rgb: "000000" } }),
+    meta: () => ({ name: "Arial", sz: 10, color: { rgb: "000000" } }),
+    hdr: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
+    body: (bold = false) => ({ name: "Arial", sz: 10, bold, color: { rgb: "000000" } }),
+    item: () => ({ name: "Arial", sz: 10, color: { rgb: "0563C1" }, underline: true }),
+  };
+
+  const padLeft = { horizontal: "left", vertical: "center", wrapText: true, indent: 1 };
+  const padCenter = { horizontal: "center", vertical: "center", wrapText: true };
+  const padMoney = { horizontal: "right", vertical: "center", wrapText: false };
+  const qtyFmt = "#,##0";
+
+  const ws = {};
+  const put = (r, c, v, t, style) => {
+    ws[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s: style };
+  };
+
+  const cell = (fill, alignment, extra = {}) => ({
+    font: f.body(),
+    fill,
+    alignment,
+    border: cellBorder,
+    ...extra,
+  });
+
+  const putMoney = (r, c, amount) => {
+    const n = Number(amount);
+    if (!n) {
+      put(r, c, "P  -", "s", cell(sheetFill, padLeft));
+      return;
+    }
+    put(r, c, n, "n", cell(sheetFill, padMoney, { numFmt: RT_PESO_FMT }));
+  };
+
+  const now = formatReturnExportDateTime();
+
+  put(0, 0, "TDT", "s", { font: f.brand(), alignment: padLeft, fill: sheetFill });
+  put(0, 1, "POWERSTEEL", "s", { font: f.brandDark(), alignment: { ...padLeft, indent: 0 }, fill: sheetFill });
+  put(0, 2, "THE NO. 1 STEEL SUPPLIER", "s", { font: f.tagline(), alignment: padLeft, fill: sheetFill });
+  put(1, 0, "RETURN INVENTORY SUMMARY", "s", { font: f.title(), alignment: padLeft, fill: sheetFill });
+  put(2, 0, `AS OF THIS DATE OF: ${now}`, "s", { font: f.meta(), alignment: padLeft, fill: sheetFill });
+
+  const mainHdrs = [
+    "TRANS", "INSERT DATE", "INSERT DR #", "SKU", "ITEM", "INSERT QTY",
+    "INSERT UNIT COST", "TOTAL COST", "CUSTOMER'S NAME",
+    "TOTAL QTY OUT", "QTY BALANCE", "REMARKS",
   ];
-  const dataRows = rows.map(r => [r.transNo, r.returnDate, r.drNo, r.sku, r.item, r.qtyReturned, r.unitCost, r.totalCost, r.customer, r.reason, r.totalQtyOut, r.qtyBalance, r.amountBalance, r.disposition, r.status, r.returnNo, r.warehouse]);
-  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:8},{wch:12},{wch:12},{wch:12},{wch:35},{wch:12},{wch:12},{wch:14},{wch:25},{wch:25},{wch:12},{wch:12},{wch:16},{wch:14},{wch:10},{wch:12},{wch:18}];
+  const outHdrs = [];
+  for (let i = 0; i < RT_OUT_TRACK_PAIRS; i++) outHdrs.push("QTY - OUT", "DATE");
+
+  [...mainHdrs, ...outHdrs].forEach((h, ci) => {
+    const isOutQty = ci >= RT_MAIN_COLS && (ci - RT_MAIN_COLS) % 2 === 0;
+    const isOutDate = ci >= RT_MAIN_COLS && (ci - RT_MAIN_COLS) % 2 === 1;
+    put(RT_HDR_ROW, ci, h, "s", {
+      font: f.hdr(),
+      fill: isOutQty ? greenFill : isOutDate ? peachFill : hdrFill,
+      alignment: padCenter,
+      border: cellBorder,
+    });
+  });
+
+  const slotCount = Math.max(rows.length, RT_MIN_DATA_ROWS);
+  for (let i = 0; i < slotCount; i++) {
+    const ri = RT_DATA_START + i;
+    const row = rows[i];
+
+    if (!row) {
+      put(ri, 0, returnTransDisplay(null, i), "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
+      for (let c = 1; c < RT_MAIN_COLS; c++) {
+        const isPeso = c === 6 || c === 7;
+        const isQty = c === 5 || c === 9 || c === 10;
+        put(ri, c, isPeso ? "P  -" : isQty ? 0 : "", isPeso ? "s" : "n", cell(sheetFill, isQty ? padCenter : isPeso ? padLeft : padLeft, isQty ? { numFmt: qtyFmt } : {}));
+      }
+      for (let p = 0; p < RT_OUT_TRACK_PAIRS; p++) {
+        const qtyCol = RT_MAIN_COLS + p * 2;
+        const dateCol = qtyCol + 1;
+        put(ri, qtyCol, "", "s", cell(greenFill, padCenter));
+        put(ri, dateCol, "", "s", cell(peachFill, padCenter));
+      }
+      continue;
+    }
+
+    const qtyBal = row.qtyBalance ?? (row.qtyReturned || 0) - (row.totalQtyOut || 0);
+    const totalCost = row.totalCost ?? (row.qtyReturned || 0) * (row.unitCost || 0);
+
+    put(ri, 0, returnTransDisplay(row, i), "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
+    put(ri, 1, formatReturnExportDate(row.returnDate), "s", cell(sheetFill, padCenter));
+    put(ri, 2, row.drNo || "", "s", cell(sheetFill, padCenter));
+    put(ri, 3, row.sku || "", "s", cell(sheetFill, padCenter));
+    put(ri, 4, row.item || "", "s", cell(sheetFill, padLeft, { font: f.item() }));
+    put(ri, 5, row.qtyReturned ?? 0, "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
+    putMoney(ri, 6, row.unitCost);
+    putMoney(ri, 7, totalCost);
+    put(ri, 8, row.customer || "", "s", cell(sheetFill, padLeft));
+    put(ri, 9, row.totalQtyOut ?? 0, "n", cell(sheetFill, padCenter, { numFmt: qtyFmt }));
+    put(ri, 10, qtyBal, "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
+    put(ri, 11, returnRemarks(row), "s", cell(sheetFill, padLeft));
+
+    for (let p = 0; p < RT_OUT_TRACK_PAIRS; p++) {
+      const qtyCol = RT_MAIN_COLS + p * 2;
+      const dateCol = qtyCol + 1;
+      const showFirst = p === 0 && (row.totalQtyOut || 0) > 0;
+      put(
+        ri, qtyCol,
+        showFirst ? row.totalQtyOut : "",
+        showFirst ? "n" : "s",
+        cell(greenFill, padCenter, showFirst ? { numFmt: qtyFmt } : {})
+      );
+      put(
+        ri, dateCol,
+        showFirst ? formatReturnShortDate(row.returnDate) : "",
+        "s",
+        cell(peachFill, padCenter)
+      );
+    }
+  }
+
+  const lastRow = RT_DATA_START + slotCount - 1;
+  const lastCol = RT_TOTAL_COLS - 1;
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: lastCol });
+
+  for (let r = 0; r <= lastRow; r++) {
+    for (let c = 0; c <= lastCol; c++) {
+      if (!ws[C(r, c)]) {
+        put(r, c, "", "s", { fill: sheetFill, border: cellBorder, alignment: padCenter });
+      }
+    }
+  }
+
+  ws["!merges"] = [
+    { s: { r: 0, c: 2 }, e: { r: 0, c: 8 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 8 } },
+  ];
+
+  const outCols = [];
+  for (let i = 0; i < RT_OUT_TRACK_PAIRS; i++) outCols.push({ wch: 10 }, { wch: 11 });
+  ws["!cols"] = [
+    { wch: 6 }, { wch: 13 }, { wch: 12 }, { wch: 10 }, { wch: 48 }, { wch: 11 },
+    { wch: 17 }, { wch: 17 }, { wch: 34 }, { wch: 12 }, { wch: 12 }, { wch: 32 },
+    ...outCols,
+  ];
+
+  ws["!rows"] = [
+    { hpt: 26 }, { hpt: 24 }, { hpt: 20 }, { hpt: 46 },
+    ...Array(slotCount).fill({ hpt: 34 }),
+  ];
+
   XLSX.utils.book_append_sheet(wb, ws, "RETURN INVENTORY");
-  XLSX.writeFile(wb, "TDT_WIS_Return_Inventory.xlsx");
+  downloadReturnWorkbook(wb, "TDT_Return_Inventory_Summary.xlsx");
 }
 
 async function importReturns(file, onDone, onError) {
@@ -294,12 +511,21 @@ export default function ReturnPage() {
           { key: "reason", value: reasonFilter, onChange: (v) => { setReasonFilter(v); setCurrentPage(1); }, options: REASON_OPTS, minWidth: 180 },
         ]}
         primaryAction={{ label: "Create New Return", onClick: () => setShowCreate(true) }}
+        showDateRange={false}
         importExport={{
           fileInputRef,
           onFileChange: handleImport,
           importing,
           importDisabled: !xlsxReady,
-          onExport: () => exportReturns(returns),
+          onExport: () => {
+            try {
+              exportReturns(filtered);
+              showToast(`Exported ${filtered.length} return entries.`);
+            } catch (err) {
+              console.error("Return export failed:", err);
+              showToast(err?.message || "Export failed.", "error");
+            }
+          },
         }}
       />
 

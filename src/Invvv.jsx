@@ -1193,7 +1193,7 @@ export default function Dashboard({ onLogout, userName }) {
                       setActiveNav("about");
                       setActiveModal("about");
                     }}>
-                    About system
+                    About
                   </button>
                   <button type="button"
                     className={`sub-btn ${activeNav === "contact" ? "active" : ""}`}
