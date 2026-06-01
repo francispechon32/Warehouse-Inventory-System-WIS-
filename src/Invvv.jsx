@@ -1240,7 +1240,7 @@ export default function Dashboard({ onLogout, userName }) {
             flexShrink: 0,
           }}>
             <div>
-              <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
+              <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 , textAlign:"left" }}>
                 {activeNav === "Product"              ? "List of SKU"
                   : activeNav === "Ending Inventory"  ? "Ending Inventory"
                   : activeNav === "Stock Sheets"      ? "Stock Sheets"

@@ -77,7 +77,8 @@
 
 .wis-modal-header__main {
   display: flex;
-  align-items: center;
+   align-items: flex-start; /* ← palitan ito */
+
   gap: 14px;
   flex: 1;
   min-width: 0;
@@ -103,6 +104,8 @@
   color: #0f172a;
   letter-spacing: -0.04em;
   line-height: 1.15;
+    text-align: left; /* ← dagdag ito */
+
 }
 
 .wis-modal-header--center .wis-modal-header__title {

@@ -318,7 +318,7 @@ function UserGuideModal({ onClose }) {
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <div style={{ width:40, height:40, borderRadius:10, background:"linear-gradient(135deg,#e87c27,#c96b1c)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📖</div>
           <div>
-            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" }}>User Guide</h2>
+            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a", textAlign:"left" }}>User Guide</h2>
             <p style={{ margin:0, fontSize:11, color:"#64748b" }}>WIS Platform — How to use each module</p>
           </div>
         </div>
@@ -441,7 +441,7 @@ function AboutModal({ onClose }) {
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ width:52, height:52, borderRadius:"50%", background:"linear-gradient(135deg,#c96b1c,#7c3a0a)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:17, letterSpacing:"-0.5px", boxShadow:"0 4px 14px rgba(201,107,28,.35)" }}>WIS</div>
             <div>
-              <h2 style={{ margin:0, fontSize:17, fontWeight:900, color:"#0f172a" }}>About WIS Platform</h2>
+              <h2 style={{ margin:0, fontSize:17, fontWeight:900, color:"#0f172a" , textAlign:"left" }}>About WIS Platform</h2>
               <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Technical details and software information</p>
             </div>
           </div>
@@ -612,14 +612,13 @@ function UserMgmtModal({ onClose, onAction }) {
       `}</style>
 
       {/* Header */}
-      <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
+      <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"flex-start", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <div style={{ width:38, height:38, borderRadius:10, background:"linear-gradient(135deg,#e87c27,#c96b1c)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}>
             <IconUser s={18} />
           </div>
           <div>
-            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" }}>User Management</h2>
-            <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Manage system roles, permissions, access logs</p>
+<h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a", textAlign:"left" }}>User Management</h2>            <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Manage system roles, permissions, access logs</p>
           </div>
         </div>
         <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
@@ -803,7 +802,7 @@ function StockLimitsModal({ onClose, products, setProducts, onAction }) {
             <IconShield s={18} />
           </div>
           <div>
-            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" }}>Stock Limits</h2>
+            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a", textAlign:"left" }}>Stock Limits</h2>
             <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Manage minimum and maximum inventory thresholds for each SKU</p>
           </div>
         </div>
@@ -967,7 +966,7 @@ function ContactModal({ onClose, onAction }) {
   return (
     <>
       <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
-        <div><h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" }}>Contact Support</h2><p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p></div>
+        <div><h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" , textAlign:"left" }}>Contact Support</h2><p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p></div>
         <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
