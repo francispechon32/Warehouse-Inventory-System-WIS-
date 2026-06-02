@@ -488,6 +488,7 @@ export default function AdvanceCustomerPOPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
   const filtered = useMemo(() => {
     let rows = reservations;
@@ -512,8 +513,10 @@ export default function AdvanceCustomerPOPage() {
       );
     }
     if (place !== "All locations") rows = rows.filter((r) => r.place === place);
+    if (dateRange.start) rows = rows.filter((r) => (r.resDate || "") >= dateRange.start);
+    if (dateRange.end)   rows = rows.filter((r) => (r.resDate || "") <= dateRange.end);
     return rows;
-  }, [reservations, searchSku, place]);
+  }, [reservations, searchSku, place, dateRange]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -553,6 +556,8 @@ export default function AdvanceCustomerPOPage() {
           { key: "place", value: place, onChange: (v) => { setPlace(v); setCurrentPage(1); }, options: PLACES, minWidth: 170 },
         ]}
         primaryAction={{ label: "Create New Reservation", onClick: () => setShowCreate(true) }}
+        dateRange={dateRange}
+        onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
         importExport={{
           fileInputRef: importRef,
           onFileChange: (e) => {

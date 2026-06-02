@@ -691,6 +691,7 @@ export default function PurchasingOrderPage({
   const [selectedId, setSelectedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ poDate: "", eta: "", purchaser: "", tdtPo: "", vendor: "", productDesc: "", sku: "", qty: "", unitCost: "", destination: "", tradingOrStocks: "Stocks", warehouseType: "Stocks", metricTons: "", weight: "", notes: "" });
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
@@ -716,8 +717,10 @@ export default function PurchasingOrderPage({
     }
     if (statusFilter !== "All Status") rows = rows.filter((r) => r.status === statusFilter);
     if (supplierFilter !== "All Suppliers") rows = rows.filter((r) => r.vendor === supplierFilter);
+    if (dateRange.start) rows = rows.filter((r) => (r.poDate || "") >= dateRange.start);
+    if (dateRange.end)   rows = rows.filter((r) => (r.poDate || "") <= dateRange.end);
     return rows;
-  }, [orders, searchQuery, statusFilter, supplierFilter]);
+  }, [orders, searchQuery, statusFilter, supplierFilter, dateRange]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -745,6 +748,8 @@ export default function PurchasingOrderPage({
           { key: "supplier", value: supplierFilter, onChange: (v) => { setSupplierFilter(v); setCurrentPage(1); }, options: SUPPLIER_OPTS, minWidth: 160 },
         ]}
         primaryAction={{ label: "Create Purchase Order", onClick: () => setShowCreate(true) }}
+        dateRange={dateRange}
+        onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
         importExport={{
           fileInputRef: importRef,
           onFileChange: (e) => {

@@ -405,97 +405,73 @@ function IconSave({ size=14 }) { return <svg width={size} height={size} viewBox=
 function IconX({ size=14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>; }
 function IconEdit({ size=14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>; }
 
-/* ─── START ENDING INVENTORY MODAL ── */
-function StartInventoryModal({ data, onClose, onSave }) {
-  const [edits, setEdits] = useState(
-    data.reduce((acc, r) => {
-      acc[r.no] = {
-        lastAcceptanceDate: r.lastAcceptanceDate || "",
-        avgUnitCost: r.avgUnitCost,
-        qtyAsPerCounting: r.qtyAsPerCounting,
-        remarks: r.remarks || "",
-      };
-      return acc;
-    }, {})
-  );
-
-  const setField = (no, field, val) => setEdits(e => ({ ...e, [no]: { ...e[no], [field]: val } }));
+/* ─── ADD ITEM MODAL ── */
+function AddEndingInventoryModal({ onClose, onSave, nextNo }) {
+  const [form, setForm] = useState({ sku: "", productDescription: "", lastAcceptanceDate: "", qtyAsPerWis: 0, avgUnitCost: 0, qtyAsPerCounting: 0, remarks: "", cogsQty: 0, cogsAvgUnitCost: 0 });
 
   const handleSave = () => {
-    onSave(edits);
+    if (!form.sku.trim() || !form.productDescription.trim()) return;
+    const qtyWis = parseFloat(form.qtyAsPerWis) || 0;
+    const avg = parseFloat(form.avgUnitCost) || 0;
+    const qtyCounting = parseFloat(form.qtyAsPerCounting) || 0;
+    const varQty = qtyCounting - qtyWis;
+    onSave({
+      id: Date.now(),
+      no: nextNo,
+      sku: form.sku.trim(),
+      productDescription: form.productDescription.trim(),
+      lastAcceptanceDate: form.lastAcceptanceDate || "",
+      qtyAsPerWis: qtyWis,
+      avgUnitCost: avg,
+      totalUnitCost: qtyWis * avg,
+      qtyAsPerCounting: qtyCounting,
+      varianceQty: varQty,
+      varianceAmount: varQty * avg,
+      remarks: form.remarks || "",
+      cogsQty: parseFloat(form.cogsQty) || 0,
+      cogsAvgUnitCost: parseFloat(form.cogsAvgUnitCost) || 0,
+    });
     onClose();
   };
 
-  const numCols = ["QTY AS PER WIS", "TOTAL COST (AUTO)", "AVG UNIT COST", "QTY AS PER COUNTING", "VARIANCE (QTY)", "VARIANCE (AMT)"];
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
     <div style={modalOverlayStyle}>
-      <div style={{ ...modalPanelStyle, maxWidth: 1140, width: "min(96vw, 1140px)" }}>
+      <div style={{ ...modalPanelStyle, maxWidth: 520, width: "min(94vw, 520px)" }}>
         <div style={modalHeaderStyle}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 style={modalTitleStyle}>Start Ending Inventory</h2>
-            <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>Enter counting quantities and costs below. Qty as per WIS comes from your WIS import and cannot be edited here.</p>
-          </div>
+          <h2 style={modalTitleStyle}>Add New Inventory Item</h2>
           <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close" onMouseEnter={(e) => { e.currentTarget.style.background = "#e5e7eb"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "#f3f4f6"; }}><IconX size={18} /></button>
         </div>
-
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0, padding: "0 16px 16px" }}>
-          <div style={{ flex: 1, overflow: "auto", border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 1050 }}>
-            <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
-              <tr style={{ background: "#1c2235" }}>
-                {["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS"].map(h => (
-                  <th key={h} style={{ padding: "11px 10px", textAlign: numCols.includes(h) ? "right" : "left", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.03em" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((row, idx) => {
-                const ed = edits[row.no] || {};
-                const qty = parseFloat(row.qtyAsPerWis) || 0;
-                const avg = parseFloat(ed.avgUnitCost) || 0;
-                const totalCost = qty * avg;
-                const counting = parseFloat(ed.qtyAsPerCounting) || 0;
-                const varQty = counting - qty;
-                const varAmt = varQty * avg;
-                return (
-                  <tr key={row.no} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "8px 10px", color: "#9ca3af", fontSize: 11 }}>{row.no}</td>
-                    <td style={{ padding: "8px 10px", color: "#374151", maxWidth: 240, fontSize: 11 }}>{row.productDescription}</td>
-                    <td style={{ padding: "8px 10px", color: "#e87c27", fontWeight: 700 }}>{row.sku}</td>
-                    <td style={{ padding: "6px 8px" }}>
-                      <input type="date" value={ed.lastAcceptanceDate||""} onChange={e => setField(row.no, "lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
-                    </td>
-                    <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 700, fontSize: 11 }}>{qty.toLocaleString()}</td>
-                    <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 600, fontSize: 11 }}>{totalCost > 0 ? fmtPHP(totalCost) : "—"}</td>
-                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      <input type="number" min={0} step="0.01" value={ed.avgUnitCost ?? ""} onChange={e => setField(row.no, "avgUnitCost", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
-                    </td>
-                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      <input type="number" min={0} value={ed.qtyAsPerCounting ?? ""} onChange={e => setField(row.no, "qtyAsPerCounting", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
-                    </td>
-                    <td style={{ padding: "8px 10px", textAlign: "right" }}>
-                      <span style={{ padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: varQty===0?"#d1fae5":varQty>0?"#dcfce7":"#fee2e2", color: varQty===0?"#065f46":varQty>0?"#16a34a":"#991b1b" }}>{varQty}</span>
-                    </td>
-                    <td style={{ padding: "8px 10px", textAlign: "right" }}>
-                      <span style={{ padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: varAmt===0?"#d1fae5":"#fee2e2", color: varAmt===0?"#065f46":"#991b1b" }}>{varAmt===0?"—":fmtPHP(varAmt)}</span>
-                    </td>
-                    <td style={{ padding: "6px 8px" }}>
-                      <input value={ed.remarks||""} onChange={e => setField(row.no, "remarks", e.target.value)} placeholder="Notes..." {...modalCellInput({ width: 150 })} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 14, flex: 1, overflow: "auto" }}>
+          {[{ label: "SKU Number", key: "sku", w: "100%" }, { label: "Product Description", key: "productDescription", w: "100%" }].map(f => (
+            <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
+              <input value={form[f.key]} onChange={e => set(f.key, e.target.value)} style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+            </div>
+          ))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {[{ label: "Last Acceptance Date", key: "lastAcceptanceDate", type: "date" },
+              { label: "Qty as per WIS", key: "qtyAsPerWis", type: "number" },
+              { label: "Avg Unit Cost", key: "avgUnitCost", type: "number" },
+              { label: "Qty as per Counting", key: "qtyAsPerCounting", type: "number" },
+              { label: "COGS Qty", key: "cogsQty", type: "number" },
+              { label: "COGS Avg Unit Cost", key: "cogsAvgUnitCost", type: "number" },
+            ].map(f => (
+              <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
+                <input type={f.type || "text"} value={form[f.key]} onChange={e => set(f.key, f.type === "number" ? (parseFloat(e.target.value) || 0) : e.target.value)} min={0} step="0.01" style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>Remarks</label>
+            <input value={form.remarks} onChange={e => set("remarks", e.target.value)} style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
           </div>
         </div>
-
         <div style={modalFooterStyle}>
           <button type="button" onClick={onClose} style={modalBtnSecondary}>Cancel</button>
-          <button type="button" onClick={handleSave} style={modalBtnPrimary}>
-            <IconSave size={14} /> Save Inventory Count
-          </button>
+          <button type="button" onClick={handleSave} style={modalBtnPrimary}><IconPlus size={14} /> Add Item</button>
         </div>
       </div>
     </div>
@@ -601,7 +577,8 @@ export default function EndingInventoryPage({
   const [toast, setToast] = useState(null);
   const [editingNo, setEditingNo] = useState(null);
   const [editingCogsNo, setEditingCogsNo] = useState(null);
-  const [showStartModal, setShowStartModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const fileInputRef = useRef(null);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
@@ -619,8 +596,10 @@ export default function EndingInventoryPage({
     if (statusFilter === "Total Stock")  d = d.filter(r => r.qtyAsPerWis > 0);
     if (statusFilter === "Out of Stock") d = d.filter(r => r.qtyAsPerWis === 0);
     if (statusFilter === "Variance")     d = d.filter(r => r.varianceQty !== 0);
+    if (dateRange.start) d = d.filter((r) => (r.lastAcceptanceDate || "") >= dateRange.start);
+    if (dateRange.end)   d = d.filter((r) => (r.lastAcceptanceDate || "") <= dateRange.end);
     return d;
-  }, [inventoryData, searchQuery, statusFilter]);
+  }, [inventoryData, searchQuery, statusFilter, dateRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const startIdx = (currentPage-1)*PAGE_SIZE;
@@ -656,26 +635,10 @@ export default function EndingInventoryPage({
     showToast("COGS row updated successfully.");
   };
 
-  const handleStartInventorySave = (edits) => {
-    setInventoryData(d => d.map(r => {
-      const ed = edits[r.no];
-      if (!ed) return r;
-      const qtyWis = parseFloat(r.qtyAsPerWis) || 0;
-      const avg = parseFloat(ed.avgUnitCost) || 0;
-      const qtyCounting = parseFloat(ed.qtyAsPerCounting) || 0;
-      return {
-        ...r,
-        lastAcceptanceDate: ed.lastAcceptanceDate || r.lastAcceptanceDate,
-        qtyAsPerWis: qtyWis,
-        avgUnitCost: avg,
-        totalUnitCost: qtyWis * avg,
-        qtyAsPerCounting: qtyCounting,
-        varianceQty: qtyCounting - qtyWis,
-        varianceAmount: (qtyCounting - qtyWis) * avg,
-        remarks: ed.remarks !== undefined ? ed.remarks : r.remarks,
-      };
-    }));
-    showToast("✓ Ending inventory count saved.");
+  const handleAddItem = (newItem) => {
+    setInventoryData(d => [...d, newItem]);
+    setCurrentPage(1);
+    showToast(`"${newItem.sku}" added successfully.`);
   };
 
   const totalValue = sumEndingInventoryValue(inventoryData);
@@ -698,7 +661,10 @@ export default function EndingInventoryPage({
         filters={[
           { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "Total Stock", "Out of Stock", "Variance"], minWidth: 150 },
         ]}
-        primaryAction={{ label: "Start Ending Inventory", onClick: () => setShowStartModal(true) }}
+        primaryAction={{ label: "Add Item", onClick: () => setShowAddModal(true) }}
+        showDateRange={true}
+        dateRange={dateRange}
+        onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
         importExport={{
           fileInputRef,
           onFileChange: handleImportWis,
@@ -816,11 +782,11 @@ export default function EndingInventoryPage({
         </div>
       </div>
 
-      {showStartModal && (
-        <StartInventoryModal
-          data={inventoryData}
-          onClose={() => setShowStartModal(false)}
-          onSave={handleStartInventorySave}
+      {showAddModal && (
+        <AddEndingInventoryModal
+          onClose={() => setShowAddModal(false)}
+          onSave={handleAddItem}
+          nextNo={Math.max(...inventoryData.map(r => r.no), 0) + 1}
         />
       )}
 

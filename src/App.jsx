@@ -25,71 +25,85 @@ function LowStockLoginModal({ onClose, items }) {
 
   return (
     <ModalBackdrop onClose={onClose}>
-      <ModalFrame maxWidth={480}>
+      <ModalFrame maxWidth={500}>
         <ModalHeader
           theme={theme}
           title="Low stock alert"
           subtitle={`${items.length} item${items.length !== 1 ? 's' : ''} need${items.length === 1 ? 's' : ''} restocking`}
           onClose={onClose}
         />
-        <ModalBody style={{ paddingTop: 8 }}>
+        <ModalBody style={{ paddingTop: 10 }}>
           <ModalStatGrid stats={[
             { value: critical.length, label: 'Critical (≤10)', color: '#dc2626' },
             { value: warning.length, label: 'Low (≤50)', color: '#d97706' },
             { value: items.length, label: 'Total items', color: '#0f172a' },
           ]} />
           <div style={{
-            border: '1px solid #e8ecf1',
-            borderRadius: 14,
-            overflow: 'hidden',
-            background: '#fff',
-            boxShadow: '0 6px 24px rgba(15, 23, 42, 0.06)',
-            maxHeight: 260,
-            overflowY: 'auto',
+            border: '1px solid #e8ecf1', borderRadius: 14, overflow: 'hidden',
+            background: '#fff', boxShadow: '0 6px 24px rgba(15, 23, 42, 0.06)',
+            maxHeight: 270, overflowY: 'auto',
           }}>
-            {items.slice(0, 10).map((item) => {
+            <div style={{
+              display: 'flex', gap: 16, padding: '8px 16px', background: '#f8fafc',
+              borderBottom: '1px solid #e8ecf1', fontSize: 11, fontWeight: 600, color: '#94a3b8',
+            }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                Critical
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+                Low
+              </span>
+            </div>
+            {items.slice(0, 10).map((item, idx) => {
               const isCritical = item.stock <= 10
               return (
-                <div key={item.sku} className="wis-modal-low-item">
-                  <div style={{
-                    width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                    background: isCritical ? '#ef4444' : '#f59e0b',
-                    boxShadow: `0 0 0 3px ${isCritical ? '#fecaca' : '#fde68a'}`,
-                  }} />
+                <div key={item.sku} className="wis-modal-low-item" style={{ background: isCritical ? '#fffbfb' : idx % 2 === 1 ? '#fafbfc' : '#fff' }}>
+                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={isCritical ? '#ef4444' : '#f59e0b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{
                       margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>{item.description}</p>
-                    <p style={{ margin: '3px 0 0', fontSize: 11, color: '#94a3b8' }}>
-                      SKU: {item.sku} · {item.category}
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                      SKU: {item.sku}
+                      {item.category !== "Uncategorized" ? ` · ${item.category}` : ''}
                     </p>
                   </div>
-                  <span style={{
-                    fontSize: 11, fontWeight: 800, padding: '5px 12px', borderRadius: 20, flexShrink: 0,
-                    background: isCritical ? '#fee2e2' : '#fef3c7',
-                    color: isCritical ? '#b91c1c' : '#b45309',
-                  }}>
-                    {item.stock} left
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    <span style={{
+                      fontSize: 12, fontWeight: 800, padding: '3px 14px', borderRadius: 20, flexShrink: 0,
+                      background: isCritical ? '#fee2e2' : '#fef3c7',
+                      color: isCritical ? '#b91c1c' : '#b45309',
+                    }}>
+                      {item.stock}
+                    </span>
+                    <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>left</span>
+                  </div>
                 </div>
               )
             })}
             {items.length > 10 && (
-              <p style={{ margin: 0, padding: '10px 20px', fontSize: 12, color: '#94a3b8', background: '#f8fafc' }}>
-                +{items.length - 10} more items
-              </p>
+              <div style={{
+                padding: '12px 20px', fontSize: 12, color: '#64748b', fontWeight: 600,
+                background: 'linear-gradient(180deg, #f8fafc, #f1f5f9)', textAlign: 'center',
+                borderTop: '1px solid #e8ecf1',
+              }}>
+                +{items.length - 10} more item{items.length - 10 !== 1 ? 's' : ''} need attention
+              </div>
             )}
           </div>
         </ModalBody>
-        <ModalFooter style={{ justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Updated just now</span>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <ModalBtn variant="secondary" onClick={onClose}>Dismiss</ModalBtn>
-            <ModalBtn variant="primary" onClick={onClose}>
-              View inventory →
-            </ModalBtn>
-          </div>
+        <ModalFooter style={{ justifyContent: 'flex-end', gap: 10 }}>
+          <ModalBtn variant="secondary" onClick={onClose}>Dismiss</ModalBtn>
+          <ModalBtn variant="primary" onClick={onClose}>
+            View Inventory
+          </ModalBtn>
         </ModalFooter>
       </ModalFrame>
     </ModalBackdrop>

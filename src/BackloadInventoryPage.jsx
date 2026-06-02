@@ -433,6 +433,7 @@ export default function BackloadInventoryPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [importing, setImporting] = useState(false);
   const nextId = useRef(SEED_BACKLOAD.length + 1);
   const importFileRef = useRef(null);
@@ -465,16 +466,21 @@ export default function BackloadInventoryPage() {
   };
 
   const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return data;
-    const q = searchQuery.toLowerCase();
-    return data.filter(
-      (r) =>
-        (r.item || "").toLowerCase().includes(q) ||
-        (r.sku || "").toLowerCase().includes(q) ||
-        (r.drNo || "").toLowerCase().includes(q) ||
-        (r.customerName || "").toLowerCase().includes(q)
-    );
-  }, [data, searchQuery]);
+    let rows = data;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          (r.item || "").toLowerCase().includes(q) ||
+          (r.sku || "").toLowerCase().includes(q) ||
+          (r.drNo || "").toLowerCase().includes(q) ||
+          (r.customerName || "").toLowerCase().includes(q)
+      );
+    }
+    if (dateRange.start) rows = rows.filter((r) => (r.date || "") >= dateRange.start);
+    if (dateRange.end)   rows = rows.filter((r) => (r.date || "") <= dateRange.end);
+    return rows;
+  }, [data, searchQuery, dateRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
@@ -539,6 +545,8 @@ export default function BackloadInventoryPage() {
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[]}
         primaryAction={{ label: "Start Backload Inventory", onClick: () => setShowModal(true) }}
+        dateRange={dateRange}
+        onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
         importExport={{
           fileInputRef: importFileRef,
           onFileChange: handleImport,

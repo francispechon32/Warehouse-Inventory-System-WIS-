@@ -533,6 +533,7 @@ export default function StockSheetsPage({
   const EMPTY_FORM = { type: "in", sku: "", date: "", tdtPo: "", tdtPoDate: "", vendorNo: "", vendorName: "", customerDr: "", tdtWo: "", acceptDate: "", qty: "", costKilo: "", costUnit: "", dispatchDate: "", customer: "", tdtDr: "", branch: "", bdrSummary: "", tdtSi: "", qtyOut: "", remarks: "" };
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
   const importRef = useRef(null);
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
@@ -555,14 +556,18 @@ export default function StockSheetsPage({
   const skuInfo = SKU_CATALOG[skuKey] || { desc: "—", weight: "—" };
 
   const stockInRows = useMemo(() => {
-    if (!skuKey) return stockInData;
-    return stockInData.filter((r) => r.sku === skuKey);
-  }, [skuKey, stockInData]);
+    let rows = skuKey ? stockInData.filter((r) => r.sku === skuKey) : stockInData;
+    if (dateRange.start) rows = rows.filter((r) => (r.date || "") >= dateRange.start);
+    if (dateRange.end)   rows = rows.filter((r) => (r.date || "") <= dateRange.end);
+    return rows;
+  }, [skuKey, stockInData, dateRange]);
 
   const stockOutRows = useMemo(() => {
-    if (!skuKey) return stockOutData;
-    return stockOutData.filter((r) => r.sku === skuKey);
-  }, [skuKey, stockOutData]);
+    let rows = skuKey ? stockOutData.filter((r) => r.sku === skuKey) : stockOutData;
+    if (dateRange.start) rows = rows.filter((r) => (r.dispatchDate || "") >= dateRange.start);
+    if (dateRange.end)   rows = rows.filter((r) => (r.dispatchDate || "") <= dateRange.end);
+    return rows;
+  }, [skuKey, stockOutData, dateRange]);
 
   const inTotalPages = Math.max(1, Math.ceil(stockInRows.length / PAGE_SIZE));
   const outTotalPages = Math.max(1, Math.ceil(stockOutRows.length / PAGE_SIZE));
@@ -584,7 +589,9 @@ export default function StockSheetsPage({
       <PageToolbar
         searchValue={searchSku}
         onSearchChange={(v) => { setSearchSku(v); setInPage(1); setOutPage(1); }}
-        showDateRange={false}
+        showDateRange={true}
+        dateRange={dateRange}
+        onDateRangeChange={(r) => { setDateRange(r); setInPage(1); setOutPage(1); }}
         primaryAction={{ label: "New Stock Sheet", onClick: () => setShowCreate(true) }}
         importExport={{
           fileInputRef: importRef,

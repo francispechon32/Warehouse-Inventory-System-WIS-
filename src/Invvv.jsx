@@ -444,10 +444,33 @@ const inventoryDataByRange = {
 
 /* --- MAIN DASHBOARD --------------------------------------- */
 /* --- PROFILE PAGE ----------------------------------------- */
+function SectionHeading({ icon, title, highlight }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 8,
+        background: highlight ? "linear-gradient(135deg,#e87c27,#c96b1c)" : "#f1f5f9",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: highlight ? "#fff" : "#64748b", flexShrink: 0,
+      }}>{icon}</div>
+      <h3 style={{
+        margin: 0, fontSize: 13, fontWeight: 800, color: highlight ? "#e87c27" : "#0f172a",
+        textTransform: "uppercase", letterSpacing: "0.06em",
+      }}>{title}</h3>
+      {highlight && (
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+          background: "#fff7ed", color: "#e87c27", border: "1px solid #fcd9b0",
+        }}>editable</span>
+      )}
+    </div>
+  );
+}
+
 function ProfileField({ label, value, editing, name, onChange, type = "text" }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      <label style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em" }}>
         {label}
       </label>
       {editing ? (
@@ -457,15 +480,15 @@ function ProfileField({ label, value, editing, name, onChange, type = "text" }) 
           value={value}
           onChange={onChange}
           style={{
-            padding: "10px 14px", fontSize: 14, fontWeight: 500, color: "#111827",
-            border: "1.5px solid #e87c27", borderRadius: 10, outline: "none",
+            padding: "9px 12px", fontSize: 13.5, fontWeight: 500, color: "#111827",
+            border: "1.5px solid #e87c27", borderRadius: 9, outline: "none",
             fontFamily: "inherit", background: "#fff", boxSizing: "border-box",
-            boxShadow: "0 0 0 3px rgba(232,124,39,0.12)",
+            boxShadow: "0 0 0 3px rgba(232,124,39,0.1)",
           }}
         />
       ) : (
-        <p style={{ fontSize: 14, color: "#111827", fontWeight: 500, padding: "10px 0", borderBottom: "1px solid #f3f4f6", margin: 0 }}>
-          {value || "\u2014"}
+        <p style={{ fontSize: 13.5, color: "#111827", fontWeight: 500, padding: "9px 0 8px", borderBottom: "1px solid #f1f5f9", margin: 0 }}>
+          {value || "—"}
         </p>
       )}
     </div>
@@ -475,111 +498,187 @@ function ProfileField({ label, value, editing, name, onChange, type = "text" }) 
 function ProfilePage({ profile, onSave, onClose }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...profile });
+  const loginTime = useState(() => new Date().toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }))[0];
 
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
-
   const handleSave = () => {
     if (!form.name.trim()) return;
     onSave(form);
     setEditing(false);
   };
-
-  const handleCancel = () => {
-    setForm({ ...profile });
-    setEditing(false);
-  };
+  const handleCancel = () => { setForm({ ...profile }); setEditing(false); };
 
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9000,
-      background: "rgba(15,23,42,0.5)",
-      backdropFilter: "blur(6px)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 20,
+      background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
     }} onClick={onClose}>
       <div style={{
-        background: "#fff", borderRadius: 20, width: "100%", maxWidth: 560,
-        maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+        background: "#fff", borderRadius: 22, width: "100%", maxWidth: 620,
+        maxHeight: "92vh", overflow: "hidden", display: "flex", flexDirection: "column",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.22)",
         animation: "wisModalFrameIn 0.28s cubic-bezier(0.16,1,0.3,1)",
       }} onClick={e => e.stopPropagation()}>
 
         <div style={{
-          padding: "24px 28px", borderBottom: "1px solid #f0f2f5",
+          padding: "24px 30px 16px", borderBottom: "1px solid #f0f2f5",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          background: "linear-gradient(135deg, #fff7ed 0%, #fff 100%)",
+          background: "linear-gradient(135deg, #fff7ed 0%, #fff 80%)",
+          flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{
               width: 56, height: 56, borderRadius: "50%",
               background: "linear-gradient(135deg, #e87c27, #c96b1c)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              color: "#fff", fontWeight: 800, fontSize: 20,
-              flexShrink: 0, boxShadow: "0 4px 12px rgba(232,124,39,0.3)",
+              color: "#fff", fontWeight: 800, fontSize: 22, flexShrink: 0,
+              boxShadow: "0 4px 16px rgba(232,124,39,0.35)",
+              border: "3px solid #fff",
             }}>
               {(form.name || "?")[0].toUpperCase()}
             </div>
             <div>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#0f172a" }}>My Profile</h2>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748b" }}>{form.role}</p>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#64748b" }}>
+                <span style={{ fontWeight: 600, color: "#e87c27" }}>{form.role}</span>
+                <span style={{ color: "#cbd5e1", margin: "0 6px" }}>|</span>
+                {form.department}
+              </p>
             </div>
           </div>
           <button type="button" onClick={onClose} style={{
             width: 36, height: 36, border: "1px solid #e2e8f0", borderRadius: 10,
             background: "#fff", color: "#64748b", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+            transition: "all 0.15s",
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.color = "#0f172a"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#64748b"; e.currentTarget.style.borderColor = "#e2e8f0"; }}
+          >
+            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>
 
-        <div style={{ padding: "24px 28px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-            <ProfileField label="Full Name" value={form.name} editing={editing} name="name" onChange={handleChange} />
-            <ProfileField label="Email Address" value={form.email} editing={editing} name="email" onChange={handleChange} type="email" />
-            <ProfileField label="Phone Number" value={form.phone} editing={editing} name="phone" onChange={handleChange} />
-            <ProfileField label="Role" value={form.role} editing={editing} name="role" onChange={handleChange} />
-            <ProfileField label="Department" value={form.department} editing={editing} name="department" onChange={handleChange} />
-            <ProfileField label="Location" value={form.location} editing={editing} name="location" onChange={handleChange} />
-          </div>
-          {editing && (
-            <div style={{
-              background: "#fff7ed", border: "1px solid #fcd9b0",
-              borderRadius: 10, padding: "12px 16px", fontSize: 12, color: "#92400e",
-            }}>
-              ✏️ You're in edit mode — update your details and click Save to confirm.
+        <div style={{ padding: "24px 30px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 24 }}>
+          <section style={{
+            background: "#fff", borderRadius: 14, padding: "20px 22px",
+            border: "1px solid #fcd9b0", borderLeft: "4px solid #e87c27",
+            boxShadow: "0 2px 8px rgba(232,124,39,0.1), 0 1px 3px rgba(0,0,0,0.04)",
+          }}>
+            <SectionHeading
+              icon={<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+              title="Personal Information"
+              highlight={true}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <ProfileField label="Full Name" value={form.name} editing={editing} name="name" onChange={handleChange} />
+              <ProfileField label="Email Address" value={form.email} editing={editing} name="email" onChange={handleChange} type="email" />
+              <ProfileField label="Contact Number" value={form.phone} editing={editing} name="phone" onChange={handleChange} />
             </div>
-          )}
+          </section>
+
+          <section style={{
+            background: "#fff", borderRadius: 14, padding: "20px 22px",
+            border: "1px solid #fcd9b0", borderLeft: "4px solid #e87c27",
+            boxShadow: "0 2px 8px rgba(232,124,39,0.1), 0 1px 3px rgba(0,0,0,0.04)",
+          }}>
+            <SectionHeading
+              icon={<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>}
+              title="Work Information"
+              highlight={true}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <ProfileField label="Role" value={form.role} editing={editing} name="role" onChange={handleChange} />
+              <ProfileField label="Department" value={form.department} editing={editing} name="department" onChange={handleChange} />
+              <ProfileField label="Location" value={form.location} editing={editing} name="location" onChange={handleChange} />
+            </div>
+          </section>
+
+          <section style={{
+            background: "#fafbfc", borderRadius: 14, padding: "20px 22px",
+            border: "1px solid #e8ecf1",
+          }}>
+            <SectionHeading
+              icon={<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
+              title="Account Info"
+              highlight={false}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <ProfileField label="Username" value={form.email?.split("@")[0] || "admin"} editing={false} />
+              <ProfileField label="Last Log In" value={loginTime} editing={false} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em" }}>Password</label>
+                <button type="button" style={{
+                  alignSelf: "center", marginTop: 6,
+                  padding: "8px 18px", borderRadius: 8, border: "1.5px solid #e87c27",
+                  background: "#fff", color: "#e87c27", fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#fff7ed"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+                  onClick={() => alert("Password change flow coming soon.")}>
+                  Change Password
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <div style={{
+            background: "linear-gradient(135deg, #fff7ed, #fffbeb)",
+            border: "1px solid #fde68a", borderRadius: 12,
+            padding: "14px 18px", fontSize: 12.5, color: "#92400e",
+            display: "flex", gap: 10, alignItems: "flex-start",
+            boxShadow: "inset 0 1px 2px rgba(255,255,255,0.6)",
+          }}>
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span><strong>Note:</strong> Personal and Work Information can be edited. Account Info fields (username, password, last login) are managed by your system administrator.</span>
+          </div>
         </div>
 
         <div style={{
-          padding: "16px 28px", borderTop: "1px solid #f0f2f5",
-          background: "#f8fafc", display: "flex", justifyContent: "flex-end", gap: 10,
+          padding: "16px 30px", borderTop: "1px solid #f0f2f5",
+          background: "#fafbfc", display: "flex", justifyContent: "flex-end", gap: 10, flexShrink: 0,
         }}>
           {editing ? (
             <>
               <button type="button" onClick={handleCancel} style={{
-                padding: "10px 20px", borderRadius: 10, border: "1px solid #e2e8f0",
+                padding: "10px 24px", borderRadius: 10, border: "1px solid #e2e8f0",
                 background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600,
-                color: "#374151", fontFamily: "inherit",
-              }}>Cancel</button>
+                color: "#374151", fontFamily: "inherit", transition: "all 0.15s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#f8fafc"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+              >Cancel</button>
               <button type="button" onClick={handleSave} style={{
-                padding: "10px 20px", borderRadius: 10, border: "none",
-                background: "linear-gradient(135deg,#e87c27,#c96b1c)",
+                padding: "10px 24px", borderRadius: 10, border: "none",
+                background: "linear-gradient(135deg,#e87c27,#d07020)",
                 color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
-                fontFamily: "inherit", boxShadow: "0 4px 12px rgba(232,124,39,0.3)",
-              }}>Save Changes</button>
+                fontFamily: "inherit", boxShadow: "0 4px 14px rgba(232,124,39,0.3)",
+                transition: "all 0.15s",
+              }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 20px rgba(232,124,39,0.4)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(232,124,39,0.3)"; e.currentTarget.style.transform = "none"; }}
+              >Save Changes</button>
             </>
           ) : (
             <button type="button" onClick={() => setEditing(true)} style={{
-              padding: "10px 20px", borderRadius: 10, border: "none",
-              background: "linear-gradient(135deg,#e87c27,#c96b1c)",
+              padding: "10px 24px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#e87c27,#d07020)",
               color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
               fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8,
-              boxShadow: "0 4px 12px rgba(232,124,39,0.3)",
-            }}>
+              boxShadow: "0 4px 14px rgba(232,124,39,0.3)",
+              transition: "all 0.15s",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 20px rgba(232,124,39,0.4)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(232,124,39,0.3)"; e.currentTarget.style.transform = "none"; }}
+            >
               <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                 <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -607,6 +706,7 @@ export default function Dashboard({ onLogout, userName }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [showProfilePage, setShowProfilePage] = useState(false);
+  const [selectedWarehouse, setSelectedWarehouse] = useState("All Warehouses");
   const [userProfile, setUserProfile] = useState({
     name: userName || "Admin User",
     email: "chelsea.lopez@tdt.com",
@@ -1259,7 +1359,31 @@ export default function Dashboard({ onLogout, userName }) {
               {activeNav === "Return"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {/* Warehouse selector next to bell */}
+              <div style={{ position: "relative", minWidth: 160 }}>
+                <select
+                  value={selectedWarehouse}
+                  onChange={e => setSelectedWarehouse(e.target.value)}
+                  style={{
+                    padding: "8px 32px 8px 12px", fontSize: 13, fontWeight: 600,
+                    border: "1.5px solid #e5e7eb", borderRadius: 9,
+                    background: "#fff", color: "#374151", cursor: "pointer",
+                    fontFamily: "inherit", appearance: "none", outline: "none",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                  }}
+                >
+                  {["All Warehouses", "Manila Warehouse", "Cebu Warehouse", "Davao Warehouse"].map(w => (
+                    <option key={w} value={w}>{w}</option>
+                  ))}
+                </select>
+                <span style={{
+                  position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                  pointerEvents: "none", color: "#6b7280",
+                }}>
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M19 9l-7 7-7-7"/></svg>
+                </span>
+              </div>
               <div style={{ position: "relative", zIndex: notificationsOpen ? 2001 : undefined }}>
                 <button
                   type="button"

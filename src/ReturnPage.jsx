@@ -438,6 +438,7 @@ export default function ReturnPage() {
   const [toast, setToast] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", disposition: "Restock", warehouse: "Manila Warehouse" });
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const fileInputRef = useRef(null);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
@@ -478,8 +479,10 @@ export default function ReturnPage() {
     if (dispFilter !== "All Dispositions") rows = rows.filter((r) => r.disposition === dispFilter);
     if (reasonFilter !== "All Reasons") rows = rows.filter((r) => r.reason === reasonFilter);
     if (warehouseFilter !== "All Warehouses") rows = rows.filter((r) => r.warehouse === warehouseFilter);
+    if (dateRange.start) rows = rows.filter((r) => r.returnDate >= dateRange.start);
+    if (dateRange.end)   rows = rows.filter((r) => r.returnDate <= dateRange.end);
     return rows;
-  }, [returns, searchQuery, statusFilter, dispFilter, reasonFilter, warehouseFilter]);
+  }, [returns, searchQuery, statusFilter, dispFilter, reasonFilter, warehouseFilter, dateRange]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -504,10 +507,11 @@ export default function ReturnPage() {
           { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: STATUS_OPTS, minWidth: 140 },
           { key: "disp", value: dispFilter, onChange: (v) => { setDispFilter(v); setCurrentPage(1); }, options: DISP_OPTS, minWidth: 155 },
           { key: "reason", value: reasonFilter, onChange: (v) => { setReasonFilter(v); setCurrentPage(1); }, options: REASON_OPTS, minWidth: 155 },
-          { key: "warehouse", value: warehouseFilter, onChange: (v) => { setWarehouseFilter(v); setCurrentPage(1); }, options: WAREHOUSE_OPTS, minWidth: 165 },
         ]}
         primaryAction={{ label: "Create New Return", onClick: () => setShowCreate(true) }}
-        showDateRange={false}
+        showDateRange={true}
+        dateRange={dateRange}
+        onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
         importExport={{
           fileInputRef,
           onFileChange: handleImport,
