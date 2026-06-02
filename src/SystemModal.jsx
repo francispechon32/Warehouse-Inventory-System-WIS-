@@ -572,6 +572,13 @@ function UserMgmtModal({ onClose, onAction }) {
   const openEdit = (u) => { setEditingId(u.id); setEditRole(u.role); setShowAdd(false); };
   const cancelEdit = () => setEditingId(null);
 
+  const handleRemove = (id) => {
+    if (!window.confirm("Remove this user?")) return;
+    setUsers(prev => prev.filter(u => u.id !== id));
+    if (editingId === id) setEditingId(null);
+    onAction?.("User removed successfully.", "success");
+  };
+
   const saveEdit = () => {
     setUsers(prev => prev.map(u => u.id === editingId ? { ...u, role: editRole } : u));
     setEditingId(null);
@@ -685,9 +692,17 @@ function UserMgmtModal({ onClose, onAction }) {
                     <button type="button" className="um-btn-ghost" onClick={cancelEdit} style={{ padding:"6px 10px" }}><X s={12} /></button>
                   </div>
                 ) : (
-                  <button type="button" className="um-btn-ghost" onClick={() => openEdit(u)}>
-                    <IconEdit s={13} /> Edit
-                  </button>
+                  <div style={{ display:"flex", gap:4 }}>
+                    <button type="button" className="um-btn-ghost" onClick={() => openEdit(u)} style={{ padding:"6px 10px" }}>
+                      <IconEdit s={13} />
+                    </button>
+                    <button type="button" className="um-btn-ghost" onClick={() => handleRemove(u.id)} style={{ padding:"6px 10px", color:"#dc2626", borderColor:"#fecaca" }}
+                      onMouseEnter={e => { e.currentTarget.style.background="#fee2e2"; e.currentTarget.style.borderColor="#fca5a5"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background="#fff"; e.currentTarget.style.borderColor="#e2e8f0"; }}
+                    >
+                      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -786,7 +801,7 @@ function StockLimitsModal({ onClose, products, setProducts, onAction }) {
       <style>{`
         .sl-scroll::-webkit-scrollbar { width:4px; }
         .sl-scroll::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:2px; }
-        .sl-input { width:72px; padding:6px 8px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:13px; font-weight:600; text-align:center; outline:none; font-family:inherit; transition:border-color .15s, box-shadow .15s; -moz-appearance:textfield; }
+        .sl-input { width:88px; padding:8px 10px; border:1.5px solid #d1d5db; border-radius:8px; font-size:13px; font-weight:600; text-align:center; outline:none; font-family:inherit; transition:border-color .15s, box-shadow .15s; -moz-appearance:textfield; background:#fff; color:#111827; }
         .sl-input::-webkit-outer-spin-button, .sl-input::-webkit-inner-spin-button { -webkit-appearance:none; }
         .sl-input:focus { border-color:#e87c27; box-shadow:0 0 0 3px rgba(232,124,39,.12); }
         .sl-input.changed { border-color:#e87c27; background:#fff7ed; }
@@ -966,7 +981,12 @@ function ContactModal({ onClose, onAction }) {
   return (
     <>
       <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
-        <div><h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" , textAlign:"left" }}>Contact Support</h2><p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p></div>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:38, height:38, borderRadius:10, background:"linear-gradient(135deg,#e87c27,#c96b1c)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}>
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          </div>
+          <div><h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" , textAlign:"left" }}>Contact Support</h2><p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p></div>
+        </div>
         <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
@@ -1000,12 +1020,15 @@ function ContactModal({ onClose, onAction }) {
           </div>
           <div style={{ marginBottom:12 }}>
             <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Inquiry Category</label>
-            <select value={contactTopic} onChange={e => setContactTopic(e.target.value)} style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", background:"#fff", boxSizing:"border-box" }}>
-              <option value="Question">General Question</option>
-              <option value="Bug">Technical Bug Report</option>
-              <option value="Feature">Feature Request</option>
-              <option value="Other">Other Topic</option>
-            </select>
+            <div style={{ position:"relative" }}>
+              <select value={contactTopic} onChange={e => setContactTopic(e.target.value)} style={{ width:"100%", padding:"9px 32px 9px 12px", border:"1.5px solid #e87c27", borderRadius:8, fontSize:13, fontWeight:600, color:"#111827", outline:"none", fontFamily:"inherit", background:"#fff", boxSizing:"border-box", appearance:"none", cursor:"pointer" }}>
+                <option value="Question">General Question</option>
+                <option value="Bug">Technical Bug Report</option>
+                <option value="Feature">Feature Request</option>
+                <option value="Other">Other Topic</option>
+              </select>
+              <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", color:"#9ca3af", pointerEvents:"none", fontSize:10 }}>▼</span>
+            </div>
           </div>
           <div style={{ marginBottom:16 }}>
             <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Message</label>

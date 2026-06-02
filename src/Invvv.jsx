@@ -1242,7 +1242,7 @@ export default function Dashboard({ onLogout, userName }) {
                       setActiveModal("user-management");
                     }}>
                     <IconUser size={15} />
-                    User management
+                    User Management
                   </button>
                   <button type="button"
                     className={`sub-btn ${activeNav === "stock-limits" ? "active" : ""}`}
@@ -1251,7 +1251,7 @@ export default function Dashboard({ onLogout, userName }) {
                       setActiveModal("stock-limits");
                     }}>
                     <IconShield size={15} />
-                    Stock limits
+                    Stock Limits
                   </button>
                 </div>
               )}
@@ -1296,7 +1296,8 @@ export default function Dashboard({ onLogout, userName }) {
                       setActiveNav("user-guide");
                       setActiveModal("user-guide");
                     }}>
-                    User guide
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+                    User Guide
                   </button>
                   <button type="button"
                     className={`sub-btn ${activeNav === "faqs" ? "active" : ""}`}
@@ -1304,6 +1305,7 @@ export default function Dashboard({ onLogout, userName }) {
                       setActiveNav("faqs");
                       setActiveModal("faqs");
                     }}>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     FAQs
                   </button>
                   <button type="button"
@@ -1312,6 +1314,7 @@ export default function Dashboard({ onLogout, userName }) {
                       setActiveNav("about");
                       setActiveModal("about");
                     }}>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                     About
                   </button>
                   <button type="button"
@@ -1320,7 +1323,8 @@ export default function Dashboard({ onLogout, userName }) {
                       setActiveNav("contact");
                       setActiveModal("contact");
                     }}>
-                    Contact support
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    Contact Support
                   </button>
                 </div>
               )}
