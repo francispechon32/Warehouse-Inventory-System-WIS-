@@ -930,7 +930,7 @@ export default function PurchasingOrderPage({
               {(() => {
                 const inp = (key, label, type = "text", placeholder = "", fullWidth = false) => (
                   <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: fullWidth ? "1 / -1" : undefined }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
+                    <div style={{ height: 28, overflow: "hidden" }}><label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }} title={label}>{label}</label></div>
                     <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))} placeholder={placeholder}
                       style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
                       onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
@@ -939,11 +939,14 @@ export default function PurchasingOrderPage({
                 );
                 const sel = (key, label, opts, fullWidth = false) => (
                   <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: fullWidth ? "1 / -1" : undefined }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
-                    <select value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}>
-                      {opts.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    <div style={{ height: 28, overflow: "hidden" }}><label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }} title={label}>{label}</label></div>
+                    <div style={{ position: "relative" }}>
+                      <select value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                        style={{ width: "100%", padding: "9px 30px 9px 12px", fontSize: 13, fontWeight: 600, color: "#111827", border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer", appearance: "none" }}>
+                        {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none", fontSize: 10 }}>▼</span>
+                    </div>
                   </div>
                 );
                 return [
