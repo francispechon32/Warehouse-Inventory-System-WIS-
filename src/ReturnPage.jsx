@@ -149,26 +149,14 @@ function formatReturnExportDate(iso) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
-function formatReturnShortDate(iso) {
-  if (!iso) return "";
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${String(d.getDate()).padStart(2, "0")}-${months[d.getMonth()]}`;
-}
+/** Same 12 columns as the on-screen table (COLS). */
+const RETURN_TABLE_COLS = [
+  "TRANS #", "RETURN DATE", "DR#", "SKU", "ITEM", "QTY RETURNED",
+  "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "DISPOSITION", "STATUS",
+];
 
-function returnTransDisplay(row, index, base = 11) {
-  if (row?.transNo) {
-    const n = parseInt(String(row.transNo).replace(/\D/g, ""), 10);
-    if (!Number.isNaN(n)) return n;
-  }
-  return row?.id ?? base + index;
-}
-
-function returnRemarks(row) {
-  if (!row) return "";
-  const parts = [row.reason, row.disposition, row.returnNo ? `RTN: ${row.returnNo}` : ""].filter(Boolean);
-  return parts.join(" — ");
+function returnTransSlot(index, base = 11) {
+  return base + index;
 }
 
 function downloadReturnWorkbook(wb, filename) {
@@ -253,11 +241,7 @@ function exportReturns(rows) {
   put(1, 0, "RETURN INVENTORY SUMMARY", "s", { font: f.title(), alignment: padLeft, fill: sheetFill });
   put(2, 0, `AS OF THIS DATE OF: ${now}`, "s", { font: f.meta(), alignment: padLeft, fill: sheetFill });
 
-  const mainHdrs = [
-    "TRANS", "INSERT DATE", "INSERT DR #", "SKU", "ITEM", "INSERT QTY",
-    "INSERT UNIT COST", "TOTAL COST", "CUSTOMER'S NAME",
-    "TOTAL QTY OUT", "QTY BALANCE", "REMARKS",
-  ];
+  const mainHdrs = RETURN_TABLE_COLS;
   const outHdrs = [];
   for (let i = 0; i < RT_OUT_TRACK_PAIRS; i++) outHdrs.push("QTY - OUT", "DATE");
 
@@ -278,10 +262,10 @@ function exportReturns(rows) {
     const row = rows[i];
 
     if (!row) {
-      put(ri, 0, returnTransDisplay(null, i), "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
+      put(ri, 0, returnTransSlot(i), "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
       for (let c = 1; c < RT_MAIN_COLS; c++) {
         const isPeso = c === 6 || c === 7;
-        const isQty = c === 5 || c === 9 || c === 10;
+        const isQty = c === 5;
         put(ri, c, isPeso ? "P  -" : isQty ? 0 : "", isPeso ? "s" : "n", cell(sheetFill, isQty ? padCenter : isPeso ? padLeft : padLeft, isQty ? { numFmt: qtyFmt } : {}));
       }
       for (let p = 0; p < RT_OUT_TRACK_PAIRS; p++) {
@@ -293,10 +277,9 @@ function exportReturns(rows) {
       continue;
     }
 
-    const qtyBal = row.qtyBalance ?? (row.qtyReturned || 0) - (row.totalQtyOut || 0);
     const totalCost = row.totalCost ?? (row.qtyReturned || 0) * (row.unitCost || 0);
 
-    put(ri, 0, returnTransDisplay(row, i), "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
+    put(ri, 0, row.transNo ?? "", "s", cell(sheetFill, padCenter, { font: f.body(true) }));
     put(ri, 1, formatReturnExportDate(row.returnDate), "s", cell(sheetFill, padCenter));
     put(ri, 2, row.drNo || "", "s", cell(sheetFill, padCenter));
     put(ri, 3, row.sku || "", "s", cell(sheetFill, padCenter));
@@ -305,26 +288,15 @@ function exportReturns(rows) {
     putMoney(ri, 6, row.unitCost);
     putMoney(ri, 7, totalCost);
     put(ri, 8, row.customer || "", "s", cell(sheetFill, padLeft));
-    put(ri, 9, row.totalQtyOut ?? 0, "n", cell(sheetFill, padCenter, { numFmt: qtyFmt }));
-    put(ri, 10, qtyBal, "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
-    put(ri, 11, returnRemarks(row), "s", cell(sheetFill, padLeft));
+    put(ri, 9, row.reason || "", "s", cell(sheetFill, padLeft));
+    put(ri, 10, row.disposition || "", "s", cell(sheetFill, padCenter));
+    put(ri, 11, row.status || "", "s", cell(sheetFill, padCenter));
 
     for (let p = 0; p < RT_OUT_TRACK_PAIRS; p++) {
       const qtyCol = RT_MAIN_COLS + p * 2;
       const dateCol = qtyCol + 1;
-      const showFirst = p === 0 && (row.totalQtyOut || 0) > 0;
-      put(
-        ri, qtyCol,
-        showFirst ? row.totalQtyOut : "",
-        showFirst ? "n" : "s",
-        cell(greenFill, padCenter, showFirst ? { numFmt: qtyFmt } : {})
-      );
-      put(
-        ri, dateCol,
-        showFirst ? formatReturnShortDate(row.returnDate) : "",
-        "s",
-        cell(peachFill, padCenter)
-      );
+      put(ri, qtyCol, "", "s", cell(greenFill, padCenter));
+      put(ri, dateCol, "", "s", cell(peachFill, padCenter));
     }
   }
 
@@ -375,8 +347,11 @@ async function importReturns(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
+      const rowLabel = cellStr(r[9] ?? r[0]).toUpperCase();
+      if (rowLabel.includes("GRAND TOTAL")) continue;
+
       let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 0));
-      let returnDate = formatExcelDate(pickCol(r, headers, ["RETURN DATE", "DATE"], 1));
+      let returnDate = formatExcelDate(pickCol(r, headers, ["RETURN DATE", "INSERT DATE", "DATE"], 1));
       const col0 = cellStr(r[0]);
       const col1 = r[1];
       if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
@@ -385,33 +360,36 @@ async function importReturns(file, onDone, onError) {
       }
 
       const item = cellStr(pickCol(r, headers, ["ITEM"], 4));
-      const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 8));
+      const customer = cellStr(pickCol(r, headers, ["CUSTOMER NAME", "CUSTOMER"], 8));
       const sku = cellStr(pickCol(r, headers, ["SKU"], 3));
       if (!transNo && !item && !customer && !sku) continue;
 
-      const qtyReturned = cellNum(pickCol(r, headers, ["QTY RETURNED", "QTY"], 5));
-      const unitCost = cellNum(pickCol(r, headers, ["UNIT COST"], 6));
+      const qtyReturned = cellNum(pickCol(r, headers, ["QTY RETURNED", "INSERT QTY", "QTY"], 5));
+      const unitCost = cellNum(pickCol(r, headers, ["UNIT COST", "INSERT UNIT COST"], 6));
       const totalCost = cellNum(pickCol(r, headers, ["TOTAL COST"], 7)) || qtyReturned * unitCost;
+      const reason = cellStr(pickCol(r, headers, ["REASON"], 9));
+      const disposition = cellStr(pickCol(r, headers, ["DISPOSITION"], 10)) || "Restock";
+      const status = cellStr(pickCol(r, headers, ["STATUS"], 11)) || "Pending";
 
       parsed.push({
         id: parsed.length + 1,
         transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
         returnDate,
-        drNo: cellStr(pickCol(r, headers, ["DR"], 2)),
+        drNo: cellStr(pickCol(r, headers, ["DR#", "DR", "INSERT DR"], 2)),
         sku,
         item,
         qtyReturned,
         unitCost,
         totalCost,
         customer,
-        reason: cellStr(pickCol(r, headers, ["REASON"], 9)),
-        totalQtyOut: cellNum(pickCol(r, headers, ["TOTAL QTY OUT", "QTY OUT"], 10)),
-        qtyBalance: cellNum(pickCol(r, headers, ["QTY BALANCE"], 11)),
-        amountBalance: cellNum(pickCol(r, headers, ["AMOUNT BALANCE"], 12)),
-        disposition: cellStr(pickCol(r, headers, ["DISPOSITION"], 13)) || "Restock",
-        status: cellStr(pickCol(r, headers, ["STATUS"], 14)) || "Pending",
-        returnNo: cellStr(pickCol(r, headers, ["RETURN NO"], 15)),
-        warehouse: cellStr(pickCol(r, headers, ["WAREHOUSE"], 16)),
+        reason,
+        totalQtyOut: 0,
+        qtyBalance: qtyReturned,
+        amountBalance: totalCost,
+        disposition,
+        status,
+        returnNo: "",
+        warehouse: "Manila Warehouse",
         lineItems: [],
       });
     }
@@ -495,7 +473,7 @@ export default function ReturnPage() {
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const selected = selectedId != null ? returns.find((r) => r.id === selectedId) : null;
 
-  const COLS = ["TRANS #", "RETURN DATE", "DR#", "SKU", "ITEM", "QTY RETURNED", "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "DISPOSITION", "STATUS"];
+  const COLS = RETURN_TABLE_COLS;
 
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>

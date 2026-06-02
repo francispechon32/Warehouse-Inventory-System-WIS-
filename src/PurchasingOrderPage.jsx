@@ -262,7 +262,7 @@ const STATUS_BADGE = {
   Cancelled: { bg: "#e5e7eb", color: "#4b5563", panel: "#6b7280" },
 };
 
-const TABLE_COLS = [
+const TABLE_COLS_PURCH = [
   "TRANS NO.",
   "PO DATE",
   "ETA",
@@ -276,10 +276,40 @@ const TABLE_COLS = [
   "METRIC TONS",
   "QTY AS PER PO",
   "WEIGHT (IF NEEDED)",
-  "STATUS",
+  "RETENTION",
+  "COST PER KILO",
+  "COST PER UNIT",
+  "TOTAL COST",
 ];
 
-const RIGHT_ALIGN = new Set(["METRIC TONS", "QTY AS PER PO"]);
+const TABLE_COLS = [...TABLE_COLS_PURCH, "STATUS"];
+
+const PO_FIELD_DEFAULTS = {
+  retention: "",
+  costPerKilo: "",
+  receiptDate: "",
+  supplierDrNo: "",
+  actualQtyReceived: 0,
+  qtyVariance: 0,
+  varianceAmount: 0,
+  checkerName: "",
+  receiverName: "",
+  storerName: "",
+  remarksVariance: "",
+};
+
+function normalizePurchaseOrder(row) {
+  return { ...PO_FIELD_DEFAULTS, ...row };
+}
+
+function poComputedCosts(row) {
+  const lines = row.lineItems || [];
+  const totalCost = lineValSum(lines);
+  const totalQty = lineQtySum(lines);
+  const unitCost =
+    totalQty > 0 ? totalCost / totalQty : Number(row.costPerUnit) || null;
+  return { totalCost, unitCost, totalQty };
+}
 
 function IconSearch({ size = 16 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>;
@@ -508,10 +538,10 @@ function exportToWis(rows) {
     const totalCost = lineValSum(lines);
     const totalQty = lineQtySum(lines);
     const unitCost = totalQty > 0 ? totalCost / totalQty : null;
-    const weightStr = r.weight && r.weight !== "—" ? r.weight : (r.metricTons ? String(r.metricTons) : "");
 
+    const kilo = r.costPerKilo;
     const purchVals = [
-      r.transNo || i + 1,
+      r.transNo || String(i + 1).padStart(3, "0"),
       r.poDate || "",
       r.eta || "",
       r.purchaser || "",
@@ -521,10 +551,11 @@ function exportToWis(rows) {
       r.destination || "",
       r.tradingOrStocks || "",
       r.warehouseType || "",
-      "",
+      r.metricTons ?? "",
       r.qtyPerPo ?? 0,
-      weightStr,
-      "",
+      r.weight && r.weight !== "—" ? r.weight : "",
+      r.retention || "",
+      kilo === "" || kilo === null || kilo === undefined ? "" : Number(kilo) || kilo,
       unitCost,
       totalCost || 0,
     ];
@@ -549,7 +580,17 @@ function exportToWis(rows) {
       ));
     });
 
-    const whDefaults = ["", "", 0, 0, 0, "", "", "", ""];
+    const whDefaults = [
+      r.receiptDate || "",
+      r.supplierDrNo || "",
+      r.actualQtyReceived ?? 0,
+      r.qtyVariance ?? 0,
+      r.varianceAmount ?? 0,
+      r.checkerName || "",
+      r.receiverName || "",
+      r.storerName || "",
+      r.remarksVariance || "",
+    ];
     whDefaults.forEach((v, ci) => {
       const col = PO_PURCH_COLS + ci;
       const isNum = ci === 2 || ci === 3;
@@ -617,49 +658,68 @@ async function importPurchaseOrders(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["PURCHASING"]);
     const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
-    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    let dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    if (dataStart < raw.length) {
+      const maybeGrand = cellStr(raw[dataStart][9] ?? raw[dataStart][0]).toUpperCase();
+      if (maybeGrand.includes("GRAND TOTAL")) dataStart += 1;
+    }
     const parsed = [];
+    const whStatusCol = PO_PURCH_COLS + 8;
 
     for (let i = dataStart; i < raw.length; i++) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
-      let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 1));
-      let poDate = formatExcelDate(pickCol(r, headers, ["PO DATE", "DATE"], 2));
+      let transNo = cellStr(pickCol(r, headers, ["TRANS NO.", "TRANS #", "TRANS"], 0));
+      let poDate = formatExcelDate(pickCol(r, headers, ["PO DATE", "INSERT DATE OF P.O.", "DATE"], 1));
       const col0 = cellStr(r[0]);
       const col1 = r[1];
       if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
         transNo = col0;
         poDate = formatExcelDate(col1);
       }
-      const productDesc = cellStr(pickCol(r, headers, ["PRODUCT"], 7));
-      const vendor = cellStr(pickCol(r, headers, ["VENDOR", "SUPPLIER"], 6));
+      const productDesc = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 6));
+      const vendor = cellStr(pickCol(r, headers, ["VENDOR", "SUPPLIER"], 5));
       if (!transNo && !productDesc && !vendor) continue;
 
-      parsed.push({
+      const weightVal = cellStr(pickCol(r, headers, ["WEIGHT", "INSERT WEIGHT"], 12));
+      const statusFromPurch = cellStr(pickCol(r, headers, ["STATUS"], TABLE_COLS.length - 1));
+
+      parsed.push(normalizePurchaseOrder({
         id: parsed.length + 1,
         transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
         poDate,
-        eta: formatExcelDate(pickCol(r, headers, ["ETA"], 3)),
-        purchaser: cellStr(pickCol(r, headers, ["PURCHASER", "NAME OF PURCHASER"], 4)),
-        tdtPo: cellStr(pickCol(r, headers, ["TDT PO", "PURCHASE ORDER"], 5)),
+        eta: formatExcelDate(pickCol(r, headers, ["ETA", "INSERT ETA"], 2)),
+        purchaser: cellStr(pickCol(r, headers, ["NAME OF PURCHASER", "PURCHASER"], 3)),
+        tdtPo: cellStr(pickCol(r, headers, ["TDT PURCHASE ORDER", "TDT PO", "PURCHASE ORDER"], 4)),
         vendor,
         productDesc,
-        destination: cellStr(pickCol(r, headers, ["DESTINATION"], 8)),
-        tradingOrStocks: "Stocks",
-        warehouseType: "Stocks",
-        metricTons: cellNum(pickCol(r, headers, ["METRIC TONS", "METRIC"], 9)),
-        qtyPerPo: cellNum(pickCol(r, headers, ["QTY"], 10)),
-        weight: "—",
-        status: cellStr(pickCol(r, headers, ["STATUS"], 11)) || "Pending",
+        destination: cellStr(pickCol(r, headers, ["DESTINATION", "WAREHOUSE OR CUSTOMER"], 7)),
+        tradingOrStocks: cellStr(pickCol(r, headers, ["TRADING OR STOCKS", "TRADING"], 8)) || "Stocks",
+        warehouseType: cellStr(pickCol(r, headers, ["BACKLOAD", "WAREHOUSE", "STORE OF DESTINATION"], 9)) || "Stocks",
+        retention: cellStr(pickCol(r, headers, ["RETENTION"], 10)),
+        metricTons: cellNum(pickCol(r, headers, ["METRIC TONS"], 10)),
+        qtyPerPo: cellNum(pickCol(r, headers, ["QTY AS PER PO", "QUANTITY", "QTY"], 11)),
+        weight: weightVal || "—",
+        costPerKilo: cellNum(pickCol(r, headers, ["COST PER KILO", "KILO"], 13)) || "",
+        receiptDate: formatExcelDate(pickCol(r, headers, ["ACTUAL RECEIPT", "RECEIPT"], PO_PURCH_COLS)),
+        supplierDrNo: cellStr(pickCol(r, headers, ["DELIVERY RECEIPT", "SUPPLIER DR"], PO_PURCH_COLS + 1)),
+        actualQtyReceived: cellNum(pickCol(r, headers, ["ACTUAL QUANTITY RECEIVED", "ACTUAL QTY"], PO_PURCH_COLS + 2)),
+        qtyVariance: cellNum(pickCol(r, headers, ["QUANTITY VARIANCE", "QTY VARIANCE"], PO_PURCH_COLS + 3)),
+        varianceAmount: cellNum(pickCol(r, headers, ["VARIANCE AMOUNT"], PO_PURCH_COLS + 4)),
+        checkerName: cellStr(pickCol(r, headers, ["CHECKER"], PO_PURCH_COLS + 5)),
+        receiverName: cellStr(pickCol(r, headers, ["RECEIVER"], PO_PURCH_COLS + 6)),
+        storerName: cellStr(pickCol(r, headers, ["STORER"], PO_PURCH_COLS + 7)),
+        remarksVariance: cellStr(pickCol(r, headers, ["REMARKS", "VARIANCE"], whStatusCol)),
+        status: statusFromPurch || "Pending",
         txnNo: "",
         lineItems: [],
-      });
+      }));
     }
 
     if (!parsed.length) throw new Error("No data rows found. Fill TRANS # or product/vendor columns.");
-    onDone(parsed);
+    onDone(parsed.map(normalizePurchaseOrder));
   } catch (err) {
     onError(err.message || "Import failed.");
   }
@@ -671,7 +731,9 @@ export default function PurchasingOrderPage({
   setOrders: propSetOrders,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [localOrders, setLocalOrders] = useState(INITIAL_PURCHASE_ORDERS);
+  const [localOrders, setLocalOrders] = useState(() =>
+    INITIAL_PURCHASE_ORDERS.map(normalizePurchaseOrder)
+  );
   const orders = propOrders ?? localOrders;
   const setOrders = propSetOrders ?? setLocalOrders;
   const [importing, setImporting] = useState(false);
@@ -690,7 +752,12 @@ export default function PurchasingOrderPage({
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ poDate: "", eta: "", purchaser: "", tdtPo: "", vendor: "", productDesc: "", sku: "", qty: "", unitCost: "", destination: "", tradingOrStocks: "Stocks", warehouseType: "Stocks", metricTons: "", weight: "", notes: "" });
+  const EMPTY_CREATE_FORM = {
+    poDate: "", eta: "", purchaser: "", tdtPo: "", vendor: "", productDesc: "", sku: "",
+    qty: "", unitCost: "", destination: "", tradingOrStocks: "Stocks", warehouseType: "Stocks",
+    metricTons: "", weight: "", retention: "", costPerKilo: "",
+  };
+  const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
   useEffect(() => {
@@ -776,7 +843,15 @@ export default function PurchasingOrderPage({
           },
           importing,
           importDisabled: !xlsxReady,
-          onExport: () => exportToWis(orders),
+          onExport: () => {
+            try {
+              exportToWis(filtered);
+              showToast(`Exported ${filtered.length} purchase order(s).`);
+            } catch (err) {
+              console.error("PO export failed:", err);
+              showToast(err?.message || "Export failed.", "error");
+            }
+          },
         }}
       />
 
@@ -801,6 +876,20 @@ export default function PurchasingOrderPage({
               {paged.map((row, idx) => {
                 const isSel = selectedId === row.id;
                 const st = STATUS_BADGE[row.status] || STATUS_BADGE.Pending;
+                const { totalCost, unitCost } = poComputedCosts(row);
+                const cellSt = (alignRight = false) => ({
+                  padding: "10px 8px",
+                  textAlign: alignRight ? "right" : "center",
+                  color: "#374151",
+                  fontSize: 11,
+                  whiteSpace: "nowrap",
+                });
+                const kiloDisplay =
+                  row.costPerKilo === "" || row.costPerKilo == null
+                    ? "—"
+                    : typeof row.costPerKilo === "number"
+                      ? fmtPHP(row.costPerKilo)
+                      : row.costPerKilo;
                 return (
                   <tr
                     key={row.id}
@@ -809,20 +898,24 @@ export default function PurchasingOrderPage({
                     onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.background = "#fef6f2"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa"; }}
                   >
-                    <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{row.poDate}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{row.eta}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151", textAlign: "center" }}><Highlight text={row.purchaser} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.tdtPo} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", color: "#111827", fontWeight: 600, maxWidth: 160, textAlign: "center" }}><Highlight text={row.vendor} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", color: "#374151", maxWidth: 220, textAlign: "center" }}><Highlight text={row.productDesc} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280", textAlign: "center" }}><Highlight text={row.destination} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280", textAlign: "center" }}>{row.tradingOrStocks}</td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280", textAlign: "center" }}>{row.warehouseType}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "center" }}>{row.metricTons}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 700 }}>{row.qtyPerPo}</td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280", textAlign: "center" }}>{row.weight}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "center" }}>
+                    <td style={{ ...cellSt(), color: "#6b7280", fontWeight: 600 }}>{row.transNo}</td>
+                    <td style={cellSt()}>{row.poDate}</td>
+                    <td style={cellSt()}>{row.eta}</td>
+                    <td style={cellSt()}><Highlight text={row.purchaser} query={searchQuery} /></td>
+                    <td style={{ ...cellSt(), color: "#e87c27", fontWeight: 700 }}><Highlight text={row.tdtPo} query={searchQuery} /></td>
+                    <td style={{ ...cellSt(), color: "#111827", fontWeight: 600 }}><Highlight text={row.vendor} query={searchQuery} /></td>
+                    <td style={{ ...cellSt(), maxWidth: 200 }}><Highlight text={row.productDesc} query={searchQuery} /></td>
+                    <td style={cellSt()}><Highlight text={row.destination} query={searchQuery} /></td>
+                    <td style={cellSt()}>{row.tradingOrStocks}</td>
+                    <td style={cellSt()}>{row.warehouseType}</td>
+                    <td style={cellSt(true)}>{row.metricTons}</td>
+                    <td style={{ ...cellSt(true), fontWeight: 700 }}>{row.qtyPerPo}</td>
+                    <td style={cellSt()}>{row.weight}</td>
+                    <td style={cellSt()}>{row.retention || "—"}</td>
+                    <td style={cellSt(true)}>{kiloDisplay}</td>
+                    <td style={cellSt(true)}>{unitCost ? fmtPHP(unitCost) : "—"}</td>
+                    <td style={{ ...cellSt(true), fontWeight: 600, color: "#e87c27" }}>{totalCost ? fmtPHP(totalCost) : "—"}</td>
+                    <td style={{ padding: "10px 8px", textAlign: "center" }}>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 12, background: st.bg, color: st.color }}>{row.status}</span>
                     </td>
                   </tr>
@@ -865,6 +958,7 @@ export default function PurchasingOrderPage({
                 ["Date", formatDate(selected.poDate)],
                 ["Supplier", selected.vendor],
                 ["Status", selected.status],
+                ["Retention", selected.retention || "—"],
               ].map(([label, val]) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
                   <span style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>{label}</span>
@@ -962,9 +1056,10 @@ export default function PurchasingOrderPage({
                   inp("qty", "Quantity as per PO", "number", "0"),
                   inp("metricTons", "Metric Tons", "number", "0.0"),
                   inp("weight", "Weight (if needed)", "text", "e.g. 2.4 MT"),
+                  inp("retention", "Retention", "text", "If applicable"),
+                  inp("costPerKilo", "Cost per Kilo (₱)", "number", "Optional"),
                   inp("productDesc", "Product Description", "text", "e.g. Deformed Round Bar...", true),
                   inp("unitCost", "Unit Cost (₱)", "number", "0.00"),
-                  inp("notes", "Notes (optional)", "text", "Any additional notes...", true),
                 ];
               })()}
             </div>
@@ -977,7 +1072,10 @@ export default function PurchasingOrderPage({
                 }
                 const qty = Number(createForm.qty) || 0;
                 const cost = Number(createForm.unitCost) || 0;
-                const newPO = {
+                const lineItems = qty > 0 && cost > 0
+                  ? [{ code: createForm.sku || "—", desc: createForm.productDesc, qty, unit: cost, val: qty * cost }]
+                  : [];
+                const newPO = normalizePurchaseOrder({
                   id: orders.length + 1,
                   transNo: String(orders.length + 1).padStart(3, "0"),
                   poDate: createForm.poDate,
@@ -986,23 +1084,21 @@ export default function PurchasingOrderPage({
                   tdtPo: createForm.tdtPo || "",
                   vendor: createForm.vendor,
                   productDesc: createForm.productDesc,
-                  sku: createForm.sku,
                   destination: createForm.destination || "",
                   tradingOrStocks: createForm.tradingOrStocks || "Stocks",
                   warehouseType: createForm.warehouseType || "Stocks",
                   metricTons: Number(createForm.metricTons) || 0,
                   qtyPerPo: qty,
                   weight: createForm.weight || "—",
-                  unitCost: cost,
-                  totalAmount: qty * cost,
+                  retention: createForm.retention || "",
+                  costPerKilo: createForm.costPerKilo === "" ? "" : Number(createForm.costPerKilo) || createForm.costPerKilo,
                   status: "Pending",
-                  notes: createForm.notes,
                   txnNo: `TXN-${new Date().getFullYear()}-${String(orders.length + 1).padStart(3, "0")}`,
-                  lineItems: [],
-                };
+                  lineItems,
+                });
                 setOrders(prev => [newPO, ...prev]);
                 setShowCreate(false);
-                setCreateForm({ poDate: "", eta: "", purchaser: "", tdtPo: "", vendor: "", productDesc: "", sku: "", qty: "", unitCost: "", destination: "", tradingOrStocks: "Stocks", warehouseType: "Stocks", metricTons: "", weight: "", notes: "" });
+                setCreateForm(EMPTY_CREATE_FORM);
                 showToast("Purchase order created successfully.", "success");
               }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
                 Create PO
