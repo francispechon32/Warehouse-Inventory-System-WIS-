@@ -203,7 +203,7 @@ const GUIDE_PAGES = [
 ];
 
 /* ─────────────────────────────────────────────
-   TEAM DATA  — updated names
+   TEAM DATA
 ───────────────────────────────────────────── */
 const TEAM = [
   {
@@ -421,7 +421,7 @@ function UserGuideModal({ onClose }) {
 }
 
 /* ─────────────────────────────────────────────
-   ABOUT MODAL  — updated team names
+   ABOUT MODAL
 ───────────────────────────────────────────── */
 function AboutModal({ onClose }) {
   const [tab, setTab] = useState("system");
@@ -441,7 +441,7 @@ function AboutModal({ onClose }) {
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ width:52, height:52, borderRadius:"50%", background:"linear-gradient(135deg,#c96b1c,#7c3a0a)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:17, letterSpacing:"-0.5px", boxShadow:"0 4px 14px rgba(201,107,28,.35)" }}>WIS</div>
             <div>
-              <h2 style={{ margin:0, fontSize:17, fontWeight:900, color:"#0f172a" , textAlign:"left" }}>About WIS Platform</h2>
+              <h2 style={{ margin:0, fontSize:17, fontWeight:900, color:"#0f172a", textAlign:"left" }}>About WIS Platform</h2>
               <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Technical details and software information</p>
             </div>
           </div>
@@ -564,6 +564,7 @@ function UserMgmtModal({ onClose, onAction }) {
   const [users, setUsers]         = useState(SEED_USERS);
   const [editingId, setEditingId] = useState(null);
   const [showAdd, setShowAdd]     = useState(false);
+  const [confirmId, setConfirmId] = useState(null);
 
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("Staff");
@@ -572,10 +573,12 @@ function UserMgmtModal({ onClose, onAction }) {
   const openEdit = (u) => { setEditingId(u.id); setEditRole(u.role); setShowAdd(false); };
   const cancelEdit = () => setEditingId(null);
 
-  const handleRemove = (id) => {
-    if (!window.confirm("Remove this user?")) return;
-    setUsers(prev => prev.filter(u => u.id !== id));
-    if (editingId === id) setEditingId(null);
+  const handleRemove = (id) => setConfirmId(id);
+
+  const confirmRemove = () => {
+    setUsers(prev => prev.filter(u => u.id !== confirmId));
+    if (editingId === confirmId) setEditingId(null);
+    setConfirmId(null);
     onAction?.("User removed successfully.", "success");
   };
 
@@ -605,7 +608,8 @@ function UserMgmtModal({ onClose, onAction }) {
                         { bg:"#f1f5f9", color:"#475569", border:"#e2e8f0" };
 
   return (
-    <>
+    /* ↓ THIS is the only structural change: <> replaced with this <div> */
+    <div style={{ position:"relative", display:"flex", flexDirection:"column", flex:1, minHeight:0 }}>
       <style>{`
         .um-scroll::-webkit-scrollbar { width:4px; }
         .um-scroll::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:2px; }
@@ -625,7 +629,8 @@ function UserMgmtModal({ onClose, onAction }) {
             <IconUser s={18} />
           </div>
           <div>
-<h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a", textAlign:"left" }}>User Management</h2>            <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Manage system roles, permissions, access logs</p>
+            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a", textAlign:"left" }}>User Management</h2>
+            <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Manage system roles, permissions, access logs</p>
           </div>
         </div>
         <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
@@ -749,7 +754,51 @@ function UserMgmtModal({ onClose, onAction }) {
           </button>
         )}
       </div>
-    </>
+
+      {/* ── Delete confirmation overlay ── */}
+      {confirmId && (() => {
+        const target = users.find(u => u.id === confirmId);
+        return (
+          <div style={{
+            position:"absolute", inset:0, zIndex:10,
+            background:"rgba(15,23,42,.45)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            borderRadius:20,
+          }}>
+            <div style={{
+              background:"#fff", borderRadius:16, padding:"28px 24px",
+              width:320, textAlign:"center",
+              boxShadow:"0 8px 32px rgba(0,0,0,.18)",
+            }}>
+              <div style={{
+                width:52, height:52, borderRadius:"50%", background:"#fee2e2",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                margin:"0 auto 14px",
+              }}>
+                <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+              </div>
+              <p style={{ margin:"0 0 8px", fontSize:15, fontWeight:700, color:"#0f172a" }}>Remove user?</p>
+              <p style={{ margin:"0 0 22px", fontSize:13, color:"#64748b", lineHeight:1.6 }}>
+                <strong style={{ color:"#0f172a" }}>{target?.name}</strong> will be removed from the system and lose all access.
+              </p>
+              <div style={{ display:"flex", gap:10, justifyContent:"center" }}>
+                <button type="button" onClick={() => setConfirmId(null)}
+                  style={{ padding:"9px 20px", borderRadius:9, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:13, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>
+                  Cancel
+                </button>
+                <button type="button" onClick={confirmRemove}
+                  style={{ padding:"9px 20px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#ef4444,#dc2626)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"inherit" }}>
+                  Remove user
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+    /* ↑ closing </div> replaces the old </> */
   );
 }
 
@@ -758,7 +807,7 @@ function UserMgmtModal({ onClose, onAction }) {
 ───────────────────────────────────────────── */
 function StockLimitsModal({ onClose, products, setProducts, onAction }) {
   const [search, setSearch]   = useState("");
-  const [edits, setEdits]     = useState({});   // { sku: { warningLevel, targetMax } }
+  const [edits, setEdits]     = useState({});
 
   const filtered = (products || []).filter(p =>
     (p.description || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -861,38 +910,19 @@ function StockLimitsModal({ onClose, products, setProducts, onAction }) {
 
           return (
             <div key={p.sku} className="sl-row">
-              {/* Description */}
               <div style={{ minWidth:0 }}>
                 <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.description}</p>
                 <p style={{ margin:"2px 0 0", fontSize:11, color:"#9ca3af" }}>{p.sku}</p>
               </div>
-
-              {/* Current Stock — read-only */}
               <div style={{ textAlign:"center" }}>
                 <p style={{ margin:0, fontSize:14, fontWeight:700, color:"#111827" }}>{stock.toLocaleString()}</p>
                 <span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:20, background:st.bg, color:st.color }}>{st.label}</span>
               </div>
-
-              {/* Warning Level — editable */}
               <div style={{ display:"flex", justifyContent:"center" }}>
-                <input
-                  type="number"
-                  min={0}
-                  className={`sl-input ${warnChanged ? "changed" : ""}`}
-                  value={getVal(p, "warningLevel")}
-                  onChange={e => handleChange(p.sku, "warningLevel", e.target.value)}
-                />
+                <input type="number" min={0} className={`sl-input ${warnChanged ? "changed" : ""}`} value={getVal(p, "warningLevel")} onChange={e => handleChange(p.sku, "warningLevel", e.target.value)} />
               </div>
-
-              {/* Target Max — editable */}
               <div style={{ display:"flex", justifyContent:"center" }}>
-                <input
-                  type="number"
-                  min={0}
-                  className={`sl-input ${maxChanged ? "changed" : ""}`}
-                  value={getVal(p, "targetMax")}
-                  onChange={e => handleChange(p.sku, "targetMax", e.target.value)}
-                />
+                <input type="number" min={0} className={`sl-input ${maxChanged ? "changed" : ""}`} value={getVal(p, "targetMax")} onChange={e => handleChange(p.sku, "targetMax", e.target.value)} />
               </div>
             </div>
           );
@@ -985,7 +1015,10 @@ function ContactModal({ onClose, onAction }) {
           <div style={{ width:38, height:38, borderRadius:10, background:"linear-gradient(135deg,#e87c27,#c96b1c)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}>
             <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           </div>
-          <div><h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a" , textAlign:"left" }}>Contact Support</h2><p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p></div>
+          <div>
+            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a", textAlign:"left" }}>Contact Support</h2>
+            <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p>
+          </div>
         </div>
         <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
       </div>
