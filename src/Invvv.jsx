@@ -442,7 +442,7 @@ const inventoryDataByRange = {
 };
 
 /* --- PROFILE PAGE ----------------------------------------- */
-function ProfileField({ label, value, editing, name, onChange, type = "text" }) {
+function ProfileField({ label, value, type = "text" }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
       <label style={{
@@ -451,46 +451,22 @@ function ProfileField({ label, value, editing, name, onChange, type = "text" }) 
       }}>
         {label}
       </label>
-      {editing ? (
-        <input
-          type={type}
-          name={name}
-          value={value}
-          onChange={onChange}
-          style={{
-            padding: "9px 12px", fontSize: 13, fontWeight: 500, color: "#111827",
-            border: "1.5px solid #e87c27", borderRadius: 9, outline: "none",
-            fontFamily: "inherit", background: "#fff", boxSizing: "border-box",
-            boxShadow: "0 0 0 3px rgba(232,124,39,0.1)", textAlign: "left",
-          }}
-        />
-      ) : (
-        <p style={{
-          fontSize: 13, color: "#1e293b", fontWeight: 500,
-          padding: "8px 0 7px", borderBottom: "1px solid #f1f5f9", margin: 0,
-          textAlign: "left",
-        }}>
-          {value || "—"}
-        </p>
-      )}
+      <p style={{
+        fontSize: 13, color: "#1e293b", fontWeight: 500,
+        padding: "8px 0 7px", borderBottom: "1px solid #f1f5f9", margin: 0,
+        textAlign: "left",
+      }}>
+        {value || "—"}
+      </p>
     </div>
   );
 }
 
-function ProfilePage({ profile, onSave, onClose }) {
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ ...profile });
+function ProfilePage({ profile, onClose }) {
+  const [form] = useState({ ...profile });
   const loginTime = useState(() =>
     new Date().toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })
   )[0];
-
-  const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
-  const handleSave = () => {
-    if (!form.name.trim()) return;
-    onSave(form);
-    setEditing(false);
-  };
-  const handleCancel = () => { setForm({ ...profile }); setEditing(false); };
 
   return (
     <div style={{
@@ -595,15 +571,11 @@ function ProfilePage({ profile, onSave, onClose }) {
                 margin: 0, fontSize: 11, fontWeight: 700, color: "#0f172a",
                 textTransform: "uppercase", letterSpacing: "0.07em",
               }}>Personal Information</h3>
-              <span style={{
-                fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
-                background: "#fff7ed", color: "#e87c27", border: "1px solid #fde8cc",
-              }}>editable</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <ProfileField label="Full Name" value={form.name} editing={editing} name="name" onChange={handleChange} />
-              <ProfileField label="Email Address" value={form.email} editing={editing} name="email" onChange={handleChange} type="email" />
-              <ProfileField label="Contact Number" value={form.phone} editing={editing} name="phone" onChange={handleChange} />
+              <ProfileField label="Full Name" value={form.name} />
+              <ProfileField label="Email Address" value={form.email} />
+              <ProfileField label="Contact Number" value={form.phone} />
             </div>
           </section>
 
@@ -627,15 +599,11 @@ function ProfilePage({ profile, onSave, onClose }) {
                 margin: 0, fontSize: 11, fontWeight: 700, color: "#0f172a",
                 textTransform: "uppercase", letterSpacing: "0.07em",
               }}>Work Information</h3>
-              <span style={{
-                fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
-                background: "#fff7ed", color: "#e87c27", border: "1px solid #fde8cc",
-              }}>editable</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <ProfileField label="Role" value={form.role} editing={editing} name="role" onChange={handleChange} />
-              <ProfileField label="Department" value={form.department} editing={editing} name="department" onChange={handleChange} />
-              <ProfileField label="Location" value={form.location} editing={editing} name="location" onChange={handleChange} />
+              <ProfileField label="Role" value={form.role} />
+              <ProfileField label="Department" value={form.department} />
+              <ProfileField label="Location" value={form.location} />
             </div>
           </section>
 
@@ -661,8 +629,8 @@ function ProfilePage({ profile, onSave, onClose }) {
               }}>Account Info</h3>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <ProfileField label="Username" value={form.email?.split("@")[0] || "admin"} editing={false} />
-              <ProfileField label="Last Log In" value={loginTime} editing={false} />
+              <ProfileField label="Username" value={form.email?.split("@")[0] || "admin"} />
+              <ProfileField label="Last Log In" value={loginTime} />
               <div style={{ display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
                 <label style={{
                   fontSize: 10, fontWeight: 700, color: "#b0b9c6",
@@ -709,7 +677,7 @@ function ProfilePage({ profile, onSave, onClose }) {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             <span>
-              <strong>Note:</strong> Personal and Work Information can be edited. Account Info fields (username, password, last login) are managed by your system administrator.
+              <strong>Note:</strong> Profile information is read-only. Account Info fields (username, password, last login) are managed by your system administrator.
             </span>
           </div>
         </div>
@@ -717,69 +685,30 @@ function ProfilePage({ profile, onSave, onClose }) {
         {/* ── Footer ── */}
         <div style={{
           padding: "16px 28px", borderTop: "1px solid #f1f5f9",
-          background: "#fafbfc", display: "flex", justifyContent: "flex-end", gap: 8, flexShrink: 0,
+          background: "#fafbfc", display: "flex", justifyContent: "flex-end", flexShrink: 0,
         }}>
-          {editing ? (
-            <>
-              <button
-                type="button"
-                onClick={handleCancel}
-                style={{
-                  padding: "9px 22px", borderRadius: 9, border: "1px solid #e2e8f0",
-                  background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600,
-                  color: "#374151", fontFamily: "inherit", transition: "all 0.15s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#f8fafc"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
-              >Cancel</button>
-              <button
-                type="button"
-                onClick={handleSave}
-                style={{
-                  padding: "9px 22px", borderRadius: 9, border: "none",
-                  background: "#e87c27",
-                  color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
-                  fontFamily: "inherit", boxShadow: "0 2px 8px rgba(232,124,39,0.25)",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = "#d07020";
-                  e.currentTarget.style.boxShadow = "0 4px 14px rgba(232,124,39,0.35)";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = "#e87c27";
-                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(232,124,39,0.25)";
-                }}
-              >Save Changes</button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              style={{
-                padding: "9px 22px", borderRadius: 9, border: "none",
-                background: "#e87c27",
-                color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
-                fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8,
-                boxShadow: "0 2px 8px rgba(232,124,39,0.25)",
-                transition: "all 0.15s",
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = "#d07020";
-                e.currentTarget.style.boxShadow = "0 4px 14px rgba(232,124,39,0.35)";
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = "#e87c27";
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(232,124,39,0.25)";
-              }}
-            >
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-              Edit Profile
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "9px 22px", borderRadius: 9, border: "none",
+              background: "#e87c27",
+              color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              fontFamily: "inherit",
+              boxShadow: "0 2px 8px rgba(232,124,39,0.25)",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = "#d07020";
+              e.currentTarget.style.boxShadow = "0 4px 14px rgba(232,124,39,0.35)";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "#e87c27";
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(232,124,39,0.25)";
+            }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
@@ -1855,11 +1784,6 @@ export default function Dashboard({ onLogout, userName }) {
       {showProfilePage && (
         <ProfilePage
           profile={userProfile}
-          onSave={(updated) => {
-            setUserProfile(updated);
-            setShowProfilePage(false);
-            showToast("Profile updated successfully!");
-          }}
           onClose={() => setShowProfilePage(false)}
         />
       )}

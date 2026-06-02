@@ -678,7 +678,10 @@ export default function AdvanceCustomerPOPage() {
                     <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 600 }}><Highlight text={row.estEnding} query={searchSku} /></td>
                     <td style={{ padding: "12px 10px", color: "#6b7280" }}><Highlight text={row.approvedBy} query={searchSku} /></td>
                     <td style={{ padding: "12px 10px" }}>
-                      <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>{row.status}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: st.badgeBg, display: "inline-block", flexShrink: 0 }} />
+                        {row.status}
+                      </span>
                     </td>
                   </tr>
                 );
@@ -758,15 +761,16 @@ export default function AdvanceCustomerPOPage() {
               overflow: "hidden",
             }}
           >
-            <div style={{ padding: "22px 22px 16px", background: "#1c2235", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+            <div style={{ padding: "22px 22px 16px", background: "#1c2235", display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0 }}>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Reservation Details</h2>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20, background: panelBadge.badgeBg, color: "#fff" }}>{selected.status.toUpperCase()}</span>
-                </div>
-                <p style={{ margin: "10px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600 }}>DR No. {selected.drNo}</p>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Reservation Details</h2>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600 }}>DR No. {selected.drNo}</p>
               </div>
-              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: panelBadge.badgeBg, color: "#fff", alignSelf: "center" }}>
+                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#fff", display: "inline-block", flexShrink: 0 }} />
+                {selected.status.toUpperCase()}
+              </span>
+              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", marginLeft: "auto" }}>
                 <IconX size={18} />
               </button>
             </div>
