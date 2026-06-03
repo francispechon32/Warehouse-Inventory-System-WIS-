@@ -100,7 +100,12 @@ function LowStockLoginModal({ onClose, onViewInventory, items }) {
           </div>
         </ModalBody>
         <ModalFooter style={{ justifyContent: 'flex-end', gap: 10 }}>
-          <ModalBtn variant="secondary" onClick={onClose}>Dismiss</ModalBtn>
+          <ModalBtn variant="secondary" onClick={onClose}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#fff7ed'; e.currentTarget.style.color = '#e87c27'; e.currentTarget.style.borderColor = '#fed7aa'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#374151'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+            onMouseDown={(e) => { e.currentTarget.style.background = '#ffedd5'; e.currentTarget.style.color = '#d07020'; }}
+            onMouseUp={(e) => { e.currentTarget.style.background = '#fff7ed'; e.currentTarget.style.color = '#e87c27'; }}
+          >Dismiss</ModalBtn>
           <ModalBtn variant="secondary" onClick={onViewInventory}
             onMouseEnter={(e) => { e.currentTarget.style.background = '#fff7ed'; e.currentTarget.style.color = '#e87c27'; e.currentTarget.style.borderColor = '#fed7aa'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#374151'; e.currentTarget.style.borderColor = '#e2e8f0'; }}

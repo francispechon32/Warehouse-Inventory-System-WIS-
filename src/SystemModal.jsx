@@ -268,7 +268,7 @@ export default function SystemModal({ type, onClose, onAction, products, setProd
               type === "user-guide"      ? 820 :
               type === "contact"         ? 620 :
               type === "faqs"            ? 680 :
-              type === "user-management" ? 620 :
+              type === "user-management" ? 740 :
               type === "stock-limits"    ? 640 :
               540,
             maxHeight: "92vh",
@@ -636,9 +636,9 @@ function UserMgmtModal({ onClose, onAction }) {
       </div>
 
       {/* Table header */}
-      <div style={{ display:"grid", gridTemplateColumns:"200px 110px 1fr 100px", padding:"10px 24px", background:"#f8fafc", borderBottom:"1px solid #e9ecef", flexShrink:0 }}>
-        {[["Name","left"],["Role","center"],["Last Active","left"],["Action","center"]].map(([h, align], i) => (
-  <span key={h} style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em", textAlign:align, paddingLeft: i === 0 ? 46 : 0 }}>{h}</span>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 24px", background:"#f8fafc", borderBottom:"1px solid #e9ecef", flexShrink:0 }}>
+        {["Name","Role","Last Active","Action"].map(h => (
+  <span key={h} style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em" }}>{h}</span>
 ))}
       </div>
 
@@ -650,7 +650,7 @@ function UserMgmtModal({ onClose, onAction }) {
           const isEditing = editingId === u.id;
 
           return (
-            <div key={u.id} style={{ display:"grid", gridTemplateColumns:"200px 110px 1fr 100px", alignItems:"center", padding:"14px 24px", borderBottom:"1px solid #f3f4f6", transition:"background .12s", cursor:"default" }}
+            <div key={u.id} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", alignItems:"center", padding:"14px 24px", borderBottom:"1px solid #f3f4f6", transition:"background .12s", cursor:"default" }}
               onMouseEnter={e => e.currentTarget.style.background="#fafafa"}
               onMouseLeave={e => e.currentTarget.style.background="transparent"}
             >
@@ -659,7 +659,7 @@ function UserMgmtModal({ onClose, onAction }) {
                 <div style={{ width:36, height:36, borderRadius:"50%", background:rc.bg, border:`1.5px solid ${rc.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:rc.color, flexShrink:0 }}>
                   {initials}
                 </div>
-                <p style={{ margin:0, fontSize:13, fontWeight:700, color:"#111827", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                <p title={u.name} style={{ margin:0, fontSize:13, fontWeight:700, color:"#111827", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                   {u.name}
                 </p>
               </div>
@@ -678,7 +678,7 @@ function UserMgmtModal({ onClose, onAction }) {
               </div>
 
               {/* Last Active */}
-              <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12 }}>
+              <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:6, fontSize:12 }}>
                 {u.lastActive === "Active now"
                   ? <span style={{ width:7, height:7, borderRadius:"50%", background:"#22c55e", display:"inline-block", flexShrink:0 }} />
                   : <span style={{ color:"#9ca3af", display:"flex", alignItems:"center" }}><IconClock s={13} /></span>
