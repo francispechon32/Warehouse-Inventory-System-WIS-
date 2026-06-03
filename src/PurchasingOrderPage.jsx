@@ -921,7 +921,6 @@ export default function PurchasingOrderPage({
                         {row.status}
                       </span>
                     </td>
-                    </td>
                   </tr>
                 );
               })}
@@ -946,16 +945,18 @@ export default function PurchasingOrderPage({
         <>
           <button type="button" aria-label="Close" onClick={() => setPanelOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1040, border: "none", cursor: "pointer" }} />
           <aside style={{ position: "fixed", top: 0, right: 0, width: "min(440px, 100vw)", height: "100vh", background: "#fff", zIndex: 1050, boxShadow: "-8px 0 40px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "20px 22px", background: "#1c2235", display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0 }}>
+            <div style={{ padding: "20px 22px", background: "#1c2235", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Transaction Details</h2>
-                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600 }}>Transaction No. {selected.txnNo}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Transaction Details</h2>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 20, background: panelBadge.panel, color: "#fff", lineHeight: "16px" }}>
+                    <span style={{ width: 3, height: 3, borderRadius: "50%", background: "#fff", display: "inline-block", flexShrink: 0 }} />
+                    {selected.status}
+                  </span>
+                </div>
+                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600, textAlign: "left" }}>Transaction No. {selected.txnNo}</p>
               </div>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: panelBadge.panel, color: "#fff", alignSelf: "center" }}>
-                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#fff", display: "inline-block", flexShrink: 0 }} />
-                {selected.status}
-              </span>
-              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", marginLeft: "auto" }}><IconX size={18} /></button>
+              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}><IconX size={18} /></button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px 24px" }}>
               {[

@@ -761,16 +761,18 @@ export default function AdvanceCustomerPOPage() {
               overflow: "hidden",
             }}
           >
-            <div style={{ padding: "22px 22px 16px", background: "#1c2235", display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0 }}>
+            <div style={{ padding: "22px 22px 16px", background: "#1c2235", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Reservation Details</h2>
-                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600 }}>DR No. {selected.drNo}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Reservation Details</h2>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 20, background: panelBadge.badgeBg, color: "#fff", lineHeight: "16px" }}>
+                    <span style={{ width: 3, height: 3, borderRadius: "50%", background: "#fff", display: "inline-block", flexShrink: 0 }} />
+                    {selected.status.toUpperCase()}
+                  </span>
+                </div>
+                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600, textAlign: "left" }}>DR No. {selected.drNo}</p>
               </div>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 20, background: panelBadge.badgeBg, color: "#fff", alignSelf: "center" }}>
-                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#fff", display: "inline-block", flexShrink: 0 }} />
-                {selected.status.toUpperCase()}
-              </span>
-              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", marginLeft: "auto" }}>
+              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
                 <IconX size={18} />
               </button>
             </div>
