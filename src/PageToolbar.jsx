@@ -114,18 +114,23 @@ function IconChevronRight({ size = 14 }) {
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-function CalendarPopup({ dateRange, onDateRangeChange }) {
+function CalendarPopup({ dateRange, onDateRangeChange, onApply }) {
   const today = new Date();
-  const startRef = useRef(null);
-  const endRef = useRef(null);
+  const [localStart, setLocalStart] = useState(dateRange.start || "");
+  const [localEnd, setLocalEnd] = useState(dateRange.end || "");
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+  useEffect(() => {
+    setLocalStart(dateRange.start || "");
+    setLocalEnd(dateRange.end || "");
+  }, [dateRange.start, dateRange.end]);
 
   const firstDay = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
-  const startVal = dateRange.start ? new Date(dateRange.start + "T00:00:00") : null;
-  const endVal = dateRange.end ? new Date(dateRange.end + "T00:00:00") : null;
+  const startVal = localStart ? new Date(localStart + "T00:00:00") : null;
+  const endVal = localEnd ? new Date(localEnd + "T00:00:00") : null;
 
   const inRange = (d) => {
     if (!startVal) return false;
@@ -141,12 +146,22 @@ function CalendarPopup({ dateRange, onDateRangeChange }) {
   const handleDayClick = (day) => {
     const clicked = new Date(viewYear, viewMonth, day);
     const ymd = clicked.getFullYear() + "-" + String(clicked.getMonth() + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
-    if (!dateRange.start || (dateRange.start && dateRange.end)) {
-      onDateRangeChange({ start: ymd, end: "" });
+    if (!localStart || (localStart && localEnd)) {
+      setLocalStart(ymd);
+      setLocalEnd("");
     } else {
-      const s = new Date(dateRange.start + "T00:00:00");
-      onDateRangeChange({ start: dateRange.start, end: ymd });
+      setLocalEnd(ymd);
     }
+  };
+
+  const handleClear = () => {
+    setLocalStart("");
+    setLocalEnd("");
+  };
+
+  const handleApply = () => {
+    onDateRangeChange({ start: localStart, end: localEnd });
+    onApply?.();
   };
 
   const cells = [];
@@ -185,10 +200,9 @@ function CalendarPopup({ dateRange, onDateRangeChange }) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
           <span style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600 }}>From</span>
           <input
-            ref={startRef}
             type="date"
-            value={dateRange.start}
-            onChange={(e) => onDateRangeChange({ ...dateRange, start: e.target.value })}
+            value={localStart}
+            onChange={(e) => setLocalStart(e.target.value)}
             style={{ width: "100%", padding: "4px 4px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, fontFamily: "inherit", outline: "none", color: "#374151", background: "#fff", boxSizing: "border-box" }}
             title="Start date"
           />
@@ -196,10 +210,9 @@ function CalendarPopup({ dateRange, onDateRangeChange }) {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
           <span style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600 }}>To</span>
           <input
-            ref={endRef}
             type="date"
-            value={dateRange.end}
-            onChange={(e) => onDateRangeChange({ ...dateRange, end: e.target.value })}
+            value={localEnd}
+            onChange={(e) => setLocalEnd(e.target.value)}
             style={{ width: "100%", padding: "4px 4px", fontSize: 11, border: "1px solid #d1d5db", borderRadius: 4, fontFamily: "inherit", outline: "none", color: "#374151", background: "#fff", boxSizing: "border-box" }}
             title="End date"
           />
@@ -228,16 +241,34 @@ function CalendarPopup({ dateRange, onDateRangeChange }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
         {cells}
       </div>
-      <div style={{ display: "flex", justifyContent: "center", marginTop: 8, borderTop: "1px solid #f3f4f6", paddingTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, borderTop: "1px solid #f3f4f6", paddingTop: 8 }}>
         <button
           type="button"
-          onClick={() => onDateRangeChange({ start: "", end: "" })}
+          onClick={handleClear}
           style={{
-            background: "none", border: "1px solid #d1d5db", borderRadius: 6,
-            padding: "4px 12px", fontSize: 12, color: "#6b7280", cursor: "pointer", fontFamily: "inherit",
+            background: "#fff", border: "1px solid #d1d5db", borderRadius: 6,
+            padding: "4px 12px", fontSize: 12, color: "#374151", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#fff7ed"; e.currentTarget.style.color = "#e87c27"; e.currentTarget.style.borderColor = "#fed7aa"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#374151"; e.currentTarget.style.borderColor = "#d1d5db"; }}
+          onMouseDown={(e) => { e.currentTarget.style.background = "#ffedd5"; e.currentTarget.style.color = "#d07020"; }}
+          onMouseUp={(e) => { e.currentTarget.style.background = "#fff7ed"; e.currentTarget.style.color = "#e87c27"; }}
         >
           Clear
+        </button>
+        <button
+          type="button"
+          onClick={handleApply}
+          style={{
+            background: "#fff", border: "1px solid #d1d5db", borderRadius: 6,
+            padding: "4px 14px", fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer", fontFamily: "inherit",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#fff7ed"; e.currentTarget.style.color = "#e87c27"; e.currentTarget.style.borderColor = "#fed7aa"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#374151"; e.currentTarget.style.borderColor = "#d1d5db"; }}
+          onMouseDown={(e) => { e.currentTarget.style.background = "#ffedd5"; e.currentTarget.style.color = "#d07020"; }}
+          onMouseUp={(e) => { e.currentTarget.style.background = "#fff7ed"; e.currentTarget.style.color = "#e87c27"; }}
+        >
+          Apply
         </button>
       </div>
     </div>
@@ -324,9 +355,9 @@ export default function PageToolbar({
                   onClick={() => setCalOpen((v) => !v)}
                   style={{
                     ...dateRangeButtonStyle,
-                    background: calOpen ? "#fff7ed" : "#fff",
-                    color: "#374151",
-                    border: calOpen ? "1.5px solid #fcd9b0" : "1.5px solid #d1d5db",
+                    background: dateRange.start || dateRange.end ? "#fff7ed" : "#fff",
+                    color: dateRange.start || dateRange.end ? "#e87c27" : "#374151",
+                    border: dateRange.start || dateRange.end ? "1.5px solid #fcd9b0" : "1.5px solid #d1d5db",
                     boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)",
                   }}
                 >
@@ -337,7 +368,7 @@ export default function PageToolbar({
                 </button>
                 {calOpen && (
                   <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4 }}>
-                    <CalendarPopup dateRange={dateRange} onDateRangeChange={onDateRangeChange} />
+                    <CalendarPopup dateRange={dateRange} onDateRangeChange={onDateRangeChange} onApply={() => setCalOpen(false)} />
                   </div>
                 )}
               </div>
