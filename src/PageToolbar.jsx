@@ -367,7 +367,7 @@ export default function PageToolbar({
                     : "Select dates"}
                 </button>
                 {calOpen && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4 }}>
+                  <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 9999 }}>
                     <CalendarPopup dateRange={dateRange} onDateRangeChange={onDateRangeChange} onApply={() => setCalOpen(false)} />
                   </div>
                 )}

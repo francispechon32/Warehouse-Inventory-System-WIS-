@@ -41,7 +41,7 @@ function LowStockLoginModal({ onClose, onViewInventory, items }) {
           <div style={{
             border: '1px solid #e8ecf1', borderRadius: 14, overflow: 'hidden',
             background: '#fff', boxShadow: '0 6px 24px rgba(15, 23, 42, 0.06)',
-            maxHeight: 270, overflowY: 'auto',
+            overflowY: 'auto',
           }}>
             <div style={{
               display: 'flex', gap: 16, padding: '8px 16px', background: '#f8fafc',
@@ -56,7 +56,7 @@ function LowStockLoginModal({ onClose, onViewInventory, items }) {
                 Low
               </span>
             </div>
-            {items.slice(0, 10).map((item, idx) => {
+            {items.map((item, idx) => {
               const isCritical = item.stock <= 10
               return (
                 <div key={item.sku} className="wis-modal-low-item" style={{ background: isCritical ? '#fffbfb' : idx % 2 === 1 ? '#fafbfc' : '#fff' }}>
@@ -88,15 +88,6 @@ function LowStockLoginModal({ onClose, onViewInventory, items }) {
                 </div>
               )
             })}
-            {items.length > 10 && (
-              <div style={{
-                padding: '12px 20px', fontSize: 12, color: '#64748b', fontWeight: 600,
-                background: 'linear-gradient(180deg, #f8fafc, #f1f5f9)', textAlign: 'center',
-                borderTop: '1px solid #e8ecf1',
-              }}>
-                +{items.length - 10} more item{items.length - 10 !== 1 ? 's' : ''} need attention
-              </div>
-            )}
           </div>
         </ModalBody>
         <ModalFooter style={{ justifyContent: 'flex-end', gap: 10 }}>
