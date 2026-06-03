@@ -18,7 +18,7 @@ import {
 
 const LOW_STOCK_ITEMS = getLowStockProducts(syncProductsStatus(INITIAL_PRODUCTS))
 
-function LowStockLoginModal({ onClose, items }) {
+function LowStockLoginModal({ onClose, onViewInventory, items }) {
   const critical = items.filter(i => i.stock <= 10)
   const warning = items.filter(i => i.stock > 10)
   const theme = MODAL_THEME['low-stock']
@@ -101,7 +101,12 @@ function LowStockLoginModal({ onClose, items }) {
         </ModalBody>
         <ModalFooter style={{ justifyContent: 'flex-end', gap: 10 }}>
           <ModalBtn variant="secondary" onClick={onClose}>Dismiss</ModalBtn>
-          <ModalBtn variant="primary" onClick={onClose}>
+          <ModalBtn variant="secondary" onClick={onViewInventory}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#fff7ed'; e.currentTarget.style.color = '#e87c27'; e.currentTarget.style.borderColor = '#fed7aa'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#374151'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+            onMouseDown={(e) => { e.currentTarget.style.background = '#ffedd5'; e.currentTarget.style.color = '#d07020'; }}
+            onMouseUp={(e) => { e.currentTarget.style.background = '#fff7ed'; e.currentTarget.style.color = '#e87c27'; }}
+          >
             View Inventory
           </ModalBtn>
         </ModalFooter>
@@ -114,6 +119,7 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
   const [showLowStockModal, setShowLowStockModal] = useState(false)
+  const [navigateTarget, setNavigateTarget] = useState(null)
 
   const handleLoginSuccess = (userName) => {
     setCurrentUser(userName || "Admin User")
@@ -129,17 +135,23 @@ function App() {
     setShowLowStockModal(false)
   }
 
+  const handleViewInventory = () => {
+    setShowLowStockModal(false)
+    setNavigateTarget("Product")
+  }
+
   if (!loggedIn) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />
   }
 
   return (
     <>
-      <Dashboard onLogout={handleLogout} userName={currentUser} />
+      <Dashboard onLogout={handleLogout} userName={currentUser} navigateTarget={navigateTarget} onNavigated={() => setNavigateTarget(null)} />
       {showLowStockModal && (
         <LowStockLoginModal
           items={LOW_STOCK_ITEMS}
           onClose={() => setShowLowStockModal(false)}
+          onViewInventory={handleViewInventory}
         />
       )}
     </>

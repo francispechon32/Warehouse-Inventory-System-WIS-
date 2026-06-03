@@ -715,8 +715,15 @@ function ProfilePage({ profile, onClose }) {
   );
 }
 
-export default function Dashboard({ onLogout, userName }) {
+export default function Dashboard({ onLogout, userName, navigateTarget, onNavigated }) {
   const [activeNav, setActiveNav]         = useState("Home");
+
+  useEffect(() => {
+    if (navigateTarget) {
+      setActiveNav(navigateTarget);
+      onNavigated?.();
+    }
+  }, [navigateTarget, onNavigated]);
   const [stockExpanded, setStockExpanded] = useState(false);
   const [dateRange, setDateRange]         = useState("Last 30 Days");
   const [sidebarOpen, setSidebarOpen]     = useState(true);

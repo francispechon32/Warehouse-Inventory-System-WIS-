@@ -262,8 +262,8 @@
 }
 
 .wis-modal-btn--primary:hover {
+  filter: brightness(0.95);
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(232, 124, 39, 0.4);
 }
 
 .wis-modal-btn--danger {
