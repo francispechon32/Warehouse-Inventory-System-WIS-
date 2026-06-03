@@ -863,7 +863,7 @@ export default function PurchasingOrderPage({
                {TABLE_COLS.map((h) => (
   <th key={h} style={{
     padding: "14px 10px",
-    textAlign: h === "PRODUCT DESCRIPTION" ? "left" : "center",
+   textAlign: "center",
     color: "#fff",
     fontWeight: 700,
     fontSize: 10,

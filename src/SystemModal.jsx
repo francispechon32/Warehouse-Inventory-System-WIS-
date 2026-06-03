@@ -245,10 +245,10 @@ const ROLE_BADGE_COLORS = {
 ───────────────────────────────────────────── */
 const SEED_USERS = [
   { id: 1, name: "Chelsea Lopez",  role: "Admin",  lastActive: "Active now"  },
-  { id: 2, name: "Mark Reyes",     role: "Staff",  lastActive: "2 hours ago" },
-  { id: 3, name: "Alyssa Santos",  role: "Viewer", lastActive: "Yesterday"   },
+  { id: 2, name: "Mark Reyes",     role: "Manager",  lastActive: "2 hours ago" },
+  { id: 3, name: "Alyssa Santos",  role: "EmployeeGI", lastActive: "Yesterday"   },
 ];
-const ROLES = ["Admin", "Staff", "Viewer"];
+const ROLES = ["Admin", "Manager", "Employee"];
 
 /* ─────────────────────────────────────────────
    MODAL SHELL

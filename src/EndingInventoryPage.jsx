@@ -570,7 +570,7 @@ export default function EndingInventoryPage({
   const inventoryData = propInventoryData ?? localInventoryData;
   const setInventoryData = propSetInventoryData ?? setLocalInventoryData;
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status");
+const [statusFilter, setStatusFilter] = useState("All Remarks");
   const [activeTab, setActiveTab] = useState("wis");
   const [currentPage, setCurrentPage] = useState(1);
   const [importing, setImporting] = useState(false);
@@ -593,9 +593,10 @@ export default function EndingInventoryPage({
           (r.productDescription || "").toLowerCase().includes(q)
       );
     }
-    if (statusFilter === "Total Stock")  d = d.filter(r => r.qtyAsPerWis > 0);
-    if (statusFilter === "Out of Stock") d = d.filter(r => r.qtyAsPerWis === 0);
-    if (statusFilter === "Variance")     d = d.filter(r => r.varianceQty !== 0);
+  if (statusFilter === "All Remarks") d = d;
+if (statusFilter === "Goods")            d = d.filter(r => (r.remarks || "").toLowerCase().includes("good"));
+else if (statusFilter === "Damaged")     d = d.filter(r => (r.remarks || "").toLowerCase().includes("damage"));
+else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || "").toLowerCase().includes("inspection"));
     if (dateRange.start) d = d.filter((r) => (r.lastAcceptanceDate || "") >= dateRange.start);
     if (dateRange.end)   d = d.filter((r) => (r.lastAcceptanceDate || "") <= dateRange.end);
     return d;
@@ -659,7 +660,8 @@ export default function EndingInventoryPage({
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "Total Stock", "Out of Stock", "Variance"], minWidth: 150 },
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options:["All Remarks", "Goods", "Damaged", "Under Inspection"], minWidth: 185
+ },
         ]}
         primaryAction={{ label: "Add Item", onClick: () => setShowAddModal(true) }}
         showDateRange={true}
@@ -676,15 +678,14 @@ export default function EndingInventoryPage({
       />
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: "0 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
+<div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: "0 0 0 0", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
         {[["wis","Ending Inventory as per WIS"],["cogs","Cost of Goods Sold"]].map(([key,label]) => (
           <button key={key} onClick={() => setActiveTab(key)} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab===key?"3px solid #e87c27":"3px solid transparent", color: activeTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, marginBottom: -2 }}>{label}</button>
         ))}
       </div>
 
       {/* Table */}
-      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginTop: -2 }}>
-        <div style={{ overflowX: "auto" }}>
+<div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginTop: 0 }}>        <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>

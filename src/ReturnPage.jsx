@@ -42,10 +42,10 @@ function formatDate(iso) {
 }
 
 const SEED_RETURNS = [
-  { id: 1, transNo: "011", returnDate: "2026-05-06", drNo: "DR26030", sku: "HB100XAWD14DSAD", item: "H-BEAM", qtyReturned: 110, unitCost: 520, totalCost: 57200, customer: "Michael Santiago", reason: "Damaged During Delivery", totalQtyOut: 20, qtyBalance: 90, amountBalance: 46800, disposition: "Restock", status: "Received", returnNo: "RTN25031", warehouse: "Manila Warehouse", lineItems: [
-    { code: "HB100XAWD14DSAD", desc: "H-BEAM", qty: 40, unit: 520, val: 20800 },
-    { code: "HB100XAWD14DSAD", desc: "H-BEAM", qty: 35, unit: 520, val: 18200 },
-    { code: "HB100XAWD14DSAD", desc: "H-BEAM", qty: 35, unit: 520, val: 18200 },
+  { id: 1, transNo: "011", returnDate: "2026-05-06", drNo: "DR26030", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g4", qtyReturned: 110, unitCost: 520, totalCost: 57200, customer: "Michael Santiago", reason: "Damaged During Delivery", totalQtyOut: 20, qtyBalance: 90, amountBalance: 46800, disposition: "Restock", status: "Received", returnNo: "RTN25031", warehouse: "Manila Warehouse", lineItems: [
+    { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 40, unit: 520, val: 20800 },
+    { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 35, unit: 520, val: 18200 },
+    { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 35, unit: 520, val: 18200 },
   ]},
   { id: 2, transNo: "012", returnDate: "2026-05-07", drNo: "DR25888", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g40", qtyReturned: 24, unitCost: 346.73, totalCost: 8321.52, customer: "RCM Builders", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 24, amountBalance: 8321.52, disposition: "Credit memo", status: "Approved", returnNo: "RTN25032", warehouse: "Manila Warehouse", lineItems: [
     { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g40", qty: 24, unit: 346.73, val: 8321.52 },
@@ -520,7 +520,7 @@ export default function ReturnPage() {
     key={h}
     style={{
       padding: "14px 10px",
-      textAlign: h === "ITEM" ? "left" : "center",
+      textAlign:"center",
       color: "#fff",
       fontWeight: 700,
       fontSize: 10,
