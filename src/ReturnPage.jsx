@@ -516,20 +516,20 @@ export default function ReturnPage() {
             <thead>
               <tr style={{ background: "#1c2235" }}>
                 {COLS.map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "14px 10px",
-                      textAlign: "center",
-                      color: "#fff",
-                      fontWeight: 700,
-                      fontSize: 10,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
+  <th
+    key={h}
+    style={{
+      padding: "14px 10px",
+      textAlign: h === "ITEM" ? "left" : "center",
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: 10,
+      whiteSpace: "nowrap",
+    }}
+  >
+    {h}
+  </th>
+))}
               </tr>
             </thead>
             <tbody>
@@ -555,11 +555,11 @@ export default function ReturnPage() {
                     onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.background = "#fef6f2"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa"; }}
                   >
-                    <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
+<td style={{ padding: "12px 10px 12px 20px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
                     <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{formatReturnExportDate(row.returnDate)}</td>
                     <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo} query={searchQuery} /></td>
                     <td style={{ padding: "12px 10px", color: "#374151", fontWeight: 600, textAlign: "center" }}><Highlight text={row.sku} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", color: "#111827", maxWidth: 200, textAlign: "center" }}><Highlight text={row.item} query={searchQuery} /></td>
+<td title={row.item} style={{ padding: "12px 10px", color: "#111827", maxWidth: 200, minWidth: 160, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "default" }}><Highlight text={row.item} query={searchQuery} /></td>
                     <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 700 }}>{row.qtyReturned}</td>
                     <td style={{ padding: "12px 10px", textAlign: "center" }}>{fmtPHP(row.unitCost)}</td>
                     <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(row.totalCost)}</td>

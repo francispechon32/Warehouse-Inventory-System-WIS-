@@ -707,12 +707,12 @@ export default function StockSheetsPage({
             <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
               <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
               <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.date}</td>
-              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtPo}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtPoDate}</td>
+<td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtPo}</td>
+<td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtPoDate}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.vendorNo}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.vendorName}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.customerDr}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtWo}</td>
+<td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.acceptDate}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.qty}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.costKilo != null && row.costKilo !== "" ? parseFloat(Number(row.costKilo).toFixed(2)) : "—"}</td>
@@ -737,11 +737,9 @@ export default function StockSheetsPage({
           pagination={<Pagination currentPage={outPage} totalPages={outTotalPages} onPage={setOutPage} />}
           renderRow={(row, idx) => (
             <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-              <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
-              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtWo}</td>
-              <td style={{ padding: "10px", fontWeight: 600, textAlign: "center" }}>{row.customer}</td>
-              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
+<td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo}</td>              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
+<td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
+<td style={{ padding: "10px", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.customer}</td>              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.branch}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.bdrSummary}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtSi}</td>
