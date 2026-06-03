@@ -1078,22 +1078,19 @@ export default function Dashboard({ onLogout, userName }) {
           transition: background 0.15s ease;
         }
         .notif-item-btn:hover { background: #fff7ed; }
-        .notif-item-static {
-          display: flex; align-items: center; gap: 12px;
-          padding: 12px 16px; border-bottom: 1px solid #f3f4f6;
-        }
         .notif-footer-btn {
           display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-          padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer;
+          padding: 10px 14px; border-radius: 8px; cursor: pointer;
           font-size: 11px; font-weight: 700; font-family: inherit;
-          transition: opacity 0.15s ease;
-        }
-        .notif-footer-btn:hover { opacity: 0.9; }
-        .notif-footer-primary {
-          flex: 1; background: #e87c27; color: #fff;
-        }
-        .notif-footer-secondary {
           flex: 1; background: #fff; color: #374151; border: 1px solid #e5e7eb;
+          transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        }
+        .notif-footer-btn:hover,
+        .notif-footer-btn:focus-visible {
+          background: #fff7ed; color: #e87c27; border-color: #fed7aa;
+        }
+        .notif-footer-btn:active {
+          background: #ffedd5; color: #d07020; border-color: #fdba74;
         }
 
         @keyframes slideDown {
