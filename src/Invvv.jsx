@@ -487,37 +487,36 @@ function ProfilePage({ profile, onClose }) {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           background: "#fff", flexShrink: 0,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {/* Flat solid avatar — no gradient, no shadow */}
-            <div style={{
-              width: 52, height: 52, borderRadius: "50%",
-              background: "#e87c27",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: "#fff", fontWeight: 700, fontSize: 20, flexShrink: 0,
-            }}>
-              {(form.name || "?")[0].toUpperCase()}
-            </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a", textAlign: "left" }}>
-                My Profile
-              </h2>
-              {/* Role pill badge instead of plain text */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5 }}>
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  fontSize: 11, fontWeight: 600, color: "#e87c27",
-                  padding: "3px 10px", borderRadius: 20,
-                  background: "#fff7ed", border: "1px solid #fde8cc",
-                }}>
-                  <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                  </svg>
-                  {form.role}
-                </span>
-                <span style={{ fontSize: 11, color: "#94a3b8" }}>{form.department}</span>
-              </div>
-            </div>
-          </div>
+ <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+  <div style={{
+    width: 52, height: 52, borderRadius: "50%",
+    background: "#e87c27",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    color: "#fff", fontWeight: 700, fontSize: 20, flexShrink: 0,
+  }}>
+    {(form.name || "?")[0].toUpperCase()}
+  </div>
+  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+    <h2 style={{ margin: "0 0 4px 2px", fontSize: 18, fontWeight: 800, color: "#0f172a", lineHeight: "1.1", textAlign: "left" }}>
+      My Profile
+    </h2>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, textAlign: "left" }}>
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        fontSize: 11, fontWeight: 600, color: "#e87c27",
+        padding: "3px 10px", borderRadius: 20,
+        background: "#fff7ed", border: "1px solid #fde8cc",
+        lineHeight: "1",
+      }}>
+        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        {form.role}
+      </span>
+      <span style={{ fontSize: 11, color: "#94a3b8", lineHeight: "1" }}>{form.department}</span>
+    </div>
+  </div>
+</div>
           {/* Close button */}
           <button
             type="button"
@@ -554,7 +553,7 @@ function ProfilePage({ profile, onClose }) {
           {/* Personal Information */}
           <section style={{
             background: "#fffdf9", borderRadius: 12, padding: "18px 20px",
-            border: "1px solid #fde8cc", borderLeft: "3px solid #e87c27",
+            border: "1px solid #fde8cc", borderLeft: "4px solid #e87c27",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <div style={{
@@ -582,7 +581,7 @@ function ProfilePage({ profile, onClose }) {
           {/* Work Information */}
           <section style={{
             background: "#fffdf9", borderRadius: 12, padding: "18px 20px",
-            border: "1px solid #fde8cc", borderLeft: "3px solid #e87c27",
+            border: "1px solid #fde8cc", borderLeft: "4px solid #e87c27",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <div style={{
@@ -610,7 +609,8 @@ function ProfilePage({ profile, onClose }) {
           {/* Account Info — neutral, read-only */}
           <section style={{
             background: "#fafbfc", borderRadius: 12, padding: "18px 20px",
-            border: "1px solid #eaedf1",
+                       border: "1px solid #fde8cc", borderLeft: "4px solid #e87c27",
+
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <div style={{

@@ -94,7 +94,7 @@ const GUIDE_PAGES = [
   },
   {
     id: "product",
-    title: "Product (List of SKU)",
+    title: "Product",
     icon: "📦",
     content: {
       intro: "The Product page maintains the master catalog of all Stock Keeping Units (SKUs) tracked in the warehouse.",
@@ -212,7 +212,7 @@ const TEAM = [
     initials: "TP",
     color: "#8b5cf6",
     bg: "#ede9fe",
-    contributions: ["Wireframes", "Design System", "User Flows"],
+    contributions: ["Gmail:trixieepechon@gmail.com", "Contact: 09944673143"],
   },
   {
     name: "Francis Pechon",
@@ -220,7 +220,7 @@ const TEAM = [
     initials: "FP",
     color: "#e87c27",
     bg: "#fff7ed",
-    contributions: ["Dashboard UI", "Stock Sheets", "Component Library"],
+  contributions: ["Gmail:trixieepechon@gmail.com", "Contact: 09944673143"],
   },
   {
     name: "Lala Elaine",
@@ -228,7 +228,7 @@ const TEAM = [
     initials: "LE",
     color: "#10b981",
     bg: "#d1fae5",
-    contributions: ["Test Cases", "Bug Reporting", "UAT Coordination"],
+ contributions: ["Gmail:trixieepechon@gmail.com", "Contact: 09944673143"],
   },
 ];
 
@@ -340,10 +340,16 @@ function UserGuideModal({ onClose }) {
 
         <div className="wg-content">
           {selectedSub && (
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:16, fontSize:12, color:"#9ca3af" }}>
-              <span>Management</span><ChevR s={12} /><span style={{ color:"#e87c27", fontWeight:600 }}>{selectedSub.title}</span>
-            </div>
-          )}
+  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:16, fontSize:12, color:"#9ca3af" }}>
+    <button type="button" onClick={() => { setSelectedPage(mgmtPage); setSelectedSub(null); }}
+      style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:"#9ca3af", fontFamily:"inherit", padding:0, fontWeight:500 }}
+      onMouseEnter={e => e.currentTarget.style.color="#e87c27"}
+      onMouseLeave={e => e.currentTarget.style.color="#9ca3af"}
+    >Management</button>
+    <ChevR s={12} />
+    <span style={{ color:"#e87c27", fontWeight:600 }}>{selectedSub.title}</span>
+  </div>
+)}
           <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
             <span style={{ fontSize:28 }}>{activePage.icon}</span>
             <div>
@@ -491,9 +497,7 @@ function AboutModal({ onClose }) {
 
         {tab === "team" && (
           <div>
-            <p style={{ margin:"0 0 18px", fontSize:13, color:"#6b7280", lineHeight:1.6 }}>
-              The WIS Platform was built and maintained by the following team at TDT Steel Corp. Engineering.
-            </p>
+         
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
               {TEAM.map((member, i) => {
                 const badge = ROLE_BADGE_COLORS[member.role] || { bg:"#f1f5f9", color:"#334155", border:"#cbd5e1" };
@@ -504,29 +508,24 @@ function AboutModal({ onClose }) {
                         {member.initials}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                          <p style={{ margin:0, fontSize:14, fontWeight:700, color:"#111827" }}>{member.name}</p>
-                          <span style={{ fontSize:11, fontWeight:700, padding:"2px 10px", borderRadius:20, background:badge.bg, color:badge.color, border:`1px solid ${badge.border}` }}>
-                            {member.role}
-                          </span>
-                        </div>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:8 }}>
-                          {member.contributions.map((c, j) => (
-                            <span key={j} style={{ fontSize:11, padding:"2px 10px", borderRadius:20, background:"#f3f4f6", color:"#6b7280", fontWeight:500 }}>{c}</span>
-                          ))}
-                        </div>
-                      </div>
+  <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+    <p style={{ margin:0, fontSize:14, fontWeight:700, color:"#111827" }}>{member.name}</p>
+    <span style={{ fontSize:11, fontWeight:700, padding:"2px 10px", borderRadius:20, background:badge.bg, color:badge.color, border:`1px solid ${badge.border}` }}>
+      {member.role}
+    </span>
+  </div>
+  <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:6, paddingLeft:0 }}>
+    {member.contributions.map((c, j) => (
+      <span key={j} style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:"#f1f5f9", color:"#64748b", fontWeight:500, border:"1px solid #e2e8f0" }}>{c}</span>
+    ))}
+  </div>
+</div>
                     </div>
                   </div>
                 );
               })}
             </div>
-            <div style={{ marginTop:18, padding:"12px 16px", background:"#f8fafc", borderRadius:10, border:"1px solid #e9ecef" }}>
-              <p style={{ margin:0, fontSize:12, color:"#9ca3af", textAlign:"center", lineHeight:1.6 }}>
-                Built with ❤️ for TDT PowerSteel Corp. · Marilao, Bulacan<br/>
-                <span style={{ color:"#e87c27", fontWeight:600 }}>WIS v2.4.0</span> · Enterprise Premium · Build 2026-05-21-PRM
-              </p>
-            </div>
+          
           </div>
         )}
       </div>
@@ -638,9 +637,9 @@ function UserMgmtModal({ onClose, onAction }) {
 
       {/* Table header */}
       <div style={{ display:"grid", gridTemplateColumns:"200px 110px 1fr 100px", padding:"10px 24px", background:"#f8fafc", borderBottom:"1px solid #e9ecef", flexShrink:0 }}>
-        {[["Name","left"],["Role","center"],["Last Active","left"],["Action","center"]].map(([h, align]) => (
-          <span key={h} style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em", textAlign:align }}>{h}</span>
-        ))}
+        {[["Name","left"],["Role","center"],["Last Active","left"],["Action","center"]].map(([h, align], i) => (
+  <span key={h} style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em", textAlign:align, paddingLeft: i === 0 ? 46 : 0 }}>{h}</span>
+))}
       </div>
 
       {/* User rows */}
@@ -840,9 +839,9 @@ function StockLimitsModal({ onClose, products, setProducts, onAction }) {
   const stockStatus = (p) => {
     const stock = p.stock ?? p.qty ?? 0;
     const warn  = Number(getVal(p, "warningLevel"));
-    if (stock <= 0)    return { label:"Out", bg:"#fee2e2", color:"#dc2626" };
+    if (stock <= 0)    return { label:"Out of Stock", bg:"#fee2e2", color:"#dc2626" };
     if (stock <= warn) return { label:"Low", bg:"#fff7ed", color:"#d97706" };
-    return               { label:"OK",  bg:"#dcfce7", color:"#16a34a" };
+    return               { label:"In Stock",  bg:"#dcfce7", color:"#16a34a" };
   };
 
   return (
@@ -854,8 +853,7 @@ function StockLimitsModal({ onClose, products, setProducts, onAction }) {
         .sl-input::-webkit-outer-spin-button, .sl-input::-webkit-inner-spin-button { -webkit-appearance:none; }
         .sl-input:focus { border-color:#e87c27; box-shadow:0 0 0 3px rgba(232,124,39,.12); }
         .sl-input.changed { border-color:#e87c27; background:#fff7ed; }
-        .sl-row { display:grid; grid-template-columns:1fr 90px 88px 88px; align-items:center; gap:12px; padding:12px 24px; border-bottom:1px solid #f3f4f6; transition:background .12s; }
-        .sl-row:last-child { border-bottom:none; }
+.sl-row { display:grid; grid-template-columns:1fr 90px 100px 100px; align-items:center; gap:8px; padding:12px 24px; border-bottom:1px solid #f3f4f6; transition:background .12s; }        .sl-row:last-child { border-bottom:none; }
         .sl-row:hover { background:#fafafa; }
       `}</style>
 
@@ -891,11 +889,11 @@ function StockLimitsModal({ onClose, products, setProducts, onAction }) {
       </div>
 
       {/* Column headers */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 88px 88px", gap:12, padding:"10px 24px", background:"#f8fafc", borderBottom:"1px solid #e9ecef", flexShrink:0 }}>
-        {["SKU / Description", "Stock", "Warning Level", "Target Max"].map((h, i) => (
-          <span key={h} style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em", textAlign: i > 1 ? "center" : "left" }}>{h}</span>
-        ))}
-      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 90px 100px 100px", gap:8, padding:"10px 24px", background:"#f8fafc", borderBottom:"1px solid #e9ecef", flexShrink:0 }}>
+  {["SKU / Description", "Stock", "Warning Level", "Target Max"].map((h, i) => (
+  <span key={h} style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em", textAlign: i === 0 ? "left" : "center", whiteSpace:"nowrap", paddingLeft: i === 0 ? 10 : 0 }}>{h}</span>
+))}
+</div>
 
       {/* Rows */}
       <div className="sl-scroll" style={{ flex:1, overflowY:"auto", minHeight:0 }}>
