@@ -860,9 +860,16 @@ export default function PurchasingOrderPage({
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-                {TABLE_COLS.map((h) => (
-                  <th key={h} style={{ padding: "14px 10px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
-                ))}
+               {TABLE_COLS.map((h) => (
+  <th key={h} style={{
+    padding: "14px 10px",
+    textAlign: h === "PRODUCT DESCRIPTION" ? "left" : "center",
+    color: "#fff",
+    fontWeight: 700,
+    fontSize: 10,
+    whiteSpace: "nowrap",
+  }}>{h}</th>
+))}
               </tr>
             </thead>
             <tbody>
@@ -904,16 +911,17 @@ export default function PurchasingOrderPage({
                     <td style={cellSt()}><Highlight text={row.purchaser} query={searchQuery} /></td>
                     <td style={{ ...cellSt(), color: "#e87c27", fontWeight: 700 }}><Highlight text={row.tdtPo} query={searchQuery} /></td>
                     <td style={{ ...cellSt(), color: "#111827", fontWeight: 600 }}><Highlight text={row.vendor} query={searchQuery} /></td>
-                    <td style={{ ...cellSt(), maxWidth: 200 }}><Highlight text={row.productDesc} query={searchQuery} /></td>
+<td title={row.productDesc} style={{ ...cellSt(), maxWidth: 200, minWidth: 160, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "default" }}><Highlight text={row.productDesc} query={searchQuery} /></td>
                     <td style={cellSt()}><Highlight text={row.destination} query={searchQuery} /></td>
                     <td style={cellSt()}>{row.tradingOrStocks}</td>
                     <td style={cellSt()}>{row.warehouseType}</td>
-                    <td style={cellSt(true)}>{row.metricTons}</td>
-                    <td style={{ ...cellSt(true), fontWeight: 700 }}>{row.qtyPerPo}</td>
+                 <td style={cellSt()}>{row.metricTons}</td>
+<td style={{ ...cellSt(), fontWeight: 700 }}>{row.qtyPerPo}</td>
+
                     <td style={cellSt()}>{row.weight}</td>
                     <td style={cellSt()}>{row.retention || "—"}</td>
-                    <td style={cellSt(true)}>{kiloDisplay}</td>
-                    <td style={cellSt(true)}>{unitCost ? fmtPHP(unitCost) : "—"}</td>
+            <td style={cellSt()}>{kiloDisplay}</td>
+<td style={cellSt()}>{unitCost ? fmtPHP(unitCost) : "—"}</td>
                     <td style={{ ...cellSt(true), fontWeight: 600, color: "#e87c27" }}>{totalCost ? fmtPHP(totalCost) : "—"}</td>
                     <td style={{ padding: "10px 8px", textAlign: "center" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 12, background: st.bg, color: st.color }}>

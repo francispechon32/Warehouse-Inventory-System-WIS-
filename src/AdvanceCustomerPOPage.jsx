@@ -625,7 +625,8 @@ export default function AdvanceCustomerPOPage() {
                     key={h}
                     style={{
                       padding: "14px 10px",
-                      textAlign: ["RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE"].includes(h) ? "right" : "center",
+                     textAlign: "center",
+
                       color: "#fff",
                       fontWeight: 700,
                       fontSize: 10,
@@ -673,9 +674,9 @@ export default function AdvanceCustomerPOPage() {
                     <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700 }}><Highlight text={row.tdtDr} query={searchSku} /></td>
                     <td style={{ padding: "12px 10px", color: "#111827", fontWeight: 600, maxWidth: 160 }}><Highlight text={row.customer} query={searchSku} /></td>
                     <td style={{ padding: "12px 10px", color: "#6b7280" }}><Highlight text={row.place} query={searchSku} /></td>
-                    <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 700 }}><Highlight text={row.reservedQty} query={searchSku} /></td>
-                    <td style={{ padding: "12px 10px", textAlign: "right" }}><Highlight text={row.currentStock} query={searchSku} /></td>
-                    <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 600 }}><Highlight text={row.estEnding} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 700 }}><Highlight text={row.reservedQty} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", textAlign: "center" }}><Highlight text={row.currentStock} query={searchSku} /></td>
+                    <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 600 }}><Highlight text={row.estEnding} query={searchSku} /></td>
                     <td style={{ padding: "12px 10px", color: "#6b7280" }}><Highlight text={row.approvedBy} query={searchSku} /></td>
                     <td style={{ padding: "12px 10px" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>

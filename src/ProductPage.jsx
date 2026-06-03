@@ -348,13 +348,14 @@ export default function ProductPage({ products: propProducts, setProducts: propS
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-                {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS"].map(h => (
-                  <th key={h} style={{
-                    padding: "16px 20px",
-                    textAlign: h === "PRODUCT DESCRIPTION" ? "left" : "center",
-                    color: "#fff", fontWeight: 700, fontSize: 12,
-                  }}>{h}</th>
-                ))}
+               {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS"].map(h => (
+  <th key={h} style={{
+    padding: "16px 20px",
+    textAlign: h === "PRODUCT DESCRIPTION" ? "left" : h === "CURRENT STOCK" || h === "AVG COST" || h === "TOTAL VALUE" ? "right" : "center",
+    color: "#fff", fontWeight: 700, fontSize: 12,
+    whiteSpace: "nowrap",
+  }}>{h}</th>
+))}
               </tr>
             </thead>
             <tbody>
@@ -421,18 +422,18 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                     <HighlightText text={product.category} query={searchQuery} />
                   </td>
                   <td style={{ padding: "14px 20px", color: "#374151", textAlign: "center" }}>{product.unit}</td>
-                  <td style={{
-                    padding: "14px 20px", textAlign: "right",
-                    color: low ? "#d97706" : "#374151",
-                    fontWeight: low ? 700 : 400,
-                  }}>
-                    {product.stock.toLocaleString()}
-                    {low && (
-                      <span style={{ marginLeft: 6, color: "#d97706" }}><IconWarning size={12} /></span>
-                    )}
-                  </td>
-                  <td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>₱{product.avgCost.toFixed(2)}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>₱{product.totalValue.toFixed(2)}</td>
+                 <td style={{
+  padding: "14px 20px", textAlign: "center",
+  color: low ? "#d97706" : "#374151",
+  fontWeight: low ? 700 : 400,
+}}>
+  {product.stock.toLocaleString()}
+  {low && (
+    <span style={{ marginLeft: 6, color: "#d97706" }}><IconWarning size={12} /></span>
+  )}
+</td>
+                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>₱{product.avgCost.toFixed(2)}</td>
+<td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>₱{product.totalValue.toFixed(2)}</td>
                   <td style={{ padding: "14px 20px", textAlign: "center" }}>
                     <span style={{
                       display: "inline-flex",

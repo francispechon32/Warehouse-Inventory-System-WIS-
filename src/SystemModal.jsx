@@ -212,7 +212,7 @@ const TEAM = [
     initials: "TP",
     color: "#8b5cf6",
     bg: "#ede9fe",
-    contributions: ["Gmail:trixieepechon@gmail.com", "Contact: 09944673143"],
+    contributions: ["Gmail: trixieepechon@gmail.com", "Contact #: 09944673143"],
   },
   {
     name: "Francis Pechon",
@@ -220,7 +220,7 @@ const TEAM = [
     initials: "FP",
     color: "#e87c27",
     bg: "#fff7ed",
-  contributions: ["Gmail:trixieepechon@gmail.com", "Contact: 09944673143"],
+  contributions: ["Gmail: francispechon32@gmail.com", "Contact #: 09104657408"],
   },
   {
     name: "Lala Elaine",
@@ -228,7 +228,7 @@ const TEAM = [
     initials: "LE",
     color: "#10b981",
     bg: "#d1fae5",
- contributions: ["Gmail:trixieepechon@gmail.com", "Contact: 09944673143"],
+ contributions: ["Gmail: caleonlalaelaine@gmail.com", "Contact #: 09694988486"],
   },
 ];
 
@@ -503,7 +503,7 @@ function AboutModal({ onClose }) {
                 const badge = ROLE_BADGE_COLORS[member.role] || { bg:"#f1f5f9", color:"#334155", border:"#cbd5e1" };
                 return (
                   <div key={i} className="team-card">
-                    <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+<div style={{ display:"flex", alignItems:"flex-start", gap:14 }}>
                       <div style={{ width:48, height:48, borderRadius:"50%", background:member.bg, border:`2px solid ${member.color}44`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:14, color:member.color, flexShrink:0, letterSpacing:"-0.5px" }}>
                         {member.initials}
                       </div>
@@ -514,11 +514,11 @@ function AboutModal({ onClose }) {
       {member.role}
     </span>
   </div>
-  <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:6, paddingLeft:0 }}>
-    {member.contributions.map((c, j) => (
-      <span key={j} style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:"#f1f5f9", color:"#64748b", fontWeight:500, border:"1px solid #e2e8f0" }}>{c}</span>
-    ))}
-  </div>
+<div style={{ display:"flex", flexDirection:"column", gap:5, marginTop:6, paddingLeft:0 }}>
+  {member.contributions.map((c, j) => (
+    <span key={j} style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:"#f1f5f9", color:"#64748b", fontWeight:500, border:"1px solid #e2e8f0", alignSelf:"flex-start" }}>{c}</span>
+  ))}
+</div>
 </div>
                     </div>
                   </div>

@@ -503,8 +503,22 @@ export default function BackloadInventoryPage() {
   const totalBalance = data.reduce((s, r) => s + ((r.qty - r.totalQtyOut) * r.unitCost), 0);
   const totalQtyBalance = data.reduce((s, r) => s + (r.qty - r.totalQtyOut), 0);
 
-  const COLS = ["TRANS NO.", "DATE", "DR #", "SKU", "ITEM", "QTY", "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "TOTAL QTY OUT", "QTY BALANCE", "AMOUNT BALANCE", "REMARKS", ""];
-
+const COLS = [
+  { label: "TRANS NO.",      align: "center" },
+  { label: "DATE",           align: "center" },
+  { label: "DR #",           align: "center" },
+  { label: "SKU",            align: "center" },
+  { label: "ITEM",           align: "center"   },
+  { label: "QTY",            align: "center" },
+  { label: "UNIT COST",      align: "center" },
+  { label: "TOTAL COST",     align: "center" },
+  { label: "CUSTOMER NAME",  align: "left"   },
+  { label: "TOTAL QTY OUT",  align: "center" },
+  { label: "QTY BALANCE",    align: "center" },
+  { label: "AMOUNT BALANCE", align: "center" },
+  { label: "REMARKS",        align: "left"   },
+  { label: "",               align: "center" },
+];
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
@@ -559,12 +573,11 @@ export default function BackloadInventoryPage() {
       {/* Table */}
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
+<table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>            <thead>
               <tr style={{ background: "#1c2235" }}>
-                {COLS.map(h => (
-                  <th key={h} style={{ padding: "14px 12px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
-                ))}
+             {COLS.map(col => (
+  <th key={col.label} style={{ padding: "14px 12px", textAlign: col.align, color: "#fff", fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>{col.label}</th>
+))}
               </tr>
             </thead>
             <tbody>
@@ -588,18 +601,21 @@ export default function BackloadInventoryPage() {
                     <td style={{ padding: "12px 12px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{formatBackloadExportDate(row.date)}</td>
                     <td style={{ padding: "12px 12px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo || "—"} query={searchQuery} /></td>
                     <td style={{ padding: "12px 12px", color: "#374151", textAlign: "center" }}><Highlight text={row.sku || "—"} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 12px", color: "#374151", maxWidth: 220, textAlign: "left" }}><Highlight text={row.item} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: 700 }}>{row.qty}</td>
+<td title={row.item} style={{ padding: "12px 12px", color: "#374151", maxWidth: 220, minWidth: 180, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "default" }}>
+  <Highlight text={row.item} query={searchQuery} />
+</td>              <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: 700 }}>{row.qty}</td>
                     <td style={{ padding: "12px 12px", textAlign: "center" }}>{fmtPHP(row.unitCost)}</td>
                     <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(totalCost)}</td>
-                    <td style={{ padding: "12px 12px", color: "#374151", maxWidth: 180, textAlign: "left" }}><Highlight text={row.customerName} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{row.totalQtyOut}</td>
+<td title={row.customerName} style={{ padding: "12px 12px", color: "#374151", maxWidth: 160, minWidth: 120, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "default" }}>
+  <Highlight text={row.customerName} query={searchQuery} />
+</td>                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{row.totalQtyOut}</td>
                     <td style={{ padding: "12px 12px", textAlign: "center" }}>
                       <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: qtyBalance > 0 ? "#fef3c7" : "#d1fae5", color: qtyBalance > 0 ? "#d97706" : "#065f46" }}>{qtyBalance}</span>
                     </td>
                     <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(amtBalance)}</td>
-                    <td style={{ padding: "12px 12px", color: "#6b7280", maxWidth: 180, fontSize: 11, textAlign: "left" }}>{row.remarks || "—"}</td>
-                    <td style={{ padding: "12px 8px", textAlign: "center" }}>
+<td title={row.remarks || ""} style={{ padding: "12px 12px", color: "#6b7280", maxWidth: 160, minWidth: 100, fontSize: 11, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "default" }}>
+  {row.remarks || "—"}
+</td>              <td style={{ padding: "12px 8px", textAlign: "center" }}>
                       <button onClick={() => setEditingId(row.id)} style={{ padding: "5px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
                         <IconEdit size={12} /> Edit
                       </button>
