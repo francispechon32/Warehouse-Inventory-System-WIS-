@@ -472,7 +472,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
             <button
               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
-              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===1?"not-allowed":"pointer", opacity: currentPage===1?0.5:1 }}
+              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage===1?"not-allowed":"pointer", opacity: currentPage===1?0.5:1 }}
             >
               <IconChevronLeft size={16} />
             </button>
@@ -492,7 +492,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
             <button
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.5:1 }}
+              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.5:1 }}
             >
               <IconChevronRight size={16} />
             </button>
