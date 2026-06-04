@@ -488,14 +488,39 @@ function ProfilePage({ profile, onClose }) {
           background: "#fff", flexShrink: 0,
         }}>
  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+  <div style={{ position: "relative", flexShrink: 0 }}>
   <div style={{
     width: 52, height: 52, borderRadius: "50%",
     background: "#e87c27",
     display: "flex", alignItems: "center", justifyContent: "center",
-    color: "#fff", fontWeight: 700, fontSize: 20, flexShrink: 0,
+    color: "#fff", fontWeight: 700, fontSize: 20,
   }}>
     {(form.name || "?")[0].toUpperCase()}
   </div>
+
+  {/* Camera overlay button */}
+  <button
+    type="button"
+    title="Change profile photo"
+    onClick={() => alert("Photo upload coming soon.")}
+    style={{
+      position: "absolute", bottom: -2, right: -2,
+      width: 22, height: 22, borderRadius: "50%",
+      background: "#1e293b", border: "2px solid #fff",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      cursor: "pointer", padding: 0,
+      transition: "background 0.15s",
+    }}
+    onMouseEnter={e => e.currentTarget.style.background = "#e87c27"}
+    onMouseLeave={e => e.currentTarget.style.background = "#1e293b"}
+  >
+    <svg width={12} height={11} viewBox="0 0 24 24" fill="none"
+      stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+      <circle cx="12" cy="13" r="4"/>
+    </svg>
+  </button>
+</div>
   <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
     <h2 style={{ margin: "0 0 4px 2px", fontSize: 18, fontWeight: 800, color: "#0f172a", lineHeight: "1.1", textAlign: "left" }}>
       My Profile
@@ -1444,7 +1469,7 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                   overflow: "hidden", border: "2px solid #e5e7eb", flexShrink: 0,
                 }}>
                   <img
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=d1d5db&color=374151&size=42`}
+src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=e87c27&color=ffffff&size=42`}
                     alt="avatar"
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={e => { e.target.style.display = "none"; }}
