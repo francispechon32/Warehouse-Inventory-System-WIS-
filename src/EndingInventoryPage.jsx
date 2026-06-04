@@ -29,6 +29,7 @@ import {
   modalBtnSecondary,
   modalBtnPrimary,
   modalCellInput,
+  modalInput,
 } from "./modalFormStyles";
 
 function Highlight({ text, query }) {
@@ -448,7 +449,7 @@ function AddEndingInventoryModal({ onClose, onSave, nextNo }) {
           {[{ label: "SKU Number", key: "sku", w: "100%" }, { label: "Product Description", key: "productDescription", w: "100%" }].map(f => (
             <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
-              <input value={form[f.key]} onChange={e => set(f.key, e.target.value)} style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+              <input value={form[f.key]} onChange={e => set(f.key, e.target.value)} {...modalInput()} />
             </div>
           ))}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -461,13 +462,13 @@ function AddEndingInventoryModal({ onClose, onSave, nextNo }) {
             ].map(f => (
               <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
-                <input type={f.type || "text"} value={form[f.key]} onChange={e => set(f.key, f.type === "number" ? (parseFloat(e.target.value) || 0) : e.target.value)} min={0} step="0.01" style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                <input type={f.type || "text"} value={form[f.key]} onChange={e => set(f.key, f.type === "number" ? (parseFloat(e.target.value) || 0) : e.target.value)} min={0} step="0.01" {...modalInput()} />
               </div>
             ))}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>Remarks</label>
-            <input value={form.remarks} onChange={e => set("remarks", e.target.value)} style={{ width: "100%", padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+            <input value={form.remarks} onChange={e => set("remarks", e.target.value)} {...modalInput()} />
           </div>
         </div>
         <div style={modalFooterStyle}>

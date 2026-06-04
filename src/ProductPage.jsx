@@ -20,7 +20,20 @@ import {
 } from "./productUtils";
 import useSort from "./useSort";
 import { INITIAL_PRODUCTS } from "./initialProducts";
-import { modalCellInput } from "./modalFormStyles";
+import {
+  modalOverlayStyle,
+  modalPanelStyle,
+  modalHeaderStyle,
+  modalFooterStyle,
+  modalTitleStyle,
+  modalSubtitleStyle,
+  modalCloseBtnStyle,
+  modalLabelStyle,
+  modalBtnSecondary,
+  modalBtnPrimary,
+  modalInput,
+  modalCellInput,
+} from "./modalFormStyles";
 
 const sampleProducts = INITIAL_PRODUCTS;
 
@@ -186,52 +199,41 @@ function AddItemModal({ categories, onClose, onSave }) {
     });
   };
 
-  const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center" };
-  const panelStyle = { background: "#fff", borderRadius: 14, padding: "28px 32px", width: "min(96vw,480px)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" };
-  const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: "#374151", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.04em" };
-  const inputStyle = { width: "100%", padding: "9px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, boxSizing: "border-box", outline: "none" };
-  const fieldStyle = { marginBottom: 14 };
-
   return (
-    <div style={overlayStyle} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={panelStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#1c2235" }}>Add New Item</h3>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#9ca3af" }}>✕</button>
-        </div>
-        {error && <div style={{ background: "#fee2e2", color: "#991b1b", padding: "8px 12px", borderRadius: 8, fontSize: 12, marginBottom: 14 }}>{error}</div>}
-        <div style={fieldStyle}>
-          <label style={labelStyle}>SKU Code *</label>
-          <input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="e.g. DRB007" style={inputStyle} />
-        </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>Product Description *</label>
-          <input value={form.description} onChange={e => set("description", e.target.value)} placeholder="e.g. Deformed Round Bar, 10mm x 6M" style={inputStyle} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-          <div>
-            <label style={labelStyle}>Category</label>
-            <input value={form.category} onChange={e => set("category", e.target.value)} list="cat-list" placeholder="e.g. Steel Bars" style={inputStyle} />
-            <datalist id="cat-list">{categories.filter(c => c !== "All Categories").map(c => <option key={c} value={c} />)}</datalist>
+    <div style={modalOverlayStyle} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ ...modalPanelStyle, width: "min(96vw, 540px)" }}>
+        <div style={modalHeaderStyle}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={modalTitleStyle}>Add New Item</h2>
+            <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>Add a new product to the inventory. Fields marked with * are required.</p>
           </div>
-          <div>
-            <label style={labelStyle}>Unit</label>
-            <input value={form.unit} onChange={e => set("unit", e.target.value)} placeholder="pcs / kgs / m" style={inputStyle} />
-          </div>
+          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close"
+            onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"}
+            onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
+            <IconX size={18} />
+          </button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 22 }}>
-          <div>
-            <label style={labelStyle}>Current Stock</label>
-            <input type="number" min={0} value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="0" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Avg Cost (₱)</label>
-            <input type="number" min={0} step="0.01" value={form.avgCost} onChange={e => set("avgCost", e.target.value)} placeholder="0.00" style={inputStyle} />
+        <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+          {error && <div style={{ background: "#fee2e2", color: "#991b1b", padding: "10px 14px", borderRadius: 8, fontSize: 12, marginBottom: 16, fontWeight: 600 }}>{error}</div>}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div><label style={modalLabelStyle}>SKU Code *</label><input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="e.g. DRB007" {...modalInput()} /></div>
+            <div><label style={modalLabelStyle}>Unit</label><input value={form.unit} onChange={e => set("unit", e.target.value)} placeholder="pcs / kgs / m" {...modalInput()} /></div>
+            <div style={{ gridColumn: "1/-1" }}><label style={modalLabelStyle}>Product Description *</label><input value={form.description} onChange={e => set("description", e.target.value)} placeholder="e.g. Deformed Round Bar, 10mm x 6M" {...modalInput()} /></div>
+            <div>
+              <label style={modalLabelStyle}>Category</label>
+              <input value={form.category} onChange={e => set("category", e.target.value)} list="cat-list" placeholder="e.g. Steel Bars" {...modalInput()} />
+              <datalist id="cat-list">{categories.filter(c => c !== "All Categories").map(c => <option key={c} value={c} />)}</datalist>
+            </div>
+            <div><label style={modalLabelStyle}>Warning Level (stock)</label><input type="number" min={1} value={form.warningLevel || 50} onChange={e => set("warningLevel", e.target.value)} {...modalInput()} /></div>
+            <div><label style={modalLabelStyle}>Current Stock</label><input type="number" min={0} value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="0" {...modalInput()} /></div>
+            <div><label style={modalLabelStyle}>Avg Cost (₱)</label><input type="number" min={0} step="0.01" value={form.avgCost} onChange={e => set("avgCost", e.target.value)} placeholder="0.00" {...modalInput()} /></div>
           </div>
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button onClick={onClose} style={{ padding: "9px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#f3f4f6", color: "#374151", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>Cancel</button>
-          <button onClick={handleSave} style={{ padding: "9px 22px", border: "none", borderRadius: 8, background: "#e87c27", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Add Item</button>
+        <div style={modalFooterStyle}>
+          <button type="button" onClick={onClose} style={modalBtnSecondary}>Cancel</button>
+          <button type="button" onClick={handleSave} style={modalBtnPrimary}>
+            <IconPlus size={15} /> Add Item
+          </button>
         </div>
       </div>
     </div>

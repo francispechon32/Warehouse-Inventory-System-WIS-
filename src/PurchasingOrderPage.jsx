@@ -11,7 +11,20 @@ import {
   rowHasData,
   readWorkbookSheet,
 } from "./excelImportUtils";
-import { modalCellInput } from "./modalFormStyles";
+import {
+  modalOverlayStyle,
+  modalPanelStyle,
+  modalHeaderStyle,
+  modalFooterStyle,
+  modalTitleStyle,
+  modalSubtitleStyle,
+  modalCloseBtnStyle,
+  modalLabelStyle,
+  modalBtnSecondary,
+  modalBtnPrimary,
+  modalInput,
+  modalCellInput,
+} from "./modalFormStyles";
 
 function Highlight({ text, query }) {
   if (!query || !text) return <>{String(text)}</>;
@@ -1170,7 +1183,7 @@ export default function PurchasingOrderPage({
 
       <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
         {[["purchasing","Purchase Orders"],["warehouse","Warehouse"]].map(([key,label]) => (
-          <button key={key} onClick={() => { setActiveTab(key); setCurrentPage(1); }} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab===key?"3px solid #e87c27":"3px solid transparent", color: activeTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, marginBottom: -2 }}>{label}</button>
+            <button key={key} onClick={() => { setActiveTab(key); setCurrentPage(1); }} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab===key?"3px solid #e87c27":"3px solid transparent", color: activeTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, fontFamily: "inherit", marginBottom: -2 }}>{label}</button>
         ))}
       </div>
 
@@ -1237,7 +1250,7 @@ export default function PurchasingOrderPage({
                 const st = STATUS_BADGE[row.status] || STATUS_BADGE.Pending;
                 const { totalCost, unitCost } = poComputedCosts(row);
                 const cellSt = (alignRight = false) => ({
-                  padding: "10px 8px",
+                  padding: "12px 10px",
                   textAlign: alignRight ? "right" : "center",
                   color: "#374151",
                   fontSize: 11,
@@ -1294,7 +1307,7 @@ export default function PurchasingOrderPage({
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {totalSeed} Purchase order
+            Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length} entries
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage === 1 ? "not-allowed" : "pointer", opacity: currentPage === 1 ? 0.4 : 1 }}><IconChevronLeft size={14} /></button>
@@ -1509,7 +1522,7 @@ export default function PurchasingOrderPage({
                         {Array.from({ length: slots * 2 }, (_, i) => (
                           <td key={i} style={{ padding: "10px", textAlign: "center", color: "#93a3c7", fontSize: 11, borderRight: i < slots * 2 - 1 ? "1px solid #2a3450" : "none" }}></td>
                         ))}
-                        <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#f59e0b", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotal.toLocaleString()}</td>
+                        <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#fca5a5", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotal.toLocaleString()}</td>
                         <td style={{ padding: "12px 14px", borderLeft: "1px solid #2a3450" }}></td>
                       </tr>
                     </tbody>
@@ -1522,7 +1535,7 @@ export default function PurchasingOrderPage({
         )}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {sorted.length===0?0:(currentPage-1)*PAGE_SIZE+1}–{Math.min(currentPage*PAGE_SIZE,sorted.length)} of {sorted.length} records
+            Showing {sorted.length===0?0:(currentPage-1)*PAGE_SIZE+1}–{Math.min(currentPage*PAGE_SIZE,sorted.length)} of {sorted.length} entries
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage === 1 ? "not-allowed" : "pointer", opacity: currentPage === 1 ? 0.4 : 1 }}><IconChevronLeft size={14} /></button>
@@ -1610,30 +1623,30 @@ export default function PurchasingOrderPage({
       )}
 
       {showCreate && (
-        <>
-          <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1100 }} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#fff", borderRadius: 16, width: "min(560px,95vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>Create Purchase Order</h2>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>Fill in the purchase order details below</p>
+        <div style={modalOverlayStyle} onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
+          <div style={{ ...modalPanelStyle, width: "min(620px, 96vw)" }}>
+            <div style={modalHeaderStyle}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h2 style={modalTitleStyle}>Create Purchase Order</h2>
+                <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>Fill in the purchase order details. Fields marked with * are required.</p>
               </div>
-              <button type="button" onClick={() => setShowCreate(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#4b5563", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              <button type="button" onClick={() => setShowCreate(false)} style={modalCloseBtnStyle} aria-label="Close"
+                onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"}
+                onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
-            <div style={{ padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px" }}>
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px" }}>
               {(() => {
                 const inp = (key, label, type = "text", placeholder = "", fullWidth = false) => (
                   <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: fullWidth ? "1 / -1" : undefined }}>
-                    <div style={{ height: 28, overflow: "hidden" }}><label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }} title={label}>{label}</label></div>
-                    <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))} placeholder={placeholder}
-                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
-                      onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
-                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }} />
+                    <label style={modalLabelStyle}>{label}</label>
+                    <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))} placeholder={placeholder} {...modalInput()} />
                   </div>
                 );
                 const sel = (key, label, opts, fullWidth = false) => (
                   <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: fullWidth ? "1 / -1" : undefined }}>
-                    <div style={{ height: 28, overflow: "hidden" }}><label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }} title={label}>{label}</label></div>
+                    <label style={modalLabelStyle}>{label}</label>
                     <div style={{ position: "relative" }}>
                       <select value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
                         style={{ width: "100%", padding: "9px 30px 9px 12px", fontSize: 13, fontWeight: 600, color: "#111827", border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer", appearance: "none" }}>
@@ -1644,27 +1657,27 @@ export default function PurchasingOrderPage({
                   </div>
                 );
                 return [
-                  inp("poDate", "PO Date", "date"),
+                  inp("poDate", "PO Date *", "date"),
                   inp("eta", "ETA Date", "date"),
                   inp("purchaser", "Name of Purchaser", "text", "e.g. Maria Santos"),
                   inp("tdtPo", "TDT Purchase Order #", "text", "e.g. PO-2026-0142"),
-                  inp("vendor", "Vendor / Supplier", "text", "e.g. Steel Asia Corp"),
+                  inp("vendor", "Vendor / Supplier *", "text", "e.g. Steel Asia Corp"),
                   inp("destination", "Destination", "text", "e.g. Manila Warehouse"),
-                  sel("tradingOrStocks", "If for Trading or Stocks", ["Stocks", "Trading"]),
-                  sel("warehouseType", "If to Warehouse — Stocks or Backload", ["Stocks", "Backload"]),
+                  sel("tradingOrStocks", "Trading or Stocks", ["Stocks", "Trading"]),
+                  sel("warehouseType", "Warehouse Type", ["Stocks", "Backload"]),
                   inp("sku", "SKU Code", "text", "e.g. DRB052"),
-                  inp("qty", "Quantity as per PO", "number", "0"),
+                  inp("qty", "Quantity per PO", "number", "0"),
                   inp("metricTons", "Metric Tons", "number", "0.0"),
-                  inp("weight", "Weight (if needed)", "text", "e.g. 2.4 MT"),
+                  inp("weight", "Weight", "text", "e.g. 2.4 MT"),
                   inp("retention", "Retention", "text", "If applicable"),
-                  inp("costPerKilo", "Cost per Kilo (₱)", "number", "Optional"),
-                  inp("productDesc", "Product Description", "text", "e.g. Deformed Round Bar...", true),
+                  inp("costPerKilo", "Cost per Kilo (₱)", "number", ""),
+                  inp("productDesc", "Product Description *", "text", "e.g. Deformed Round Bar...", true),
                   inp("unitCost", "Unit Cost (₱)", "number", "0.00"),
                 ];
               })()}
             </div>
-            <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
-              <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
+            <div style={modalFooterStyle}>
+              <button type="button" onClick={() => setShowCreate(false)} style={modalBtnSecondary}>Cancel</button>
               <button type="button" onClick={() => {
                 if (!createForm.poDate || !createForm.vendor || !createForm.productDesc) {
                   showToast("Please fill in all required fields.", "error");
@@ -1700,12 +1713,13 @@ export default function PurchasingOrderPage({
                 setShowCreate(false);
                 setCreateForm(EMPTY_CREATE_FORM);
                 showToast("Purchase order created successfully.", "success");
-              }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                Create PO
+              }} style={modalBtnPrimary}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Create Purchase Order
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

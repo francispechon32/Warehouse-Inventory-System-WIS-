@@ -3,7 +3,20 @@ import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
 import { SEED_STOCK_IN, SEED_STOCK_OUT } from "./stockTransactionSeeds";
-import { modalCellInput } from "./modalFormStyles";
+import {
+  modalOverlayStyle,
+  modalPanelStyle,
+  modalHeaderStyle,
+  modalFooterStyle,
+  modalTitleStyle,
+  modalSubtitleStyle,
+  modalCloseBtnStyle,
+  modalLabelStyle,
+  modalBtnSecondary,
+  modalBtnPrimary,
+  modalInput,
+  modalCellInput,
+} from "./modalFormStyles";
 
 
 const SKU_CATALOG = {
@@ -27,12 +40,19 @@ const STOCK_IN_COLS = [
   "COST/UNIT", "TOTAL PURCHASE", "RUNNING QTY", "AVG UNIT COST", "TOTAL VALUE", "REMARK", "ACTION",
 ];
 
-const STOCK_OUT_COLS = [
+const STOCK_OUT_BASE_COLS = [
   "TRANS #", "DISPATCH DATE", "TDT WO#", "CUSTOMER NAME", "TDT DR#", "BRANCH",
   "SUMMARY OF TDT BDR#", "TDT SI#", "QTY OUT", "UNIT COST", "TOTAL PRICE",
-  "SERIES 1 — QTY / DATE", "SERIES 2 — QTY / DATE", "SERIES 3 — QTY / DATE",
-  "RUNNING QTY", "RUNNING VALUE", "REMARKS", "ACTION",
 ];
+const STOCK_OUT_TAIL_COLS = ["RUNNING QTY", "RUNNING VALUE", "REMARKS", "ACTION"];
+const DEFAULT_SERIES_COUNT = 3;
+
+function buildStockOutCols(seriesCount) {
+  const series = Array.from({ length: seriesCount }, (_, i) => `SERIES ${i + 1} — VDR# / QTY`);
+  return [...STOCK_OUT_BASE_COLS, ...series, ...STOCK_OUT_TAIL_COLS];
+}
+
+const STOCK_OUT_COLS = buildStockOutCols(DEFAULT_SERIES_COUNT);
 
 function Highlight({ text, query }) {
   if (!query || !text) return <>{String(text)}</>;
@@ -50,7 +70,7 @@ function Highlight({ text, query }) {
 
 const PAGE_SIZE = 8;
 const RIGHT_IN = new Set(["QTY", "COST/KILO", "COST/UNIT", "TOTAL PURCHASE", "RUNNING QTY", "AVG UNIT COST", "TOTAL VALUE"]);
-const RIGHT_OUT = new Set(["QTY OUT", "UNIT COST", "TOTAL PRICE", "RUNNING QTY", "RUNNING VALUE"]);
+const RIGHT_OUT_BASE = new Set(["QTY OUT", "UNIT COST", "TOTAL PRICE", "RUNNING QTY", "RUNNING VALUE"]);
 
 function fmtPHP(n) {
   if (n === "—" || n === "") return "—";
@@ -139,14 +159,22 @@ function StockInInlineEditRow({ row, onSave, onCancel }) {
   );
 }
 
-function StockOutInlineEditRow({ row, onSave, onCancel }) {
-  const [draft, setDraft] = useState({ ...row });
+function StockOutInlineEditRow({ row, onSave, onCancel, seriesCount = DEFAULT_SERIES_COUNT }) {
+  const initSeries = Array.from({ length: seriesCount }, (_, si) =>
+    row.series?.[si] ?? row[`s${si + 1}`] ?? ""
+  );
+  const [draft, setDraft] = useState({ ...row, series: initSeries });
   const set = (k, v) => setDraft(d => {
     const next = { ...d, [k]: v };
     const q = parseFloat(next.qtyOut) || 0;
     const uc = parseFloat(next.unitCost) || 0;
     next.totalPrice = q * uc;
     return next;
+  });
+  const setSeries = (si, v) => setDraft(d => {
+    const newSeries = [...(d.series || [])];
+    newSeries[si] = v;
+    return { ...d, series: newSeries };
   });
   return (
     <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
@@ -161,9 +189,11 @@ function StockOutInlineEditRow({ row, onSave, onCancel }) {
       <td style={{ padding:"4px 10px", textAlign:"right" }}><input type="number" min={0} value={draft.qtyOut??""} onChange={e=>set("qtyOut",parseFloat(e.target.value)||0)} {...modalCellInput({width:70,textAlign:"right"})} /></td>
       <td style={{ padding:"4px 10px", textAlign:"right" }}><input type="number" min={0} step="0.01" value={draft.unitCost??""} onChange={e=>set("unitCost",parseFloat(e.target.value)||0)} {...modalCellInput({width:80,textAlign:"right"})} /></td>
       <td style={{ padding:"10px", textAlign:"right", fontWeight:600 }}>{fmtPHP(draft.totalPrice)}</td>
-      <td style={{ padding:"4px 10px" }}><input value={draft.s1||""} onChange={e=>set("s1",e.target.value)} {...modalCellInput({width:90})} /></td>
-      <td style={{ padding:"4px 10px" }}><input value={draft.s2||""} onChange={e=>set("s2",e.target.value)} {...modalCellInput({width:90})} /></td>
-      <td style={{ padding:"4px 10px" }}><input value={draft.s3||""} onChange={e=>set("s3",e.target.value)} {...modalCellInput({width:90})} /></td>
+      {Array.from({ length: seriesCount }, (_, si) => (
+        <td key={`s${si}`} style={{ padding:"4px 10px" }}>
+          <input value={(draft.series?.[si]) ?? ""} onChange={e=>setSeries(si, e.target.value)} {...modalCellInput({width:90})} />
+        </td>
+      ))}
       <td style={{ padding:"10px", textAlign:"right", fontWeight:700 }}>{draft.runningQty}</td>
       <td style={{ padding:"10px", textAlign:"right" }}>{fmtPHP(draft.runningValue)}</td>
       <td style={{ padding:"4px 10px" }}><input value={draft.remarks||""} onChange={e=>set("remarks",e.target.value)} {...modalCellInput({width:120})} /></td>
@@ -422,9 +452,9 @@ function buildStockInWorksheet(sku, skuInfo, rows) {
   ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
   ws["!merges"] = merges;
   ws["!cols"] = [
-    { wch: 8 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 18 },
-    { wch: 26 }, { wch: 11 }, { wch: 14 }, { wch: 8 }, { wch: 10 },
-    { wch: 12 }, { wch: 14 }, { wch: 11 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
+    { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 22 },
+    { wch: 28 }, { wch: 13 }, { wch: 14 }, { wch: 9 }, { wch: 12 },
+    { wch: 14 }, { wch: 16 }, { wch: 13 }, { wch: 16 }, { wch: 16 }, { wch: 22 },
   ];
   ws["!rows"] = [
     { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
@@ -433,7 +463,7 @@ function buildStockInWorksheet(sku, skuInfo, rows) {
   return ws;
 }
 
-function buildStockOutWorksheet(sku, skuInfo, rows) {
+function buildStockOutWorksheet(sku, skuInfo, rows, seriesCount = DEFAULT_SERIES_COUNT) {
   const styles = buildSsSheetStyles();
   const ws = {};
   const merges = [];
@@ -442,40 +472,44 @@ function buildStockOutWorksheet(sku, skuInfo, rows) {
 
   writeSsMeta(ws, C, put, merges, styles, sku, skuInfo);
 
+  const dynCols = buildStockOutCols(seriesCount);
+  const exportCols = dynCols.filter(h => h !== "ACTION");
   const HDR_ROW = 5;
   const DATA_START = 6;
-  const LAST_COL = STOCK_OUT_COLS.length - 1;
-  const { hdrFill, totalFill, solidBorder, dottedRed, f, center, left, right } = styles;
+  const { hdrFill, yellowFill, totalFill, solidBorder, dottedRed, f, center, left, right } = styles;
 
-  const rightOutSet = RIGHT_OUT;
-  STOCK_OUT_COLS.forEach((h, ci) => {
+  exportCols.forEach((h, ci) => {
+    const isSeries = h.startsWith("SERIES");
     put(HDR_ROW, ci, h, "s", {
       font: f.hdr(false),
-      fill: ["QTY OUT","UNIT COST","TOTAL PRICE","RUNNING QTY","RUNNING VALUE"].includes(h) ? totalFill : hdrFill,
+      fill: ["QTY OUT","UNIT COST","TOTAL PRICE","RUNNING QTY","RUNNING VALUE"].includes(h) ? totalFill
+           : isSeries ? yellowFill
+           : hdrFill,
       alignment: center,
       border: solidBorder,
     });
   });
 
   const slotCount = Math.max(rows.length, SS_MIN_DATA_ROWS);
+
   for (let i = 0; i < slotCount; i++) {
     const ri = DATA_START + i;
     const row = rows[i];
     const dataStyle = { font: f.body(), fill: styles.sheetFill, border: dottedRed };
 
     if (!row) {
-      STOCK_OUT_COLS.forEach((h, ci) => {
+      exportCols.forEach((h, ci) => {
         const isPeso = ["UNIT COST","TOTAL PRICE","RUNNING VALUE"].includes(h);
         const isNum = ["QTY OUT","RUNNING QTY"].includes(h);
         put(ri, ci, isPeso ? "₱ -" : isNum ? 0 : "", isPeso ? "s" : "n", {
-          ...dataStyle, alignment: rightOutSet.has(h) ? right : center,
+          ...dataStyle, alignment: RIGHT_OUT_BASE.has(h) ? right : center,
           ...(isNum ? { numFmt: SS_QTY_FMT } : {}),
         });
       });
       continue;
     }
 
-    const vals = [
+    const baseVals = [
       row.transNo || i + 1,
       formatSsDate(row.dispatchDate),
       row.tdtWo || "",
@@ -487,18 +521,23 @@ function buildStockOutWorksheet(sku, skuInfo, rows) {
       row.qtyOut ?? 0,
       row.unitCost ?? 0,
       row.totalPrice ?? 0,
-      row.s1 || "",
-      row.s2 || "",
-      row.s3 || "",
+    ];
+    const seriesVals = Array.from({ length: seriesCount }, (_, si) => {
+      if (row.series && Array.isArray(row.series)) return row.series[si] || "";
+      return row[`s${si + 1}`] || "";
+    });
+    const tailVals = [
       row.runningQty ?? 0,
       row.runningValue ?? 0,
       row.remarks || "",
     ];
-    STOCK_OUT_COLS.forEach((h, ci) => {
-      const v = vals[ci];
+    const allVals = [...baseVals, ...seriesVals, ...tailVals];
+
+    exportCols.forEach((h, ci) => {
+      const v = allVals[ci];
       const isPeso = ["UNIT COST","TOTAL PRICE","RUNNING VALUE"].includes(h);
       const isNum = ["QTY OUT","RUNNING QTY"].includes(h);
-      const align = rightOutSet.has(h) ? right : h === "CUSTOMER NAME" ? left : center;
+      const align = RIGHT_OUT_BASE.has(h) ? right : h === "CUSTOMER NAME" ? left : center;
       if (isPeso && !v) {
         put(ri, ci, "₱ -", "s", { ...dataStyle, alignment: right });
       } else if (isPeso) {
@@ -512,12 +551,14 @@ function buildStockOutWorksheet(sku, skuInfo, rows) {
   }
 
   const lastRow = DATA_START + slotCount - 1;
-  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: exportCols.length - 1 });
   ws["!merges"] = merges;
+  const seriesCols = Array.from({ length: seriesCount }, () => ({ wch: 22 }));
   ws["!cols"] = [
-    { wch: 8 }, { wch: 13 }, { wch: 11 }, { wch: 22 }, { wch: 12 }, { wch: 10 },
-    { wch: 18 }, { wch: 11 }, { wch: 9 }, { wch: 12 }, { wch: 13 },
-    { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 11 }, { wch: 14 }, { wch: 20 },
+    { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 24 }, { wch: 14 }, { wch: 12 },
+    { wch: 20 }, { wch: 12 }, { wch: 9 }, { wch: 13 }, { wch: 14 },
+    ...seriesCols,
+    { wch: 12 }, { wch: 15 }, { wch: 22 },
   ];
   ws["!rows"] = [
     { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
@@ -546,11 +587,11 @@ function downloadWorkbook(wb, filename) {
   }
 }
 
-function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows) {
+function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows, seriesCount = DEFAULT_SERIES_COUNT) {
   const safeSku = String(sku || "SKU").trim() || "SKU";
   const wb = XLSX.utils.book_new();
   const inSheet = buildStockInWorksheet(safeSku, skuInfo, stockInRows);
-  const outSheet = buildStockOutWorksheet(safeSku, skuInfo, stockOutRows);
+  const outSheet = buildStockOutWorksheet(safeSku, skuInfo, stockOutRows, seriesCount);
   XLSX.utils.book_append_sheet(wb, inSheet, `${safeSku} STOCK IN`.slice(0, 31));
   XLSX.utils.book_append_sheet(wb, outSheet, `${safeSku} STOCK OUT`.slice(0, 31));
   downloadWorkbook(wb, `TDT_WIS_Stock_Sheet_${safeSku}.xlsx`);
@@ -563,7 +604,46 @@ function importStockSheets(file, onInDone, onOutDone, onError) {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true, cellText: false, dateNF: "yyyy-mm-dd" });
       const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/[₱,]/g, "")); return isNaN(n) ? 0 : n; };
       const toStr = (v) => { if (v == null) return ""; if (v instanceof Date) return v.toISOString().slice(0, 10); return String(v).trim(); };
-      const parseSheet = (ws, fieldMap) => {
+      const inSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("IN")) || wb.SheetNames[0];
+      const outSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("OUT")) || wb.SheetNames[1] || wb.SheetNames[0];
+
+      // New flat IN format: cols match STOCK_IN_COLS exactly (0-16)
+      const inCols = [
+        ["transNo",0,false],["date",1,false],["tdtPo",2,false],["tdtPoDate",3,false],
+        ["vendorNo",4,false],["vendorName",5,false],["customerDr",6,false],
+        ["tdtWo",7,false],["acceptDate",8,false],
+        ["qty",9,true],["costKilo",10,true],["costUnit",11,true],["totalPurchase",12,true],
+        ["runningQty",13,true],["avgUnitCost",14,true],["totalValue",15,true],["remark",16,false],
+      ];
+      // Detect series column count from OUT sheet headers
+      let outSeriesCount = DEFAULT_SERIES_COUNT;
+      const outWs = wb.Sheets[outSheetName];
+      if (outWs) {
+        const outRaw = XLSX.utils.sheet_to_json(outWs, { header: 1, defval: null, raw: false });
+        for (let i = 0; i < Math.min(outRaw.length, 15); i++) {
+          if (outRaw[i] && outRaw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) {
+            const hdrRow = outRaw[i];
+            // count SERIES columns starting after col 10 (after TOTAL PRICE)
+            let cnt = 0;
+            for (let c = 11; c < hdrRow.length; c++) {
+              const h = String(hdrRow[c] || "").toUpperCase();
+              if (h.startsWith("SERIES") || h.includes("VDR") || (h.includes("QTY") && !["QTY OUT","RUNNING QTY"].includes(h))) cnt++;
+              else break;
+            }
+            if (cnt > 0) outSeriesCount = cnt;
+            break;
+          }
+        }
+      }
+
+      // New flat OUT format: base cols (0-10) + dynamic series (11..11+seriesCount-1) + tail
+      const outCols = [
+        ["transNo",0,false],["dispatchDate",1,false],["tdtWo",2,false],["customer",3,false],
+        ["tdtDr",4,false],["branch",5,false],["bdrSummary",6,false],["tdtSi",7,false],
+        ["qtyOut",8,true],["unitCost",9,true],["totalPrice",10,true],
+      ];
+      // parse series and tail dynamically
+      const parseSheet = (ws, fieldMap, extraParser) => {
         if (!ws) return [];
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
         let hdrIdx = -1;
@@ -579,33 +659,27 @@ function importStockSheets(file, onInDone, onOutDone, onError) {
           fieldMap.forEach(([field, idx, numeric]) => {
             row[field] = numeric ? toNum(r[idx]) : toStr(r[idx]);
           });
+          if (extraParser) extraParser(row, r, result.length);
           result.push(row);
         }
         return result;
       };
 
-      const inSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("IN")) || wb.SheetNames[0];
-      const outSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("OUT")) || wb.SheetNames[1] || wb.SheetNames[0];
-
-      // New flat IN format: cols match STOCK_IN_COLS exactly (0-16)
-      const inCols = [
-        ["transNo",0,false],["date",1,false],["tdtPo",2,false],["tdtPoDate",3,false],
-        ["vendorNo",4,false],["vendorName",5,false],["customerDr",6,false],
-        ["tdtWo",7,false],["acceptDate",8,false],
-        ["qty",9,true],["costKilo",10,true],["costUnit",11,true],["totalPurchase",12,true],
-        ["runningQty",13,true],["avgUnitCost",14,true],["totalValue",15,true],["remark",16,false],
-      ];
-      // New flat OUT format: cols match STOCK_OUT_COLS exactly (0-16)
-      const outCols = [
-        ["transNo",0,false],["dispatchDate",1,false],["tdtWo",2,false],["customer",3,false],
-        ["tdtDr",4,false],["branch",5,false],["bdrSummary",6,false],["tdtSi",7,false],
-        ["qtyOut",8,true],["unitCost",9,true],["totalPrice",10,true],
-        ["s1",11,false],["s2",12,false],["s3",13,false],
-        ["runningQty",14,true],["runningValue",15,true],["remarks",16,false],
-      ];
+      const outRows = parseSheet(wb.Sheets[outSheetName], outCols, (row, r) => {
+        // series columns
+        row.series = Array.from({ length: outSeriesCount }, (_, si) => toStr(r[11 + si]));
+        // legacy s1/s2/s3 for backward compat
+        row.s1 = row.series[0] || "";
+        row.s2 = row.series[1] || "";
+        row.s3 = row.series[2] || "";
+        // tail: runningQty, runningValue, remarks
+        const tailStart = 11 + outSeriesCount;
+        row.runningQty = toNum(r[tailStart]);
+        row.runningValue = toNum(r[tailStart + 1]);
+        row.remarks = toStr(r[tailStart + 2]);
+      });
 
       const inRows = parseSheet(wb.Sheets[inSheetName], inCols);
-      const outRows = parseSheet(wb.Sheets[outSheetName], outCols);
       if (!inRows.length && !outRows.length) throw new Error("No data rows found. Ensure you are importing a Stock Sheet exported from this system.");
       onInDone(inRows);
       onOutDone(outRows);
@@ -642,6 +716,7 @@ export default function StockSheetsPage({
   const [sortOpen, setSortOpen] = useState(false);
   const [editingInId, setEditingInId] = useState(null);
   const [editingOutId, setEditingOutId] = useState(null);
+  const [seriesCount, setSeriesCount] = useState(DEFAULT_SERIES_COUNT);
   const handleSaveInEdit = (updated) => {
     setStockInData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
     setEditingInId(null);
@@ -755,7 +830,7 @@ export default function StockSheetsPage({
           importLabel: "Import WIS",
           onExport: () => {
             try {
-              exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows);
+              exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows, seriesCount);
               showToast(`Exported stock sheet for ${skuKey || "SKU"}.`);
             } catch (err) {
               console.error("Stock sheet export failed:", err);
@@ -911,32 +986,46 @@ export default function StockSheetsPage({
         />
       )}
 
-      {showOut && (
+      {showOut && (() => {
+        const dynOutCols = buildStockOutCols(seriesCount);
+        const dynRightOut = new Set([...RIGHT_OUT_BASE]);
+        return (
         <SectionTable
-          title="Delivered Goods — Stock OUT"
-          cols={STOCK_OUT_COLS}
+          title={
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span>Delivered Goods — Stock OUT</span>
+              <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>Series pairs: {seriesCount}</span>
+              <button onClick={() => setSeriesCount(s => Math.min(20, s + 1))} title="Add series column" style={{ padding: "2px 8px", border: "1px solid #16a34a", borderRadius: 5, background: "#f0fdf4", cursor: "pointer", fontSize: 12, color: "#16a34a", fontWeight: 700, fontFamily: "inherit" }}>+</button>
+              <button onClick={() => setSeriesCount(s => Math.max(1, s - 1))} disabled={seriesCount <= 1} title="Remove last series column" style={{ padding: "2px 8px", border: "1px solid #ef4444", borderRadius: 5, background: "#fef2f2", cursor: seriesCount <= 1 ? "not-allowed" : "pointer", fontSize: 12, color: "#ef4444", fontWeight: 700, fontFamily: "inherit", opacity: seriesCount <= 1 ? 0.4 : 1 }}>−</button>
+            </div>
+          }
+          cols={dynOutCols}
           rows={pagedOut}
-          rightAlign={RIGHT_OUT}
+          rightAlign={dynRightOut}
           searchSku={searchSku}
           pagination={<Pagination currentPage={outPage} totalPages={outTotalPages} onPage={setOutPage} />}
           renderRow={(row, idx) => {
             if (editingOutId === row.id) {
-              return <StockOutInlineEditRow key={row.id} row={row} onSave={handleSaveOutEdit} onCancel={() => setEditingOutId(null)} />;
+              return <StockOutInlineEditRow key={row.id} row={row} onSave={handleSaveOutEdit} onCancel={() => setEditingOutId(null)} seriesCount={seriesCount} />;
             }
+            const rowSeries = row.series && Array.isArray(row.series) ? row.series
+              : Array.from({ length: seriesCount }, (_, si) => row[`s${si + 1}`] || "");
             return (
             <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-<td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo}</td>              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
-<td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
-<td style={{ padding: "10px", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.customer}</td>              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
+              <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo}</td>
+              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
+              <td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
+              <td style={{ padding: "10px", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.customer}</td>
+              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.branch}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.bdrSummary}</td>
               <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtSi}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.qtyOut}</td>
               <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.unitCost)}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPrice)}</td>
-              <td style={{ padding: "10px", fontSize: 11, textAlign: "center" }}>{row.s1}</td>
-              <td style={{ padding: "10px", fontSize: 11, textAlign: "center" }}>{row.s2}</td>
-              <td style={{ padding: "10px", fontSize: 11, textAlign: "center" }}>{row.s3}</td>
+              {Array.from({ length: seriesCount }, (_, si) => (
+                <td key={`s${si}`} style={{ padding: "10px", fontSize: 11, textAlign: "center" }}>{rowSeries[si] || "—"}</td>
+              ))}
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
               <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.runningValue)}</td>
               <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remarks || "—"}</td>
@@ -949,7 +1038,8 @@ export default function StockSheetsPage({
           );
           }}
         />
-      )}
+        );
+      })()}
 
 
 
@@ -960,38 +1050,36 @@ export default function StockSheetsPage({
       )}
 
       {showCreate && (
-        <>
-          <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1100 }} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#fff", borderRadius: 16, width: "min(520px,95vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>New Stock Sheet Entry</h2>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>Add a stock in or stock out transaction</p>
+        <div style={modalOverlayStyle} onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
+          <div style={{ ...modalPanelStyle, width: "min(580px, 96vw)" }}>
+            <div style={modalHeaderStyle}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h2 style={modalTitleStyle}>New Stock Sheet Entry</h2>
+                <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>Add a stock in or stock out transaction. Fields marked with * are required.</p>
               </div>
-              <button type="button" onClick={() => setShowCreate(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#4b5563", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              <button type="button" onClick={() => setShowCreate(false)} style={modalCloseBtnStyle} aria-label="Close"
+                onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"}
+                onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", gap: 8 }}>
                 {["in", "out"].map(t => (
                   <button key={t} type="button" onClick={() => setCreateForm(f => ({ ...f, type: t }))}
-                    style={{ flex: 1, padding: "10px 16px", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700,
-                      background: createForm.type === t ? (t === "in" ? "#dcfce7" : "#fee2e2") : "#f3f4f6",
+                    style={{ flex: 1, padding: "10px 16px", border: `2px solid ${createForm.type === t ? (t === "in" ? "#16a34a" : "#dc2626") : "#e5e7eb"}`, borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 700, transition: "all 0.15s",
+                      background: createForm.type === t ? (t === "in" ? "#f0fdf4" : "#fef2f2") : "#f9fafb",
                       color: createForm.type === t ? (t === "in" ? "#16a34a" : "#dc2626") : "#6b7280" }}>
                     {t === "in" ? "▲ Stock In" : "▼ Stock Out"}
                   </button>
                 ))}
               </div>
               {(() => {
-                const fldStyle = { padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
-                const lbl = { fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" };
                 const set = (k, v) => setCreateForm(f => ({ ...f, [k]: v }));
                 const inp = (key, label, type = "text", placeholder = "", full = false) => (
                   <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: full ? "1 / -1" : undefined }}>
-                    <label style={lbl}>{label}</label>
-                    <input type={type} value={createForm[key]} onChange={e => set(key, e.target.value)} placeholder={placeholder}
-                      style={fldStyle}
-                      onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
-                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }} />
+                    <label style={modalLabelStyle}>{label}</label>
+                    <input type={type} value={createForm[key] || ""} onChange={e => set(key, e.target.value)} placeholder={placeholder} {...modalInput()} />
                   </div>
                 );
                 const commonFields = [inp("sku", "SKU Code *", "text", "e.g. DRB052")];
@@ -1028,8 +1116,8 @@ export default function StockSheetsPage({
                 );
               })()}
             </div>
-            <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
-              <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
+            <div style={modalFooterStyle}>
+              <button type="button" onClick={() => setShowCreate(false)} style={modalBtnSecondary}>Cancel</button>
               <button type="button" onClick={() => {
                 const isIn = createForm.type === "in";
                 if (!createForm.sku || (isIn && (!createForm.date || !createForm.qty)) || (!isIn && (!createForm.dispatchDate || !createForm.qtyOut))) {
@@ -1071,12 +1159,13 @@ export default function StockSheetsPage({
                 setCreateForm(EMPTY_FORM);
                 setToast({ msg: "Stock sheet entry added successfully.", type: "success" });
                 setTimeout(() => setToast(null), 3000);
-              }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+              }} style={modalBtnPrimary}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Entry
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

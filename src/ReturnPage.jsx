@@ -1,8 +1,21 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
-import { modalCellInput } from "./modalFormStyles";
+import {
+  modalOverlayStyle,
+  modalPanelStyle,
+  modalHeaderStyle,
+  modalFooterStyle,
+  modalTitleStyle,
+  modalSubtitleStyle,
+  modalCloseBtnStyle,
+  modalLabelStyle,
+  modalBtnSecondary,
+  modalBtnPrimary,
+  modalInput,
+  modalCellInput,
+} from "./modalFormStyles";
 import {
   cellStr,
   cellNum,
@@ -29,10 +42,15 @@ function Highlight({ text, query }) {
 
 const PAGE_SIZE = 5;
 
-const STATUS_OPTS = ["All Status", "Approved", "Pending", "Received"];
-const DISP_OPTS = ["All Dispositions", "Restock", "Scrap", "Credit memo"];
+const RTN_QTY_OUT_SEED = [
+  { id: 1, returnId: 1, qty: 20, date: "2026-05-10" },
+  { id: 2, returnId: 3, qty: 1,  date: "2026-05-12" },
+  { id: 3, returnId: 6, qty: 10, date: "2026-05-15" },
+  { id: 4, returnId: 8, qty: 5,  date: "2026-05-18" },
+  { id: 5, returnId: 11, qty: 2, date: "2026-05-20" },
+];
+
 const REASON_OPTS = ["All Reasons", "Damaged During Delivery", "Wrong item", "Customer cancel", "Quality hold"];
-const WAREHOUSE_OPTS = ["All Warehouses", "Meycauayan", "Pampanga", "Marilao"];
 
 function fmtPHP(n) {
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -102,15 +120,6 @@ const SEED_RETURNS = [
   ]},
 ];
 
-const STATUS_STYLE = {
-  Approved:  { bg: "#dcfce7", color: "#15803d", dot: "#22c55e" },
-  Received:  { bg: "#dcfce7", color: "#15803d", dot: "#22c55e" },
-  Completed: { bg: "#d1fae5", color: "#065f46", dot: "#10b981" },
-  Pending:   { bg: "#fef3c7", color: "#d97706", dot: "#f59e0b" },
-  Rejected:  { bg: "#fee2e2", color: "#dc2626", dot: "#ef4444" },
-  Cancelled: { bg: "#e5e7eb", color: "#4b5563", dot: "#6b7280" },
-};
-
 function IconChevronLeft({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15 19l-7-7 7-7" /></svg>;
 }
@@ -155,9 +164,7 @@ function useSheetJS() {
   return true;
 }
 
-const RT_OUT_TRACK_PAIRS = 6;
 const RT_MAIN_COLS = 12;
-const RT_TOTAL_COLS = RT_MAIN_COLS + RT_OUT_TRACK_PAIRS * 2;
 const RT_HDR_ROW = 3;
 const RT_DATA_START = 4;
 const RT_MIN_DATA_ROWS = 20;
@@ -178,8 +185,8 @@ function formatReturnExportDate(iso) {
 
 /** Same 12 columns as the on-screen table (COLS). */
 const RETURN_TABLE_COLS = [
-  "TRANS #", "RETURN DATE", "DR#", "SKU", "ITEM", "QTY RETURNED",
-  "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "DISPOSITION", "STATUS", "ACTION",
+  "TRANS #", "INSERT DATE", "INSERT DR#", "SKU", "ITEM", "INSERT QTY",
+  "INSERT UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "TOTAL QTY OUT", "QTY BALANCE", "ACTION",
 ];
 
 function returnTransSlot(index, base = 11) {
@@ -206,8 +213,10 @@ function downloadReturnWorkbook(wb, filename) {
   }
 }
 
-function exportReturns(rows) {
+function exportReturns(rows, qtyOutRecords, allReturns, slotPairs = 5) {
   const wb = XLSX.utils.book_new();
+  const pairs = slotPairs;
+  const RT_TOTAL_COLS = RT_MAIN_COLS + pairs * 2;
   const C = (r, c) => XLSX.utils.encode_cell({ r, c });
 
   const sheetFill = { patternType: "solid", fgColor: { rgb: "FFF9E6" } };
@@ -270,7 +279,7 @@ function exportReturns(rows) {
 
   const mainHdrs = RETURN_TABLE_COLS;
   const outHdrs = [];
-  for (let i = 0; i < RT_OUT_TRACK_PAIRS; i++) outHdrs.push("QTY - OUT", "DATE");
+  for (let i = 0; i < pairs; i++) outHdrs.push("QTY - OUT", "DATE");
 
   [...mainHdrs, ...outHdrs].forEach((h, ci) => {
     const isOutQty = ci >= RT_MAIN_COLS && (ci - RT_MAIN_COLS) % 2 === 0;
@@ -292,10 +301,10 @@ function exportReturns(rows) {
       put(ri, 0, returnTransSlot(i), "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
       for (let c = 1; c < RT_MAIN_COLS; c++) {
         const isPeso = c === 6 || c === 7;
-        const isQty = c === 5;
+        const isQty = c === 5 || c === 10 || c === 11;
         put(ri, c, isPeso ? "P  -" : isQty ? 0 : "", isPeso ? "s" : "n", cell(sheetFill, isQty ? padCenter : isPeso ? padLeft : padLeft, isQty ? { numFmt: qtyFmt } : {}));
       }
-      for (let p = 0; p < RT_OUT_TRACK_PAIRS; p++) {
+      for (let p = 0; p < pairs; p++) {
         const qtyCol = RT_MAIN_COLS + p * 2;
         const dateCol = qtyCol + 1;
         put(ri, qtyCol, "", "s", cell(greenFill, padCenter));
@@ -316,10 +325,11 @@ function exportReturns(rows) {
     putMoney(ri, 7, totalCost);
     put(ri, 8, row.customer || "", "s", cell(sheetFill, padLeft));
     put(ri, 9, row.reason || "", "s", cell(sheetFill, padLeft));
-    put(ri, 10, row.disposition || "", "s", cell(sheetFill, padCenter));
-    put(ri, 11, row.status || "", "s", cell(sheetFill, padCenter));
+    put(ri, 10, row.totalQtyOut ?? 0, "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
+    const qtyBal = (row.qtyReturned || 0) - (row.totalQtyOut || 0);
+    put(ri, 11, qtyBal, "n", cell(sheetFill, padCenter, { font: f.body(true), numFmt: qtyFmt }));
 
-    for (let p = 0; p < RT_OUT_TRACK_PAIRS; p++) {
+    for (let p = 0; p < pairs; p++) {
       const qtyCol = RT_MAIN_COLS + p * 2;
       const dateCol = qtyCol + 1;
       put(ri, qtyCol, "", "s", cell(greenFill, padCenter));
@@ -346,10 +356,10 @@ function exportReturns(rows) {
   ];
 
   const outCols = [];
-  for (let i = 0; i < RT_OUT_TRACK_PAIRS; i++) outCols.push({ wch: 10 }, { wch: 11 });
+  for (let i = 0; i < pairs; i++) outCols.push({ wch: 10 }, { wch: 11 });
   ws["!cols"] = [
-    { wch: 6 }, { wch: 13 }, { wch: 12 }, { wch: 10 }, { wch: 48 }, { wch: 11 },
-    { wch: 17 }, { wch: 17 }, { wch: 34 }, { wch: 12 }, { wch: 12 }, { wch: 32 },
+    { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 50 }, { wch: 12 },
+    { wch: 18 }, { wch: 18 }, { wch: 36 }, { wch: 22 }, { wch: 14 }, { wch: 14 },
     ...outCols,
   ];
 
@@ -359,6 +369,53 @@ function exportReturns(rows) {
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, "RETURN INVENTORY");
+
+  // Qty-Out History sheet
+  const qo = {};
+  const qoPut = (r, c, v, t, s) => { qo[XLSX.utils.encode_cell({ r, c })] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s }; };
+  const qoHdrFill = { patternType: "solid", fgColor: { rgb: "1C2235" } };
+  const qoEvenFill = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+  const qoOddFill = { patternType: "solid", fgColor: { rgb: "FAFAFA" } };
+  const qoBorder = { top: { style: "thin", color: { rgb: "E5E7EB" } }, bottom: { style: "thin", color: { rgb: "E5E7EB" } }, left: { style: "thin", color: { rgb: "E5E7EB" } }, right: { style: "thin", color: { rgb: "E5E7EB" } } };
+
+  qoPut(0, 0, "RETURN QTY-OUT HISTORY", "s", { font: { name: "Arial", sz: 14, bold: true, color: { rgb: "FFFFFF" } }, fill: qoHdrFill, alignment: { horizontal: "center", vertical: "center" }, border: qoBorder });
+  const qoHdrRow = 1;
+  qoPut(qoHdrRow, 0, "ITEM", "s", { font: { name: "Arial", sz: 9, bold: true, color: { rgb: "FFFFFF" } }, fill: qoHdrFill, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: qoBorder });
+  for (let i = 0; i < pairs; i++) {
+    const col = 1 + i * 2;
+    const dateCol = col + 1;
+    qoPut(qoHdrRow, col, `QTY-OUT ${i + 1}`, "s", { font: { name: "Arial", sz: 9, bold: true, color: { rgb: "FFFFFF" } }, fill: qoHdrFill, alignment: { horizontal: "center", vertical: "center" }, border: qoBorder });
+    qoPut(qoHdrRow, dateCol, `DATE ${i + 1}`, "s", { font: { name: "Arial", sz: 9, bold: true, color: { rgb: "FFFFFF" } }, fill: qoHdrFill, alignment: { horizontal: "center", vertical: "center" }, border: qoBorder });
+  }
+  const qoTotCol = 1 + pairs * 2;
+  qoPut(qoHdrRow, qoTotCol, "TOTAL", "s", { font: { name: "Arial", sz: 9, bold: true, color: { rgb: "FFFFFF" } }, fill: qoHdrFill, alignment: { horizontal: "center", vertical: "center" }, border: qoBorder });
+
+  (allReturns || []).forEach((item, idx) => {
+    const ri = qoHdrRow + 1 + idx;
+    const entries = (qtyOutRecords || []).filter(r => r.returnId === item.id);
+    const fill = idx % 2 === 0 ? qoEvenFill : qoOddFill;
+    qoPut(ri, 0, item.item || "", "s", { font: { name: "Arial", sz: 10, color: { rgb: "111827" } }, fill, alignment: { horizontal: "left", vertical: "center" }, border: qoBorder });
+    let totalQo = 0;
+    for (let i = 0; i < pairs; i++) {
+      const col = 1 + i * 2;
+      const dateCol = col + 1;
+      const entry = entries[i];
+      const qty = entry ? entry.qty : "";
+      const dt = entry ? entry.date : "";
+      totalQo += entry ? entry.qty : 0;
+      qoPut(ri, col, qty, entry ? "n" : "s", { font: { name: "Arial", sz: 10, bold: true, color: { rgb: entry ? "DC2626" : "E5E7EB" } }, fill, alignment: { horizontal: "center", vertical: "center" }, border: qoBorder, numFmt: qty && qty > 0 ? "#,##0" : undefined });
+      qoPut(ri, dateCol, dt, entry ? "s" : "s", { font: { name: "Arial", sz: 10, color: { rgb: entry ? "374151" : "E5E7EB" } }, fill, alignment: { horizontal: "center", vertical: "center" }, border: qoBorder });
+    }
+    qoPut(ri, qoTotCol, totalQo, "n", { font: { name: "Arial", sz: 11, bold: true, color: { rgb: "DC2626" } }, fill: { patternType: "solid", fgColor: { rgb: "FEF2F2" } }, alignment: { horizontal: "center", vertical: "center" }, border: qoBorder, numFmt: "#,##0" });
+  });
+
+  const qoLastRow = qoHdrRow + (allReturns || []).length;
+  const qoLastCol = qoTotCol;
+  qo["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: qoLastRow, c: qoLastCol });
+  qo["!cols"] = [{ wch: 50 }, ...Array(pairs).fill(null).flatMap(() => [{ wch: 10 }, { wch: 12 }]), { wch: 10 }];
+  qo["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: qoLastCol } }];
+  XLSX.utils.book_append_sheet(wb, qo, "QTY-OUT HISTORY");
+
   downloadReturnWorkbook(wb, "TDT_Return_Inventory_Summary.xlsx");
 }
 
@@ -369,6 +426,17 @@ async function importReturns(file, onDone, onError) {
     const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
     const parsed = [];
+    const qtyOutRecords = [];
+
+    // detect QTY-OUT/DATE pair count from headers
+    let qoPairs = 0;
+    if (headers) {
+      for (let c = 12; c < headers.length; c += 2) {
+        const h = cellStr(headers[c]).toUpperCase();
+        if (h === "QTY - OUT" || h === "QTY-OUT" || h.startsWith("QTY")) qoPairs++;
+        else break;
+      }
+    }
 
     for (let i = dataStart; i < raw.length; i++) {
       const r = raw[i];
@@ -378,7 +446,7 @@ async function importReturns(file, onDone, onError) {
       if (rowLabel.includes("GRAND TOTAL")) continue;
 
       let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 0));
-      let returnDate = formatExcelDate(pickCol(r, headers, ["RETURN DATE", "INSERT DATE", "DATE"], 1));
+      let returnDate = formatExcelDate(pickCol(r, headers, ["INSERT DATE", "INSERT DATE", "DATE"], 1));
       const col0 = cellStr(r[0]);
       const col1 = r[1];
       if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
@@ -391,18 +459,19 @@ async function importReturns(file, onDone, onError) {
       const sku = cellStr(pickCol(r, headers, ["SKU"], 3));
       if (!transNo && !item && !customer && !sku) continue;
 
-      const qtyReturned = cellNum(pickCol(r, headers, ["QTY RETURNED", "INSERT QTY", "QTY"], 5));
-      const unitCost = cellNum(pickCol(r, headers, ["UNIT COST", "INSERT UNIT COST"], 6));
+      const qtyReturned = cellNum(pickCol(r, headers, ["INSERT QTY", "INSERT QTY", "QTY"], 5));
+      const unitCost = cellNum(pickCol(r, headers, ["INSERT UNIT COST", "INSERT INSERT UNIT COST"], 6));
       const totalCost = cellNum(pickCol(r, headers, ["TOTAL COST"], 7)) || qtyReturned * unitCost;
       const reason = cellStr(pickCol(r, headers, ["REASON"], 9));
-      const disposition = cellStr(pickCol(r, headers, ["DISPOSITION"], 10)) || "Restock";
-      const status = cellStr(pickCol(r, headers, ["STATUS"], 11)) || "Pending";
+      const totalQtyOut = cellNum(pickCol(r, headers, ["TOTAL QTY OUT"], 10)) || 0;
+      const qtyBalance = cellNum(pickCol(r, headers, ["QTY BALANCE"], 11)) || qtyReturned - totalQtyOut;
 
+      const returnId = parsed.length + 1;
       parsed.push({
-        id: parsed.length + 1,
-        transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
+        id: returnId,
+        transNo: transNo || String(returnId).padStart(3, "0"),
         returnDate,
-        drNo: cellStr(pickCol(r, headers, ["DR#", "DR", "INSERT DR"], 2)),
+        drNo: cellStr(pickCol(r, headers, ["INSERT DR#", "DR", "INSERT DR"], 2)),
         sku,
         item,
         qtyReturned,
@@ -410,19 +479,33 @@ async function importReturns(file, onDone, onError) {
         totalCost,
         customer,
         reason,
-        totalQtyOut: 0,
-        qtyBalance: qtyReturned,
+        totalQtyOut,
+        qtyBalance,
         amountBalance: totalCost,
-        disposition,
-        status,
         returnNo: "",
         warehouse: "Meycauayan",
         lineItems: [],
       });
+
+      // read QTY-OUT/DATE pairs
+      for (let p = 0; p < qoPairs; p++) {
+        const qtyCol = 12 + p * 2;
+        const dateCol = qtyCol + 1;
+        const qty = cellNum(r[qtyCol]);
+        const date = formatExcelDate(r[dateCol]);
+        if (qty > 0 || date) {
+          qtyOutRecords.push({
+            id: Date.now() + qtyOutRecords.length,
+            returnId,
+            qty: qty || 0,
+            date: date || "",
+          });
+        }
+      }
     }
 
     if (!parsed.length) throw new Error("No data rows found. Fill TRANS #, ITEM, or CUSTOMER columns.");
-    onDone(parsed);
+    onDone({ items: parsed, qtyOutRecords });
   } catch (err) {
     onError(err.message || "Import failed.");
   }
@@ -435,10 +518,9 @@ function ReturnInlineEditRow({ row, onSave, onCancel }) {
     next.totalCost = (parseFloat(next.qtyReturned)||0) * (parseFloat(next.unitCost)||0);
     return next;
   });
-  const st = STATUS_STYLE[draft.status] || STATUS_STYLE.Pending;
   return (
     <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
-      <td style={{ padding: "12px 10px 12px 20px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{draft.transNo}</td>
+      <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{draft.transNo}</td>
       <td style={{ padding: "6px 10px" }}>
         <input type="date" value={draft.returnDate || ""} onChange={e => set("returnDate", e.target.value)} {...modalCellInput({ width: 130 })} />
       </td>
@@ -470,18 +552,10 @@ function ReturnInlineEditRow({ row, onSave, onCancel }) {
           <option value="Others">Others</option>
         </select>
       </td>
-      <td style={{ padding: "2px 10px" }}>
-        <select value={draft.disposition} onChange={e => set("disposition", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 100 }}>
-          <option value="Restock">Restock</option>
-          <option value="Scrap">Scrap</option>
-          <option value="Return to Supplier">Return to Supplier</option>
-        </select>
+      <td style={{ padding: "4px 10px" }}>
+        <input type="number" min={0} value={draft.totalQtyOut ?? ""} onChange={e => set("totalQtyOut", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
       </td>
-      <td style={{ padding: "6px 10px", textAlign: "center" }}>
-        <select value={draft.status} onChange={e => set("status", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 100, fontWeight: 700, color: st.color, background: st.bg }}>
-          {["Approved","Pending","Received","Rejected","Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </td>
+      <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 700, color: (draft.qtyReturned - draft.totalQtyOut) > 0 ? "#111827" : "#9ca3af" }}>{draft.qtyReturned - draft.totalQtyOut}</td>
       <td style={{ padding: "6px 8px", textAlign: "center" }}>
         <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
           <button onClick={() => onSave(draft)} title="Save" style={{ padding: "5px 8px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={13} /></button>
@@ -496,22 +570,25 @@ export default function ReturnPage() {
   const xlsxReady = useSheetJS();
   const [returns, setReturns] = useState(SEED_RETURNS);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status");
-  const [dispFilter, setDispFilter] = useState("All Dispositions");
   const [reasonFilter, setReasonFilter] = useState("All Reasons");
-  const [warehouseFilter, setWarehouseFilter] = useState("All Warehouses");
+  const [warehouseFilter] = useState("All Warehouses");
   const [currentPage, setCurrentPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", disposition: "Restock", warehouse: "Meycauayan" });
+  const [createForm, setCreateForm] = useState({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", warehouse: "Meycauayan" });
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const fileInputRef = useRef(null);
   const { sortBy, setSortBy, applySort } = useSort("returnDate", "item");
   const [sortOpen, setSortOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [returnTab, setReturnTab] = useState("summary");
+  const [rtnQtyOutRecords, setRtnQtyOutRecords] = useState(RTN_QTY_OUT_SEED);
+  const [rtnQtyOutSlotCount, setRtnQtyOutSlotCount] = useState(5);
+  const [editingRtnQtyOutItem, setEditingRtnQtyOutItem] = useState(null);
+  const [rtnQtyOutDraft, setRtnQtyOutDraft] = useState({});
   const handleSaveEdit = (updated) => {
     setReturns(d => d.map(r => r.id === updated.id ? { ...updated } : r));
     setEditingId(null);
@@ -523,13 +600,16 @@ export default function ReturnPage() {
   const handleImport = (e) => {
     const file = e.target.files[0]; if (!file) return;
     setImporting(true);
-    importReturns(file, (parsed) => {
+    importReturns(file, (result) => {
       setImporting(false);
+      const parsed = result.items || result;
+      const qo = result.qtyOutRecords || [];
       setReturns(parsed);
+      if (qo.length) setRtnQtyOutRecords(qo);
       setCurrentPage(1);
       setSelectedId(null);
       setPanelOpen(false);
-      showToast(`Imported ${parsed.length} return entries successfully.`);
+      showToast(`Imported ${parsed.length} entries (${qo.length} qty-out records).`);
       e.target.value = "";
     }, (err) => {
       setImporting(false);
@@ -552,14 +632,12 @@ export default function ReturnPage() {
           String(r.transNo).includes(q)
       );
     }
-    if (statusFilter !== "All Status") rows = rows.filter((r) => r.status === statusFilter);
-    if (dispFilter !== "All Dispositions") rows = rows.filter((r) => r.disposition === dispFilter);
     if (reasonFilter !== "All Reasons") rows = rows.filter((r) => r.reason === reasonFilter);
     if (warehouseFilter !== "All Warehouses") rows = rows.filter((r) => r.warehouse === warehouseFilter);
     if (dateRange.start) rows = rows.filter((r) => r.returnDate >= dateRange.start);
     if (dateRange.end)   rows = rows.filter((r) => r.returnDate <= dateRange.end);
     return rows;
-  }, [returns, searchQuery, statusFilter, dispFilter, reasonFilter, warehouseFilter, dateRange]);
+  }, [returns, searchQuery, reasonFilter, warehouseFilter, dateRange]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
@@ -569,6 +647,11 @@ export default function ReturnPage() {
   }, [filtered, selectedId]);
 
   const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const rtnQtyOutTotals = useMemo(() => {
+    const m = {};
+    rtnQtyOutRecords.forEach(r => { m[r.returnId] = (m[r.returnId] || 0) + r.qty; });
+    return m;
+  }, [rtnQtyOutRecords]);
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paged = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const selected = selectedId != null ? returns.find((r) => r.id === selectedId) : null;
@@ -582,8 +665,6 @@ export default function ReturnPage() {
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: STATUS_OPTS, minWidth: 140 },
-          { key: "disp", value: dispFilter, onChange: (v) => { setDispFilter(v); setCurrentPage(1); }, options: DISP_OPTS, minWidth: 155 },
           { key: "reason", value: reasonFilter, onChange: (v) => { setReasonFilter(v); setCurrentPage(1); }, options: REASON_OPTS, minWidth: 155 },
         ]}
         primaryAction={{ label: "Create New Return", onClick: () => setShowCreate(true) }}
@@ -595,10 +676,10 @@ export default function ReturnPage() {
           onFileChange: handleImport,
           importing,
           importDisabled: !xlsxReady,
-          onExport: () => {
-            try {
-              exportReturns(filtered);
-              showToast(`Exported ${filtered.length} return entries.`);
+            onExport: () => {
+              try {
+                exportReturns(filtered, rtnQtyOutRecords, RTN_QTY_OUT_SEED, rtnQtyOutSlotCount);
+                showToast(`Exported ${filtered.length} return entries.`);
             } catch (err) {
               console.error("Return export failed:", err);
               showToast(err?.message || "Export failed.", "error");
@@ -607,7 +688,14 @@ export default function ReturnPage() {
         }}
       />
 
-      <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
+        {[["summary","Returns Summary"],["qtyout","Qty-Out History"]].map(([key,label]) => (
+          <button key={key} onClick={() => { setReturnTab(key); setCurrentPage(1); }} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: returnTab===key?"3px solid #e87c27":"3px solid transparent", color: returnTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, marginBottom: -2, fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {returnTab === "summary" && (
+      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
           <div style={{ position: "relative" }}>
             <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
@@ -683,7 +771,7 @@ export default function ReturnPage() {
                     onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.background = "#fef6f2"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa"; }}
                   >
-<td style={{ padding: "12px 10px 12px 20px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
+<td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
                     <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{formatReturnExportDate(row.returnDate)}</td>
                     <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo} query={searchQuery} /></td>
                     <td style={{ padding: "12px 10px", color: "#374151", fontWeight: 600, textAlign: "center" }}><Highlight text={row.sku} query={searchQuery} /></td>
@@ -693,12 +781,9 @@ export default function ReturnPage() {
                     <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(row.totalCost)}</td>
                     <td style={{ padding: "12px 10px", color: "#374151", maxWidth: 140, textAlign: "center" }}><Highlight text={row.customer} query={searchQuery} /></td>
                     <td style={{ padding: "12px 10px", color: "#6b7280", fontSize: 11, textAlign: "center" }}>{row.reason}</td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280", textAlign: "center" }}>{row.disposition}</td>
+                    <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 700, color: (rtnQtyOutTotals[row.id]||0) > 0 ? "#dc2626" : "#9ca3af" }}>{rtnQtyOutTotals[row.id] || 0}</td>
                     <td style={{ padding: "12px 10px", textAlign: "center" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 12, background: (STATUS_STYLE[row.status]||STATUS_STYLE.Pending).bg, color: (STATUS_STYLE[row.status]||STATUS_STYLE.Pending).color }}>
-                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: (STATUS_STYLE[row.status]||STATUS_STYLE.Pending).dot, display: "inline-block", flexShrink: 0 }} />
-                        {row.status}
-                      </span>
+                      <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: (row.qtyReturned - (rtnQtyOutTotals[row.id]||0)) > 0 ? "#fef3c7" : "#d1fae5", color: (row.qtyReturned - (rtnQtyOutTotals[row.id]||0)) > 0 ? "#d97706" : "#065f46" }}>{row.qtyReturned - (rtnQtyOutTotals[row.id]||0)}</span>
                     </td>
                     <td style={{ padding: "8px 8px", textAlign: "center" }}>
                       <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
@@ -713,7 +798,7 @@ export default function ReturnPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length} Purchase Orders — May 2026
+            Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length} entries
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage === 1 ? "not-allowed" : "pointer", opacity: currentPage === 1 ? 0.4 : 1 }}><IconChevronLeft size={14} /></button>
@@ -724,6 +809,132 @@ export default function ReturnPage() {
           </div>
         </div>
       </div>
+      )}
+
+      {returnTab === "qtyout" && (
+      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px" }}>
+          {(() => {
+            if (filtered.length === 0) {
+              return <div style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No return items to track.</div>;
+            }
+            const slots = rtnQtyOutSlotCount;
+            const itemEntries = filtered.map(item => ({
+              item,
+              entries: rtnQtyOutRecords.filter(r => r.returnId === item.id),
+            }));
+            const overallTotalQtyOut = itemEntries.reduce((s, g) => s + g.entries.reduce((ss, e) => ss + e.qty, 0), 0);
+            return (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>QTY-OUT / DATE Pairs: {slots}</span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button onClick={() => setRtnQtyOutSlotCount(s => Math.min(20, s + 1))} title="Add QTY-OUT/DATE column pair" style={{ padding: "4px 10px", border: "1px solid #16a34a", borderRadius: 5, background: "#f0fdf4", cursor: "pointer", fontSize: 13, color: "#16a34a", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4 }}>+ Add Pair</button>
+                    <button onClick={() => setRtnQtyOutSlotCount(s => Math.max(1, s - 1))} title="Remove last QTY-OUT/DATE column pair" disabled={rtnQtyOutSlotCount <= 1} style={{ padding: "4px 10px", border: "1px solid #ef4444", borderRadius: 5, background: "#fef2f2", cursor: rtnQtyOutSlotCount <= 1 ? "not-allowed" : "pointer", fontSize: 13, color: "#ef4444", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4, opacity: rtnQtyOutSlotCount <= 1 ? 0.4 : 1 }}>− Remove Pair</button>
+                  </div>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: "#1c2235" }}>
+                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>ITEM</th>
+                        <th colSpan={slots * 2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, textAlign: "center", borderBottom: "1px solid #2a3450" }}>QTY-OUT / DATE RECORDS</th>
+                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 90 }}>TOTAL QTY OUT</th>
+                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 60 }}>ACTION</th>
+                      </tr>
+                      <tr style={{ background: "#1c2235" }}>
+                        {Array.from({ length: slots }, (_, i) => (
+                          <Fragment key={i}>
+                            <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>QTY-OUT</th>
+                            <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center" }}>DATE</th>
+                          </Fragment>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itemEntries.map((g, gi) => {
+                        const isEditing = editingRtnQtyOutItem === g.item.id;
+                        return (
+                          <tr key={g.item.id}
+                            style={{ borderBottom: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : gi % 2 === 0 ? "#fff" : "#fafafa" }}
+                          >
+                            <td style={{ padding: "10px 14px", color: "#111827", fontWeight: 600, fontSize: 12, textAlign: "left", borderRight: "1px solid #f3f4f6", maxWidth: 240, minWidth: 180 }}>{g.item.item}</td>
+                            {Array.from({ length: slots }, (_, slotIdx) => {
+                              const entry = g.entries[slotIdx];
+                              if (isEditing) {
+                                return (
+                                  <Fragment key={slotIdx}>
+                                    <td style={{ padding: "4px 6px", borderRight: "1px solid #f3f4f6" }}>
+                                      <input type="number" min={0} value={rtnQtyOutDraft[`${g.item.id}-${slotIdx}-qty`] ?? entry?.qty ?? ""} onChange={e => setRtnQtyOutDraft(d => ({ ...d, [`${g.item.id}-${slotIdx}-qty`]: parseFloat(e.target.value) || "" }))} placeholder="Qty" {...modalCellInput({ width: 65, textAlign: "right" })} />
+                                    </td>
+                                    <td style={{ padding: "4px 6px" }}>
+                                      <input type="date" value={rtnQtyOutDraft[`${g.item.id}-${slotIdx}-date`] ?? entry?.date ?? ""} onChange={e => setRtnQtyOutDraft(d => ({ ...d, [`${g.item.id}-${slotIdx}-date`]: e.target.value }))} {...modalCellInput({ width: 120 })} />
+                                    </td>
+                                  </Fragment>
+                                );
+                              }
+                              return (
+                                <Fragment key={slotIdx}>
+                                  <td style={{ padding: "10px 10px", color: entry ? "#e87c27" : "#e5e7eb", fontWeight: entry ? 700 : 400, fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6", whiteSpace: "nowrap", minWidth: 100 }}>{entry ? entry.qty.toLocaleString() : "—"}</td>
+                                  <td style={{ padding: "10px 10px", color: entry ? "#111827" : "#e5e7eb", fontWeight: entry ? 700 : 400, fontSize: 12, textAlign: "center", minWidth: 60 }}>{entry ? formatReturnExportDate(entry.date) : "—"}</td>
+                                </Fragment>
+                              );
+                            })}
+                            <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 800, color: "#e87c27", fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.entries.reduce((s, e) => s + e.qty, 0).toLocaleString()}</td>
+                            <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                              {isEditing ? (
+                                <div style={{ display: "flex", gap: 3, flexDirection: "column", alignItems: "center" }}>
+                                  <button onClick={() => {
+                                    const draft = { ...rtnQtyOutDraft };
+                                    const newEntries = [];
+                                    for (let i = 0; i < slots; i++) {
+                                      const q = parseFloat(draft[`${g.item.id}-${i}-qty`]);
+                                      const d = draft[`${g.item.id}-${i}-date`] || "";
+                                      if (q > 0 || d) {
+                                        const existing = g.entries[i];
+                                        newEntries.push({
+                                          id: existing ? existing.id : Date.now() + i,
+                                          returnId: g.item.id,
+                                          qty: q || 0,
+                                          date: d || existing?.date || "",
+                                        });
+                                      }
+                                    }
+                                    setRtnQtyOutRecords(prev => {
+                                      const other = prev.filter(r => r.returnId !== g.item.id);
+                                      return [...other, ...newEntries];
+                                    });
+                                    setEditingRtnQtyOutItem(null);
+                                    setRtnQtyOutDraft({});
+                                    showToast("Qty-Out History updated.");
+                                  }} title="Save" style={{ padding: "4px 7px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={11} /></button>
+                                  <button onClick={() => { setEditingRtnQtyOutItem(null); setRtnQtyOutDraft({}); }} title="Cancel" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={11} /></button>
+                                </div>
+                              ) : (
+                                <button onClick={() => { setEditingRtnQtyOutItem(g.item.id); setRtnQtyOutDraft({}); }} title="Edit" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, fontWeight: 600, fontFamily: "inherit" }}><IconEdit size={11} /> Edit</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr style={{ background: "#1c2235" }}>
+                        <td style={{ padding: "12px 14px", fontWeight: 800, color: "#fff", fontSize: 12, textAlign: "left", borderRight: "1px solid #2a3450" }}>GRAND TOTAL</td>
+                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#93a3c7", fontSize: 11, textAlign: "center", borderRight: "1px solid #2a3450" }}>{itemEntries.length} item(s)</td>
+                        {Array.from({ length: slots * 2 }, (_, ci) => (
+                          <td key={ci} style={{ padding: "10px", textAlign: "center", color: "#93a3c7", fontSize: 11, borderRight: ci < slots * 2 - 1 ? "1px solid #2a3450" : "none" }}></td>
+                        ))}
+                        <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#fca5a5", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotalQtyOut.toLocaleString()}</td>
+                        <td style={{ padding: "12px 14px", borderLeft: "1px solid #2a3450" }}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+      )}
 
       {panelOpen && selected && (
         <>
@@ -733,10 +944,6 @@ export default function ReturnPage() {
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Return Details</h2>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 20, background: (STATUS_STYLE[selected.status]||STATUS_STYLE.Pending).dot, color: "#fff", lineHeight: "16px" }}>
-                    <span style={{ width: 3, height: 3, borderRadius: "50%", background: "#fff", display: "inline-block", flexShrink: 0 }} />
-                    {selected.status}
-                  </span>
                 </div>
                 <p style={{ margin: "2px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600, textAlign: "left" }}>Return No. {selected.returnNo}</p>
               </div>
@@ -745,7 +952,7 @@ export default function ReturnPage() {
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px 24px" }}>
               {[
                 ["Trans #", selected.transNo],
-                ["Return Date", formatDate(selected.returnDate)],
+                ["INSERT DATE", formatDate(selected.returnDate)],
                 ["DR No.", selected.drNo],
                 ["Warehouse", selected.warehouse],
                 ["Return Reason", selected.reason],
@@ -760,7 +967,7 @@ export default function ReturnPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: "#f3f4f6" }}>
-                      {["Item Code", "Item Description", "Qty Returned", "Unit Cost", "Return Value"].map((h) => (
+                      {["Item Code", "Item Description", "INSERT QTY", "INSERT UNIT COST", "Return Value"].map((h) => (
                         <th key={h} style={{ padding: "10px 8px", textAlign: h.includes("Qty") || h.includes("Cost") || h.includes("Value") ? "right" : "center", fontWeight: 700, color: "#111827" }}>{h}</th>
                       ))}
                     </tr>
@@ -800,57 +1007,49 @@ export default function ReturnPage() {
       )}
 
       {showCreate && (
-        <>
-          <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1100 }} />
-          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#fff", borderRadius: 16, width: "min(560px,95vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>Create New Return</h2>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>Fill in the return details below</p>
+        <div style={modalOverlayStyle} onClick={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
+          <div style={{ ...modalPanelStyle, width: "min(580px, 96vw)" }}>
+            <div style={modalHeaderStyle}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h2 style={modalTitleStyle}>Create New Return</h2>
+                <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>Fill in the return details. Fields marked with * are required.</p>
               </div>
-              <button type="button" onClick={() => setShowCreate(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#4b5563", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              <button type="button" onClick={() => setShowCreate(false)} style={modalCloseBtnStyle} aria-label="Close"
+                onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"}
+                onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
-            <div style={{ padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px" }}>
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px" }}>
               {[
-                { label: "Return Date", key: "returnDate", type: "date" },
-                { label: "DR No.", key: "drNo", type: "text", placeholder: "e.g. DR26050" },
-                { label: "SKU Code", key: "sku", type: "text", placeholder: "e.g. DRB052" },
-                { label: "Item Description", key: "item", type: "text", placeholder: "e.g. Deformed Round Bar..." },
-                { label: "Qty Returned", key: "qtyReturned", type: "number", placeholder: "0" },
-                { label: "Unit Cost (₱)", key: "unitCost", type: "number", placeholder: "0.00" },
+                { label: "INSERT DATE *", key: "returnDate", type: "date" },
+                { label: "DR No. *", key: "drNo", type: "text", placeholder: "e.g. DR26050" },
+                { label: "SKU Code *", key: "sku", type: "text", placeholder: "e.g. DRB052" },
+                { label: "Item Description *", key: "item", type: "text", placeholder: "e.g. Deformed Round Bar...", fullWidth: true },
+                { label: "INSERT QTY", key: "qtyReturned", type: "number", placeholder: "0" },
+                { label: "INSERT UNIT COST (₱)", key: "unitCost", type: "number", placeholder: "0.00" },
                 { label: "Customer Name", key: "customer", type: "text", placeholder: "e.g. RCM Builders" },
                 { label: "Warehouse", key: "warehouse", type: "select", options: ["Meycauayan", "Pampanga", "Marilao"] },
                 { label: "Return Reason", key: "reason", type: "select", options: ["Damaged During Delivery", "Wrong item", "Customer cancel", "Quality hold"] },
-                { label: "Disposition", key: "disposition", type: "select", options: ["Restock", "Scrap", "Credit memo"] },
-              ].map(({ label, key, type, placeholder, options }) => (
-                <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
+              ].map(({ label, key, type, placeholder, options, fullWidth }) => (
+                <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: fullWidth ? "1 / -1" : undefined }}>
+                  <label style={modalLabelStyle}>{label}</label>
                   {type === "select" ? (
-                    <select
-                      value={createForm[key]}
-                      onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", background: "#fff", outline: "none", color: "#111827", appearance: "auto", WebkitAppearance: "auto", cursor: "pointer", width: "100%" }}
-                      onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
-                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
-                    >
-                      {options.map(o => <option key={o}>{o}</option>)}
-                    </select>
+                    <div style={{ position: "relative" }}>
+                      <select value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                        style={{ width: "100%", padding: "9px 30px 9px 12px", fontSize: 13, fontWeight: 600, color: "#111827", border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer", appearance: "none", boxSizing: "border-box" }}>
+                        {options.map(o => <option key={o}>{o}</option>)}
+                      </select>
+                      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none", fontSize: 10 }}>▼</span>
+                    </div>
                   ) : (
-                    <input
-                      type={type}
-                      value={createForm[key]}
-                      onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                      placeholder={placeholder}
-                      style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
-                      onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
-                      onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
-                    />
+                    <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))} placeholder={placeholder} {...modalInput()} />
                   )}
                 </div>
               ))}
             </div>
-            <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
-              <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
+            <div style={modalFooterStyle}>
+              <button type="button" onClick={() => setShowCreate(false)} style={modalBtnSecondary}>Cancel</button>
               <button type="button" onClick={() => {
                 if (!createForm.returnDate || !createForm.drNo || !createForm.sku || !createForm.item) {
                   setToast({ msg: "Please fill in all required fields.", type: "error" });
@@ -874,23 +1073,22 @@ export default function ReturnPage() {
                   totalQtyOut: 0,
                   qtyBalance: qty,
                   amountBalance: qty * cost,
-                  disposition: createForm.disposition,
-                  status: "Pending",
                   returnNo: `RTN${new Date().getFullYear()}${String(returns.length + 50).padStart(3, "0")}`,
                   warehouse: createForm.warehouse,
                   lineItems: [{ code: createForm.sku, desc: createForm.item, qty, unit: cost, val: qty * cost }],
                 };
                 setReturns(prev => [newReturn, ...prev]);
                 setShowCreate(false);
-                setCreateForm({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", disposition: "Restock", warehouse: "Meycauayan" });
+                setCreateForm({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", warehouse: "Meycauayan" });
                 setToast({ msg: "Return created successfully.", type: "success" });
                 setTimeout(() => setToast(null), 3000);
-              }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+              }} style={modalBtnPrimary}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Create Return
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

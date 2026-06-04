@@ -11,7 +11,7 @@ import {
   rowHasData,
   readWorkbookSheet,
 } from "./excelImportUtils";
-import { modalCellInput } from "./modalFormStyles";
+import { modalCellInput, modalInput } from "./modalFormStyles";
 
 function Highlight({ text, query }) {
   if (!query || !text) return <>{String(text)}</>;
@@ -983,9 +983,7 @@ export default function AdvanceCustomerPOPage() {
                   <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
                   <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
                     placeholder={placeholder}
-                    style={{ padding: "9px 12px", fontSize: 13, border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none" }}
-                    onFocus={e => { e.target.style.borderColor = "#e87c27"; e.target.style.boxShadow = "0 0 0 3px rgba(232,124,39,0.18)"; }}
-                    onBlur={e => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
+                    {...modalInput()}
                   />
                 </div>
               ))}
