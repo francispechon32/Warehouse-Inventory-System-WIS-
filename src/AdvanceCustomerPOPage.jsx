@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
 import {
   cellStr,
   cellNum,
@@ -556,8 +558,11 @@ function AcpoInlineEditRow({ row, onSave, onCancel }) {
   );
 }
 export default function AdvanceCustomerPOPage() {
+  const api = useApi(ENDPOINTS.advanceCustomerPO, SEED_RESERVATIONS);
+  useEffect(() => { api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const reservations    = api.data;
+  const setReservations = null;
   const [searchSku, setSearchSku] = useState("");
-  const [reservations, setReservations] = useState(SEED_RESERVATIONS);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -575,10 +580,14 @@ export default function AdvanceCustomerPOPage() {
   const { sortBy, setSortBy, applySort } = useSort("resDate", "customer");
   const [sortOpen, setSortOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const handleSaveEdit = (updated) => {
-    setReservations(d => d.map(r => r.id === updated.id ? { ...updated } : r));
-    setEditingId(null);
-    showToast("Reservation updated successfully.");
+  const handleSaveEdit = async (updated) => {
+    try {
+      await api.update(updated.id, updated);
+      setEditingId(null);
+      showToast("Reservation updated successfully.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
 
   const filtered = useMemo(() => {
@@ -657,13 +666,18 @@ export default function AdvanceCustomerPOPage() {
             if (!file) return;
             setImporting(true);
             importReservations(file,
-              (parsed) => {
-                setImporting(false);
-                setReservations(parsed);
-                setCurrentPage(1);
-                setSelectedId(null);
-                setPanelOpen(false);
-                showToast(`Imported ${parsed.length} reservations successfully.`);
+              async (parsed) => {
+                try {
+                  await api.bulkReplace(parsed);
+                  setCurrentPage(1);
+                  setSelectedId(null);
+                  setPanelOpen(false);
+                  showToast(`Imported ${parsed.length} reservations successfully.`);
+                } catch {
+                  showToast("Import succeeded but failed to save.", "error");
+                } finally {
+                  setImporting(false);
+                }
               },
               (err) => {
                 setImporting(false);
@@ -1021,11 +1035,15 @@ export default function AdvanceCustomerPOPage() {
                   status: "Pending",
                   lineItems: [{ sku: createForm.sku.toUpperCase(), desc: "", qty, unitCost: 0, totalCost: 0 }],
                 };
-                setReservations(prev => [newRes, ...prev]);
-                setShowCreate(false);
-                setCreateForm({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
-                setToast({ msg: "Reservation created successfully.", type: "success" });
-                setTimeout(() => setToast(null), 3000);
+                api.create(newRes).then(() => {
+                  setShowCreate(false);
+                  setCreateForm({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
+                  setToast({ msg: "Reservation created successfully.", type: "success" });
+                  setTimeout(() => setToast(null), 3000);
+                }).catch(() => {
+                  setToast({ msg: "Failed to create reservation.", type: "error" });
+                  setTimeout(() => setToast(null), 3000);
+                });
               }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
                 Create Reservation
               </button>

@@ -1,6 +1,8 @@
 ﻿import { useState, useRef, useMemo, useEffect } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
 import useSort from "./useSort";
 import {
   cellStr,
@@ -573,11 +575,10 @@ export default function EndingInventoryPage({
   setInventoryData: propSetInventoryData,
 }) {
   const xlsxReady = useSheetJS();
-  const [localInventoryData, setLocalInventoryData] = useState(() =>
-    buildInitialEndingInventory(INITIAL_ENDING_INVENTORY),
-  );
-  const inventoryData = propInventoryData ?? localInventoryData;
-  const setInventoryData = propSetInventoryData ?? setLocalInventoryData;
+  const api = useApi(ENDPOINTS.endingInventory, buildInitialEndingInventory(INITIAL_ENDING_INVENTORY));
+  const inventoryData = propInventoryData ?? api.data;
+  const setInventoryData = propSetInventoryData ?? null;
+  useEffect(() => { if (!propInventoryData) api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [searchQuery, setSearchQuery] = useState("");
 const [statusFilter, setStatusFilter] = useState("All Remarks");
   const [activeTab, setActiveTab] = useState("wis");
@@ -623,13 +624,23 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
     const file = e.target.files[0];
     if (!file) return;
     setImporting(true);
-    importEndingInventory(file, (parsed) => {
-      setImporting(false);
-      setInventoryData(parsed.map((p) => ({ ...p, totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost })));
-      setCurrentPage(1);
-      setEditingNo(null);
-      showToast(`Imported ${parsed.length} SKUs successfully.`);
-      e.target.value = "";
+    importEndingInventory(file, async (parsed) => {
+      const normalized = parsed.map((p) => ({ ...p, totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost }));
+      try {
+        if (setInventoryData) {
+          setInventoryData(normalized);
+        } else {
+          await api.bulkReplace(normalized);
+        }
+        setCurrentPage(1);
+        setEditingNo(null);
+        showToast(`Imported ${parsed.length} SKUs successfully.`);
+      } catch {
+        showToast("Import succeeded but failed to save.", "error");
+      } finally {
+        setImporting(false);
+        e.target.value = "";
+      }
     }, (err) => {
       setImporting(false);
       showToast(`❌ Import failed: ${err}`, "error");
@@ -637,22 +648,46 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
     });
   };
 
-  const handleSaveEdit = (updated) => {
-    setInventoryData(d => d.map(r => r.no === updated.no ? { ...updated } : r));
-    setEditingNo(null);
-    showToast("Row updated successfully.");
+  const handleSaveEdit = async (updated) => {
+    try {
+      if (setInventoryData) {
+        setInventoryData(d => d.map(r => r.no === updated.no ? { ...updated } : r));
+      } else {
+        await api.update(updated.id ?? updated.no, updated);
+      }
+      setEditingNo(null);
+      showToast("Row updated successfully.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
 
-  const handleSaveCogsEdit = (updated) => {
-    setInventoryData(d => d.map(r => r.no === updated.no ? { ...r, cogsQty: updated.cogsQty, cogsAvgUnitCost: updated.cogsAvgUnitCost } : r));
-    setEditingCogsNo(null);
-    showToast("COGS row updated successfully.");
+  const handleSaveCogsEdit = async (updated) => {
+    try {
+      if (setInventoryData) {
+        setInventoryData(d => d.map(r => r.no === updated.no ? { ...r, cogsQty: updated.cogsQty, cogsAvgUnitCost: updated.cogsAvgUnitCost } : r));
+      } else {
+        await api.update(updated.id ?? updated.no, updated);
+      }
+      setEditingCogsNo(null);
+      showToast("COGS row updated successfully.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
 
-  const handleAddItem = (newItem) => {
-    setInventoryData(d => [...d, newItem]);
-    setCurrentPage(1);
-    showToast(`"${newItem.sku}" added successfully.`);
+  const handleAddItem = async (newItem) => {
+    try {
+      if (setInventoryData) {
+        setInventoryData(d => [...d, newItem]);
+      } else {
+        await api.create(newItem);
+      }
+      setCurrentPage(1);
+      showToast(`"${newItem.sku}" added successfully.`);
+    } catch {
+      showToast(`Failed to add "${newItem.sku}".`, "error");
+    }
   };
 
   const totalValue = sumEndingInventoryValue(inventoryData);

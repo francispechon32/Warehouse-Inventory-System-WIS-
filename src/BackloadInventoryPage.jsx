@@ -2,6 +2,8 @@ import { useState, useRef, useMemo, useEffect, Fragment } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
 import {
   cellStr,
   cellNum,
@@ -537,7 +539,10 @@ async function importBackload(file, onDone, onError) {
 /* ─── MAIN PAGE ── */
 export default function BackloadInventoryPage() {
   const xlsxReady = useSheetJS();
-  const [data, setData] = useState(SEED_BACKLOAD);
+  const api = useApi(ENDPOINTS.backloadInventory, SEED_BACKLOAD);
+  useEffect(() => { api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const data    = api.data;
+  const setData = null;
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
@@ -562,16 +567,21 @@ export default function BackloadInventoryPage() {
     setImporting(true);
     importBackload(
       file,
-      (result) => {
-        setImporting(false);
+      async (result) => {
         const parsed = result.items || result;
         const qo = result.qtyOutRecords || [];
-        setData(parsed);
-        if (qo.length) setQtyOutRecords(qo);
-        nextId.current = Math.max(...parsed.map((r) => r.id), 0) + 1;
-        setCurrentPage(1);
-        showToast(`Imported ${parsed.length} entries (${qo.length} qty-out records).`);
-        e.target.value = "";
+        try {
+          await api.bulkReplace(parsed);
+          if (qo.length) setQtyOutRecords(qo);
+          nextId.current = Math.max(...parsed.map((r) => r.id), 0) + 1;
+          setCurrentPage(1);
+          showToast(`Imported ${parsed.length} entries (${qo.length} qty-out records).`);
+        } catch {
+          showToast("Import succeeded but failed to save.", "error");
+        } finally {
+          setImporting(false);
+          e.target.value = "";
+        }
       },
       (err) => {
         setImporting(false);
@@ -607,16 +617,23 @@ export default function BackloadInventoryPage() {
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paged = sorted.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
 
-  const handleSaveEdit = (updated) => {
-    setData(d => d.map(r => r.id === updated.id ? updated : r));
-    setEditingId(null);
-    showToast("Entry updated successfully.");
+  const handleSaveEdit = async (updated) => {
+    try {
+      await api.update(updated.id, updated);
+      setEditingId(null);
+      showToast("Entry updated successfully.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
 
-  const handleAddEntry = (entry) => {
-    const newEntry = { ...entry, id: nextId.current++ };
-    setData(d => [newEntry, ...d]);
-    showToast("New backload entry added.");
+  const handleAddEntry = async (entry) => {
+    try {
+      await api.create(entry);
+      showToast("New backload entry added.");
+    } catch {
+      showToast("Failed to add entry.", "error");
+    }
   };
 
   // Summary stats

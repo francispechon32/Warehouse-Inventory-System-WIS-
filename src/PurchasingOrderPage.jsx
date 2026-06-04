@@ -2,6 +2,8 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
 import {
   cellStr,
   cellNum,
@@ -1038,11 +1040,10 @@ export default function PurchasingOrderPage({
   setOrders: propSetOrders,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [localOrders, setLocalOrders] = useState(() =>
-    INITIAL_PURCHASE_ORDERS.map(normalizePurchaseOrder)
-  );
-  const orders = propOrders ?? localOrders;
-  const setOrders = propSetOrders ?? setLocalOrders;
+  const api = useApi(ENDPOINTS.purchasingOrders, INITIAL_PURCHASE_ORDERS.map(normalizePurchaseOrder));
+  const orders = propOrders ?? api.data;
+  const setOrders = propSetOrders ?? null;
+  useEffect(() => { if (!propOrders) api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -1075,15 +1076,31 @@ export default function PurchasingOrderPage({
   const { sortBy, setSortBy, applySort } = useSort("poDate", "productDesc");
   const [sortOpen, setSortOpen] = useState(false);
 
-  const handleSaveEdit = (updated) => {
-    setOrders(d => d.map(r => r.id === updated.id ? { ...updated } : r));
-    setEditingId(null);
-    showToast("Row updated successfully.");
+  const handleSaveEdit = async (updated) => {
+    try {
+      if (setOrders) {
+        setOrders(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+      } else {
+        await api.update(updated.id, updated);
+      }
+      setEditingId(null);
+      showToast("Row updated successfully.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
-  const handleSaveWhEdit = (updated) => {
-    setOrders(d => d.map(r => r.id === updated.id ? { ...updated } : r));
-    setEditingId(null);
-    showToast("Warehouse row updated successfully.");
+  const handleSaveWhEdit = async (updated) => {
+    try {
+      if (setOrders) {
+        setOrders(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+      } else {
+        await api.update(updated.id, updated);
+      }
+      setEditingId(null);
+      showToast("Warehouse row updated successfully.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
 
   useEffect(() => {
@@ -1152,14 +1169,23 @@ export default function PurchasingOrderPage({
             setImporting(true);
             importPurchaseOrders(
               file,
-              (parsed) => {
-                setImporting(false);
-                setOrders(parsed);
-                setCurrentPage(1);
-                setSelectedId(null);
-                setPanelOpen(false);
-                showToast(`Imported ${parsed.length} purchase orders successfully.`);
-                e.target.value = "";
+              async (parsed) => {
+                try {
+                  if (setOrders) {
+                    setOrders(parsed);
+                  } else {
+                    await api.bulkReplace(parsed);
+                  }
+                  setCurrentPage(1);
+                  setSelectedId(null);
+                  setPanelOpen(false);
+                  showToast(`Imported ${parsed.length} purchase orders successfully.`);
+                } catch {
+                  showToast("Import succeeded but failed to save.", "error");
+                } finally {
+                  setImporting(false);
+                  e.target.value = "";
+                }
               },
               (err) => {
                 setImporting(false);

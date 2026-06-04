@@ -19,7 +19,9 @@ import {
   normalizeStock,
 } from "./productUtils";
 import useSort from "./useSort";
-import { INITIAL_PRODUCTS } from "./initialProducts";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
+import { MOCK_PRODUCTS } from "./api/mockData";
 import {
   modalOverlayStyle,
   modalPanelStyle,
@@ -34,8 +36,6 @@ import {
   modalInput,
   modalCellInput,
 } from "./modalFormStyles";
-
-const sampleProducts = INITIAL_PRODUCTS;
 
 /* ─── ICONS ─────────────────────────────────────────────── */
 function IconSearch({ size = 16 }) {
@@ -315,10 +315,13 @@ function ProductInlineEditRow({ product, onSave, onCancel }) {
 export default function ProductPage({ products: propProducts, setProducts: propSetProducts, initialStatusFilter = "All Status" }) {
   const xlsxReady = useSheetJS();
 
-  // If no props passed (standalone use), manage local state
-  const [localProducts, setLocalProducts] = useState(() => syncProductsStatus(sampleProducts));
-  const products    = propProducts    ?? localProducts;
-  const setProducts = propSetProducts ?? setLocalProducts;
+  const api = useApi(ENDPOINTS.products, MOCK_PRODUCTS);
+
+  // Prefer props (Dashboard integration) over internal API data
+  const products    = propProducts    ?? api.data;
+  const setProducts = propSetProducts ?? null; // mutations go through api when no prop setter
+
+  useEffect(() => { if (!propProducts) api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [searchQuery, setSearchQuery]     = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
@@ -332,7 +335,6 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const { sortBy, setSortBy, applySort } = useSort("description", "description");
   const [sortOpen, setSortOpen] = useState(false);
 
-  // If navigated here with a pre-set filter, apply it on mount
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
     setCurrentPage(1);
@@ -340,10 +342,19 @@ export default function ProductPage({ products: propProducts, setProducts: propS
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
   const [editingId, setEditingId] = useState(null);
-  const handleSaveEdit = (updated) => {
-    setProducts(d => d.map(r => r.id === updated.id ? { ...updated } : r));
-    setEditingId(null);
-    showToast("Product updated successfully.");
+
+  const handleSaveEdit = async (updated) => {
+    try {
+      if (setProducts) {
+        setProducts(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+      } else {
+        await api.update(updated.id, updated);
+      }
+      setEditingId(null);
+      showToast("Product updated successfully.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
 
   const filtered = products.filter(p => {
@@ -368,10 +379,21 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const handleImport = (e) => {
     const file = e.target.files[0]; if (!file) return;
     setImporting(true);
-    importProducts(file, (parsed) => {
-      setImporting(false); setProducts(parsed); setCurrentPage(1);
-      showToast(`✓ Imported ${parsed.length} SKUs successfully.`);
-      e.target.value = "";
+    importProducts(file, async (parsed) => {
+      try {
+        if (setProducts) {
+          setProducts(parsed);
+        } else {
+          await api.bulkReplace(parsed);
+        }
+        setCurrentPage(1);
+        showToast(`✓ Imported ${parsed.length} SKUs successfully.`);
+      } catch {
+        showToast("❌ Import succeeded but failed to save.", "error");
+      } finally {
+        setImporting(false);
+        e.target.value = "";
+      }
     }, (err) => {
       setImporting(false);
       showToast(`❌ Import failed: ${err}`, "error");
@@ -626,13 +648,35 @@ export default function ProductPage({ products: propProducts, setProducts: propS
         <AddItemModal
           categories={categories}
           onClose={() => setShowAddModal(false)}
-          onSave={(newItem) => {
-            const newId = Math.max(0, ...products.map(p => p.id || 0)) + 1;
-            setProducts(prev => [...prev, { id: newId, ...newItem }]);
-            setShowAddModal(false);
-            showToast(`✓ "${newItem.sku}" added successfully.`);
+          onSave={async (newItem) => {
+            try {
+              if (setProducts) {
+                const newId = Math.max(0, ...products.map(p => p.id || 0)) + 1;
+                setProducts(prev => [...prev, { id: newId, ...newItem }]);
+              } else {
+                await api.create(newItem);
+              }
+              setShowAddModal(false);
+              showToast(`✓ "${newItem.sku}" added successfully.`);
+            } catch {
+              showToast(`❌ Failed to add "${newItem.sku}".`, "error");
+            }
           }}
         />
+      )}
+
+      {api.loading && !importing && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(255,255,255,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9998,
+        }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: "20px 32px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", fontSize: 14, fontWeight: 600, color: "#374151", display: "flex", alignItems: "center", gap: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e87c27" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 0.8s linear infinite" }}>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            Saving…
+          </div>
+        </div>
       )}
 
       {toast && (

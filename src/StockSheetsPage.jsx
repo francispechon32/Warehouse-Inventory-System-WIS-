@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
 import { SEED_STOCK_IN, SEED_STOCK_OUT } from "./stockTransactionSeeds";
 import {
   modalOverlayStyle,
@@ -726,16 +728,18 @@ export default function StockSheetsPage({
   setStockOutData: setPropStockOut,
 }) {
   const xlsxReady = useSheetJS();
+  const apiIn  = useApi(`${ENDPOINTS.stockSheets}/in`,  SEED_STOCK_IN);
+  const apiOut = useApi(`${ENDPOINTS.stockSheets}/out`, SEED_STOCK_OUT);
+  const stockInData  = propStockIn  ?? apiIn.data;
+  const stockOutData = propStockOut ?? apiOut.data;
+  const setStockInData  = setPropStockIn  ?? null;
+  const setStockOutData = setPropStockOut ?? null;
+  useEffect(() => { if (!propStockIn)  apiIn.getAll();  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!propStockOut) apiOut.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [searchSku, setSearchSku] = useState("DRB007");
   const [activeTab, setActiveTab] = useState("all");
   const [inPage, setInPage] = useState(1);
   const [outPage, setOutPage] = useState(1);
-  const [localStockIn, setLocalStockIn] = useState(SEED_STOCK_IN);
-  const [localStockOut, setLocalStockOut] = useState(SEED_STOCK_OUT);
-  const stockInData = propStockIn ?? localStockIn;
-  const setStockInData = setPropStockIn ?? setLocalStockIn;
-  const stockOutData = propStockOut ?? localStockOut;
-  const setStockOutData = setPropStockOut ?? setLocalStockOut;
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -748,15 +752,31 @@ export default function StockSheetsPage({
   const [editingInId, setEditingInId] = useState(null);
   const [editingOutId, setEditingOutId] = useState(null);
   const [seriesCount, setSeriesCount] = useState(DEFAULT_SERIES_COUNT);
-  const handleSaveInEdit = (updated) => {
-    setStockInData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
-    setEditingInId(null);
-    showToast("Stock IN row updated.");
+  const handleSaveInEdit = async (updated) => {
+    try {
+      if (setStockInData) {
+        setStockInData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+      } else {
+        await apiIn.update(updated.id, updated);
+      }
+      setEditingInId(null);
+      showToast("Stock IN row updated.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
-  const handleSaveOutEdit = (updated) => {
-    setStockOutData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
-    setEditingOutId(null);
-    showToast("Stock OUT row updated.");
+  const handleSaveOutEdit = async (updated) => {
+    try {
+      if (setStockOutData) {
+        setStockOutData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+      } else {
+        await apiOut.update(updated.id, updated);
+      }
+      setEditingOutId(null);
+      showToast("Stock OUT row updated.");
+    } catch {
+      showToast("Failed to save changes.", "error");
+    }
   };
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
@@ -850,8 +870,14 @@ export default function StockSheetsPage({
             setImporting(true);
             importStockSheets(
               file,
-              (inRows) => { setStockInData(inRows); setInPage(1); },
-              (outRows) => { setStockOutData(outRows); setOutPage(1); setImporting(false); showToast(`Imported stock sheet from ${file.name}`); },
+                async (inRows) => {
+                if (setStockInData) { setStockInData(inRows); } else { await apiIn.bulkReplace(inRows); }
+                setInPage(1);
+              },
+              async (outRows) => {
+                if (setStockOutData) { setStockOutData(outRows); } else { await apiOut.bulkReplace(outRows); }
+                setOutPage(1); setImporting(false); showToast(`Imported stock sheet from ${file.name}`);
+              },
               (err) => { setImporting(false); showToast(`Import failed: ${err}`, "error"); }
             );
             e.target.value = "";
@@ -1158,39 +1184,46 @@ export default function StockSheetsPage({
                   return;
                 }
                 const sku = createForm.sku.trim().toUpperCase();
-                if (isIn) {
-                  const qty = Number(createForm.qty) || 0;
-                  const costUnit = Number(createForm.costUnit) || 0;
-                  const entry = {
-                    id: Date.now(), sku,
-                    transNo: String(stockInData.filter(r => r.sku === sku).length + 1).padStart(3, "0"),
-                    date: createForm.date, tdtPo: createForm.tdtPo, tdtPoDate: createForm.tdtPoDate,
-                    vendorNo: createForm.vendorNo, vendorName: createForm.vendorName,
-                    customerDr: createForm.customerDr, tdtWo: createForm.tdtWo,
-                    acceptDate: createForm.acceptDate, qty,
-                    costKilo: Number(createForm.costKilo) || 0, costUnit,
-                    totalPurchase: qty * costUnit, runningQty: 0, avgUnitCost: costUnit, totalValue: 0, remark: "",
-                  };
-                  setStockInData(prev => [...prev, entry]);
-                } else {
-                  const qtyOut = Number(createForm.qtyOut) || 0;
-                  const unitCost = Number(createForm.costUnit) || 0;
-                  const entry = {
-                    id: Date.now(), sku,
-                    transNo: String(stockOutData.filter(r => r.sku === sku).length + 1).padStart(3, "0"),
-                    dispatchDate: createForm.dispatchDate, tdtWo: createForm.tdtWo,
-                    customer: createForm.customer, tdtDr: createForm.tdtDr,
-                    branch: createForm.branch, bdrSummary: createForm.bdrSummary,
-                    tdtSi: createForm.tdtSi, qtyOut, unitCost,
-                    totalPrice: qtyOut * unitCost, s1: "", s2: "", s3: "",
-                    runningQty: 0, runningValue: 0, remarks: createForm.remarks,
-                  };
-                  setStockOutData(prev => [...prev, entry]);
-                }
-                setShowCreate(false);
-                setCreateForm(EMPTY_FORM);
-                setToast({ msg: "Stock sheet entry added successfully.", type: "success" });
-                setTimeout(() => setToast(null), 3000);
+                const doCreate = async () => {
+                  if (isIn) {
+                    const qty = Number(createForm.qty) || 0;
+                    const costUnit = Number(createForm.costUnit) || 0;
+                    const entry = {
+                      sku, transNo: String(stockInData.filter(r => r.sku === sku).length + 1).padStart(3, "0"),
+                      date: createForm.date, tdtPo: createForm.tdtPo, tdtPoDate: createForm.tdtPoDate,
+                      vendorNo: createForm.vendorNo, vendorName: createForm.vendorName,
+                      customerDr: createForm.customerDr, tdtWo: createForm.tdtWo,
+                      acceptDate: createForm.acceptDate, qty,
+                      costKilo: Number(createForm.costKilo) || 0, costUnit,
+                      totalPurchase: qty * costUnit, runningQty: 0, avgUnitCost: costUnit, totalValue: 0, remark: "",
+                    };
+                    if (setStockInData) { setStockInData(prev => [...prev, { id: Date.now(), ...entry }]); }
+                    else { await apiIn.create(entry); }
+                  } else {
+                    const qtyOut = Number(createForm.qtyOut) || 0;
+                    const unitCost = Number(createForm.costUnit) || 0;
+                    const entry = {
+                      sku, transNo: String(stockOutData.filter(r => r.sku === sku).length + 1).padStart(3, "0"),
+                      dispatchDate: createForm.dispatchDate, tdtWo: createForm.tdtWo,
+                      customer: createForm.customer, tdtDr: createForm.tdtDr,
+                      branch: createForm.branch, bdrSummary: createForm.bdrSummary,
+                      tdtSi: createForm.tdtSi, qtyOut, unitCost,
+                      totalPrice: qtyOut * unitCost, s1: "", s2: "", s3: "",
+                      runningQty: 0, runningValue: 0, remarks: createForm.remarks,
+                    };
+                    if (setStockOutData) { setStockOutData(prev => [...prev, { id: Date.now(), ...entry }]); }
+                    else { await apiOut.create(entry); }
+                  }
+                };
+                doCreate().then(() => {
+                  setShowCreate(false);
+                  setCreateForm(EMPTY_FORM);
+                  setToast({ msg: "Stock sheet entry added successfully.", type: "success" });
+                  setTimeout(() => setToast(null), 3000);
+                }).catch(() => {
+                  setToast({ msg: "Failed to add entry.", type: "error" });
+                  setTimeout(() => setToast(null), 3000);
+                });
               }} style={modalBtnPrimary}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Entry
