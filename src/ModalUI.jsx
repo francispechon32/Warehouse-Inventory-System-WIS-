@@ -116,9 +116,11 @@ export function ModalStatGrid({ stats }) {
 export function ModalSearch({ placeholder, value, onChange, id }) {
   return (
     <div className="wis-modal-search">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round">
-        <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-      </svg>
+      <span style={{ position: "absolute", left: "1rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", zIndex: 1, display: "flex", alignItems: "center" }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="2" strokeLinecap="round">
+          <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+        </svg>
+      </span>
       <input
         id={id}
         type="text"

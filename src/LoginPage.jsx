@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import TDTLogoImg from "./assets/Untitled_design.svg";
 
+import Bakal1Img from "./assets/bakal1.jpg";
+
+
 /* ─── Animated grid background ─── */
 function GridBackground() {
   return (
@@ -86,9 +89,9 @@ function LeftPanel() {
       {/* Steel distributor/supplier imagery */}
       <div style={{
         position: "absolute", inset: 0,
-        backgroundImage: `url("https://images.unsplash.com/photo-1587293852726-70cdb56c2866?w=1200&q=80")`,
+backgroundImage: `url(${Bakal1Img})`,
         backgroundSize: "cover",
-        backgroundPosition: "center",
+backgroundPosition: "10% center",
         filter: "saturate(0.55) brightness(0.55)",
       }} />
 

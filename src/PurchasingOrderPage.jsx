@@ -523,19 +523,20 @@ function IconSave({ size = 14 }) {
 }
 
 const selectSt = {
-  padding: "11px 32px 11px 14px",
+  padding: "10px 30px 10px 12px",
   fontSize: 14,
-  border: "1px solid #b8bec9",
-  borderRadius: 8,
+  border: "2px solid #F95B02",
+  borderRadius: 15,
   background: "#ffffff",
-  color: "#111827",
+  color: "#F95B02",
   cursor: "pointer",
-  fontFamily: "inherit",
+  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   width: "100%",
   appearance: "none",
-  fontWeight: 500,
+  WebkitAppearance: "none",
+  fontWeight: 700,
   outline: "none",
-  boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)",
+  boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
 };
 
 function lineQtySum(lines) {
@@ -1649,10 +1650,10 @@ export default function PurchasingOrderPage({
                     <label style={modalLabelStyle}>{label}</label>
                     <div style={{ position: "relative" }}>
                       <select value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
-                        style={{ width: "100%", padding: "9px 30px 9px 12px", fontSize: 13, fontWeight: 600, color: "#111827", border: "1px solid #d1d5db", borderRadius: 8, fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer", appearance: "none" }}>
+                        style={{ width: "100%", padding: "9px 30px 9px 12px", fontSize: 13, fontWeight: 700, color: "#F95B02", border: "2px solid #F95B02", borderRadius: 15, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", outline: "none", background: "#fff", cursor: "pointer", appearance: "none", boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)" }}>
                         {opts.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
-                      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#9ca3af", pointerEvents: "none", fontSize: 10 }}>▼</span>
+                      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#F95B02", pointerEvents: "none", fontSize: 10 }}>▼</span>
                     </div>
                   </div>
                 );

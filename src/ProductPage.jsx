@@ -120,7 +120,7 @@ function exportProducts(rows) {
     deriveProductStatus(r.stock),
   ]);
   const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:5},{wch:12},{wch:55},{wch:22},{wch:6},{wch:14},{wch:12},{wch:14},{wch:10}];
+  ws["!cols"] = [{wch:12},{wch:20},{wch:55},{wch:22},{wch:8},{wch:16},{wch:14},{wch:16},{wch:12}];
   const hStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center" } };
   ["A6","B6","C6","D6","E6","F6","G6","H6","I6"].forEach(c => {
     if (!ws[c]) ws[c] = { v: "" };
@@ -242,13 +242,19 @@ function AddItemModal({ categories, onClose, onSave }) {
 
 /* ─── INLINE EDIT ROW ─────────────────────────────────────── */
 const selectSt = {
-  padding: "11px 32px 11px 14px",
+  padding: "10px 30px 10px 12px",
   fontSize: 14,
-  border: "1px solid #b8bec9",
-  borderRadius: 8,
+  border: "2px solid #F95B02",
+  borderRadius: 15,
   background: "#ffffff",
-  color: "#111827",
+  color: "#F95B02",
   cursor: "pointer",
+  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+  appearance: "none",
+  WebkitAppearance: "none",
+  fontWeight: 700,
+  outline: "none",
+  boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
 };
 
 function ProductInlineEditRow({ product, onSave, onCancel }) {

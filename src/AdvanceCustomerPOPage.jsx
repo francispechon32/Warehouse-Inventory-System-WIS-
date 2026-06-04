@@ -419,9 +419,17 @@ function exportToWis(rows) {
     { s: { r: 1, c: 0 }, e: { r: 1, c: hdrs.length - 1 } },
   ];
   ws["!cols"] = [
-    { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 14 },
-    { wch: 28 }, { wch: 16 }, { wch: 13 },
-    { wch: 13 }, { wch: 16 }, { wch: 14 }, { wch: 10 },
+    { wch: 12 },  // TRANS NO.
+    { wch: 18 },  // RESERVATION DATE
+    { wch: 14 },  // SO#/WO#
+    { wch: 16 },  // TDT DR#
+    { wch: 28 },  // CUSTOMER'S NAME
+    { wch: 20 },  // PLACE OF DELIVERY (17 chars)
+    { wch: 15 },  // RESERVED QTY
+    { wch: 15 },  // CURRENT STOCK
+    { wch: 20 },  // EST ENDING BALANCE (18 chars)
+    { wch: 16 },  // APPROVED BY
+    { wch: 12 },  // STATUS
   ];
   ws["!rows"] = [
     { hpt: 22 }, { hpt: 16 }, { hpt: 6 }, { hpt: 36 },
@@ -481,20 +489,19 @@ async function importReservations(file, onDone, onError) {
   }
 }
 const selectSt = {
-  padding: "11px 32px 11px 14px",
+  padding: "10px 30px 10px 12px",
   fontSize: 14,
-  border: "1px solid #b8bec9",
-  borderRadius: 8,
+  border: "2px solid #F95B02",
+  borderRadius: 15,
   background: "#ffffff",
-  color: "#111827",
+  color: "#F95B02",
   cursor: "pointer",
-  fontFamily: "inherit",
+  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   appearance: "none",
   WebkitAppearance: "none",
-  backgroundImage: "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 8px center",
-  backgroundSize: 14,
+  fontWeight: 700,
+  outline: "none",
+  boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
 };
 function AcpoInlineEditRow({ row, onSave, onCancel }) {
   const [draft, setDraft] = useState({ ...row });

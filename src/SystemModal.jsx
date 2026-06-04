@@ -613,12 +613,14 @@ function UserMgmtModal({ onClose, onAction }) {
         .um-scroll::-webkit-scrollbar { width:4px; }
         .um-scroll::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:2px; }
         .um-user-row:hover { background:#fafafa; }
-        .um-role-select { padding:5px 8px; border:1.5px solid #e87c27; border-radius:7px; font-size:12px; font-weight:600; color:#111827; background:#fff; outline:none; font-family:inherit; cursor:pointer; }
+        .um-role-select { padding:5px 8px; border:2px solid #F95B02; border-radius:15px; font-size:12px; font-weight:700; color:#F95B02; background:#fff; outline:none; font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; cursor:pointer; box-shadow:0px 8px 16px 0px rgba(0,0,0,0.2); appearance:none; }
         .um-btn-ghost { display:flex; align-items:center; gap:6px; padding:6px 12px; border:1px solid #e2e8f0; border-radius:8px; background:#fff; cursor:pointer; font-size:12px; font-weight:600; color:#374151; font-family:inherit; transition:all .15s; }
         .um-btn-ghost:hover { border-color:#e87c27; color:#c2410c; background:#fff7ed; }
         .um-btn-save { display:flex; align-items:center; gap:6px; padding:6px 14px; border:none; border-radius:8px; background:linear-gradient(135deg,#e87c27,#c96b1c); cursor:pointer; font-size:12px; font-weight:700; color:#fff; font-family:inherit; }
         .um-add-field { width:100%; padding:9px 12px; border:1.5px solid #e2e8f0; border-radius:9px; font-size:13px; outline:none; font-family:inherit; box-sizing:border-box; transition:border-color .15s; }
         .um-add-field:focus { border-color:#e87c27; box-shadow:0 0 0 3px rgba(232,124,39,.12); }
+        select.um-add-field { border:2px solid #F95B02; border-radius:15px; color:#F95B02; font-weight:700; font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; box-shadow:0px 8px 16px 0px rgba(0,0,0,0.2); appearance:none; cursor:pointer; }
+        select.um-add-field:focus { border-color:#F95B02; box-shadow:0px 8px 16px 0px rgba(0,0,0,0.2); }
       `}</style>
 
       {/* Header */}
@@ -873,17 +875,16 @@ function StockLimitsModal({ onClose, products, setProducts, onAction }) {
 
       {/* Search bar */}
       <div style={{ padding:"12px 24px", borderBottom:"1px solid #f3f4f6", flexShrink:0 }}>
-        <div style={{ position:"relative" }}>
-          <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#9ca3af", display:"flex" }}>
+        <div style={{ position:"relative", display:"flex", lineHeight:"28px", alignItems:"center" }}>
+          <span style={{ position:"absolute", left:"1rem", top:"50%", transform:"translateY(-50%)", color:"#000000", display:"flex", zIndex:1, pointerEvents:"none" }}>
             <IconSearch s={15} />
           </span>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search SKU code or description…"
-            style={{ width:"100%", padding:"8px 12px 8px 32px", border:"1.5px solid #e2e8f0", borderRadius:9, fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box", transition:"border-color .15s" }}
-            onFocus={e => e.target.style.borderColor="#e87c27"}
-            onBlur={e => e.target.style.borderColor="#e2e8f0"}
+            className="wis-search-input"
+            style={{ boxSizing:"border-box" }}
           />
         </div>
       </div>
@@ -1052,13 +1053,13 @@ function ContactModal({ onClose, onAction }) {
           <div style={{ marginBottom:12 }}>
             <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Inquiry Category</label>
             <div style={{ position:"relative" }}>
-              <select value={contactTopic} onChange={e => setContactTopic(e.target.value)} style={{ width:"100%", padding:"9px 32px 9px 12px", border:"1.5px solid #e87c27", borderRadius:8, fontSize:13, fontWeight:600, color:"#111827", outline:"none", fontFamily:"inherit", background:"#fff", boxSizing:"border-box", appearance:"none", cursor:"pointer" }}>
+              <select value={contactTopic} onChange={e => setContactTopic(e.target.value)} style={{ width:"100%", padding:"9px 32px 9px 12px", border:"2px solid #F95B02", borderRadius:15, fontSize:13, fontWeight:700, color:"#F95B02", outline:"none", fontFamily:"'Segoe UI',Tahoma,Geneva,Verdana,sans-serif", background:"#fff", boxSizing:"border-box", appearance:"none", cursor:"pointer", boxShadow:"0px 8px 16px 0px rgba(0,0,0,0.2)" }}>
                 <option value="Question">General Question</option>
                 <option value="Bug">Technical Bug Report</option>
                 <option value="Feature">Feature Request</option>
                 <option value="Other">Other Topic</option>
               </select>
-              <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", color:"#9ca3af", pointerEvents:"none", fontSize:10 }}>▼</span>
+              <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", color:"#F95B02", pointerEvents:"none", fontSize:10 }}>▼</span>
             </div>
           </div>
           <div style={{ marginBottom:16 }}>

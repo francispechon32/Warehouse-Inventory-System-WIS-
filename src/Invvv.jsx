@@ -778,8 +778,9 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
     setTimeout(() => setToast(null), 3500);
   };
   const lowStockPromptChecked = useRef(false);
-  const displayName = userProfile.name || "Admin User";
-  const firstName = displayName.split(" ")[0];
+ const displayName = userProfile.name || "Admin User";
+const firstName = (userName || displayName).split(" ")[0];
+
 
   const [products, setProducts] = useState(() =>
     syncProductsStatus(INITIAL_PRODUCTS).map((p) => ({
@@ -1402,11 +1403,11 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                   value={selectedWarehouse}
                   onChange={e => setSelectedWarehouse(e.target.value)}
                   style={{
-                    padding: "8px 32px 8px 12px", fontSize: 13, fontWeight: 600,
-                    border: "1.5px solid #e5e7eb", borderRadius: 9,
-                    background: "#fff", color: "#374151", cursor: "pointer",
-                    fontFamily: "inherit", appearance: "none", outline: "none",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                    padding: "8px 32px 8px 12px", fontSize: 13, fontWeight: 700,
+                    border: "2px solid #F95B02", borderRadius: 15,
+                    background: "#fff", color: "#F95B02", cursor: "pointer",
+                    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", appearance: "none", outline: "none",
+                    boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
                   }}
                 >
                   {["All Warehouses", "Meycauayan", "Pampanga", "Marilao"].map(w => (
@@ -1414,8 +1415,8 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                   ))}
                 </select>
                 <span style={{
-                  position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                  pointerEvents: "none", color: "#6b7280",
+                  position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
+                  pointerEvents: "none", color: "#F95B02",
                 }}>
                   <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M19 9l-7 7-7-7"/></svg>
                 </span>
@@ -1466,7 +1467,7 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
               >
                 <div style={{
                   width: 42, height: 42, borderRadius: "50%",
-                  overflow: "hidden", border: "2px solid #e5e7eb", flexShrink: 0,
+                  overflow: "hidden", border: "2px solid #ffffff", flexShrink: 0,
                 }}>
                   <img
 src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=e87c27&color=ffffff&size=42`}
@@ -1563,43 +1564,43 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
                 {/* Metric Cards */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
-                  <MetricCard
-                    icon={<IconBox size={34} />} iconBg="#F95B02" iconColor="#ffffff"
-                    label="Total List of SKU" value={products.length.toString()}
-                    badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
-                    onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
-                  />
-                  <MetricCard
-                    icon={<IconTruck size={28} />} iconBg="#F95B02" iconColor="#ffffff"
-                    label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
-                    badge={{
-                      text: pendingDeliveryCount > 0
-                        ? `${pendingDeliveryCount} pending order${pendingDeliveryCount === 1 ? "" : "s"}`
-                        : "No pending orders",
-                      color: "#d97706",
-                      bg: pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
-                      icon: pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
-                    }}
-                    onClick={goToPendingDeliveries}
-                  />
-                  <MetricCard
-                    icon={<IconBarChart size={30} />} iconBg="#F95B02" iconColor="#ffffff"
-                    label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
-                    badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
-                    onClick={goToEndingInventory}
-                  />
-                  <MetricCard
-                    icon={<IconBag size={30} />} iconBg="#F95B02" iconColor="#ffffff"
-                    label="Transactions Today" value={String(transactionsToday)}
-                    badge={{
-                      text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
-                      color: transactionsToday > 0 ? "#e87c27" : "#6b7280",
-                      bg: "transparent",
-                    }}
-                    onClick={goToStockSheets}
-                  />
-                </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
+                    <MetricCard
+                      icon={<IconBox size={34} />} iconBg="#F95B02" iconColor="#ffffff"
+                      label="Total List of SKU" value={products.length.toString()}
+                      badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
+                      onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
+                    />
+                    <MetricCard
+                      icon={<IconTruck size={28} />} iconBg="#F95B02" iconColor="#ffffff"
+                      label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
+                      badge={{
+                        text: pendingDeliveryCount > 0
+                          ? `${pendingDeliveryCount} pending order${pendingDeliveryCount === 1 ? "" : "s"}`
+                          : "No pending orders",
+                        color: "#d97706",
+                        bg: pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
+                        icon: pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
+                      }}
+                      onClick={goToPendingDeliveries}
+                    />
+                    <MetricCard
+                      icon={<IconBarChart size={30} />} iconBg="#F95B02" iconColor="#ffffff"
+                      label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
+                      badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
+                      onClick={goToEndingInventory}
+                    />
+                    <MetricCard
+                      icon={<IconBag size={30} />} iconBg="#F95B02" iconColor="#ffffff"
+                      label="Transactions Today" value={String(transactionsToday)}
+                      badge={{
+                        text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
+                        color: transactionsToday > 0 ? "#e87c27" : "#6b7280",
+                        bg: "transparent",
+                      }}
+                      onClick={goToStockSheets}
+                    />
+                  </div>
 
                 {/* Row 2: Chart + Top Released Items */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "stretch" }}>
@@ -1686,7 +1687,7 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                             </div>
                             <div style={{ display: "flex", height: 9, overflow: "hidden" }}>
                               <div style={{ width: `${item.pct}%`, height: "100%", background: "#e87c27", flexShrink: 0 }} />
-                              <div style={{ flex: 1, height: "100%", background: "#1e2330" }} />
+<div style={{ flex: 1, height: "100%", background: "#edeff3" }} />
                             </div>
                           </div>
                         ))}

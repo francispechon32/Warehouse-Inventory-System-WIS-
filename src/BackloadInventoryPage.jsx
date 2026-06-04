@@ -355,16 +355,16 @@ function exportBackload(rows, qtyOutRecords = [], slotCount = 5) {
   }
 
   ws["!merges"] = [
-    { s: { r: 0, c: 2 }, e: { r: 0, c: 8 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 8 } },
+    { s: { r: 0, c: 2 }, e: { r: 0, c: lastCol } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: lastCol } },
   ];
 
   const outCols = [];
   for (let i = 0; i < pairs; i++) outCols.push({ wch: 10 }, { wch: 11 });
   ws["!cols"] = [
     { wch: 10 },  // TRANS / "TDT"
-    { wch: 16 },  // INSERT DATE / "POWERSTEEL"
+    { wch: 25},  // INSERT DATE / "POWERSTEEL" (sz:18 bold needs ~22)
     { wch: 30 },  // INSERT DR # / "THE NO. 1 STEEL SUPPLIER"
     { wch: 12 },  // SKU
     { wch: 52 },  // ITEM

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  productSearchInputStyle,
   productSearchWrapStyle,
   productSearchIconLeftStyle,
   filterSelectStyle,
@@ -80,7 +79,7 @@ function FilterSelect({ value, onChange, options, minWidth = 160 }) {
           </option>
         ))}
       </select>
-      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#6b7280" }}>
+      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#F95B02" }}>
         <IconChevronDown size={14} />
       </span>
     </div>
@@ -192,9 +191,9 @@ function CalendarPopup({ dateRange, onDateRangeChange, onApply }) {
 
   return (
     <div style={{
-      background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10,
+      background: "#fff", border: "2px solid #F95B02", borderRadius: 10,
       padding: "10px 12px", zIndex: 999,
-      boxShadow: "0 4px 20px rgba(0,0,0,0.13)", width: 272,
+      boxShadow: "0 4px 20px rgba(249,91,2,0.18)", width: 272,
     }}>
       <div style={{ display: "flex", gap: 6, marginBottom: 10, borderBottom: "1px solid #f3f4f6", paddingBottom: 10 }}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -317,7 +316,7 @@ export default function PageToolbar({
             placeholder={searchPlaceholder}
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
-            style={productSearchInputStyle}
+            className="wis-search-input"
           />
           <span style={productSearchIconLeftStyle}>
             <IconSearch size={16} />
@@ -337,7 +336,7 @@ export default function PageToolbar({
         {row1End}
 
         {primaryAction && (
-          <button type="button" onClick={primaryAction.onClick} style={primaryButtonStyle}>
+          <button type="button" onClick={primaryAction.onClick} style={primaryButtonStyle} className="wis-btn-orange">
             <IconPlus size={16} />
             {primaryAction.label}
           </button>
@@ -355,10 +354,9 @@ export default function PageToolbar({
                   onClick={() => setCalOpen((v) => !v)}
                   style={{
                     ...dateRangeButtonStyle,
-                    background: dateRange.start || dateRange.end ? "#fff7ed" : "#fff",
-                    color: dateRange.start || dateRange.end ? "#e87c27" : "#374151",
-                    border: dateRange.start || dateRange.end ? "1.5px solid #fcd9b0" : "1.5px solid #d1d5db",
-                    boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)",
+                    background: dateRange.start || dateRange.end ? "#fff5f0" : "#fff",
+                    color: "#F95B02",
+                    border: "2px solid #F95B02",
                   }}
                 >
                   <IconCalendar size={16} />
@@ -396,6 +394,7 @@ export default function PageToolbar({
                         type="button"
                         onClick={() => importExport.fileInputRef?.current?.click()}
                         disabled={importExport.importing || importExport.importDisabled}
+                        className="wis-btn-orange"
                         style={{
                           ...importButtonStyle,
                           cursor: importExport.importing || importExport.importDisabled ? "not-allowed" : "pointer",
@@ -415,6 +414,7 @@ export default function PageToolbar({
                       importExport.onExport?.();
                     }}
                     disabled={!!importExport.exportDisabled}
+                    className="wis-btn-orange"
                     style={{
                       ...exportButtonStyle,
                       position: "relative",

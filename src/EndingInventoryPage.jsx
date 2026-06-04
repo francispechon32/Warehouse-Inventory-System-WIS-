@@ -345,6 +345,13 @@ function exportToWis(rows) {
     });
   });
 
+  // Fill gaps in header/meta rows 0–4 with peachFill so background is consistent
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c <= LAST_COL; c++) {
+      if (!ws[C(r, c)]) put(r, c, "", "s", { fill: peachFill });
+    }
+  }
+
   const lastRow = Math.max(6 + rows.length - 1, 5);
   ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
 
@@ -361,24 +368,24 @@ function exportToWis(rows) {
   ];
 
   ws["!cols"] = [
-    { wch: 5 },
-    { wch: 38 },
-    { wch: 11 },
-    { wch: 14 },
-    { wch: 12 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 22 },
-    { wch: 2 },
-    { wch: 5 },
-    { wch: 38 },
-    { wch: 11 },
-    { wch: 14 },
-    { wch: 22 },
-    { wch: 20 },
+    { wch: 12 },  // NO. / "LOCATION:" & "AS OF" labels
+    { wch: 38 },  // PRODUCT DESCRIPTION
+    { wch: 13 },  // SKU NUMBER
+    { wch: 16 },  // LAST ACCEPTANCE DATE
+    { wch: 14 },  // QUANTITY AS PER WIS
+    { wch: 18 },  // TOTAL UNIT COST
+    { wch: 18 },  // AVERAGE UNIT COST
+    { wch: 16 },  // QUANTITY AS PER COUNTING
+    { wch: 14 },  // VARIANCE (QUANTITY)
+    { wch: 24 },  // VARIANCE (AMOUNT) / "COST OF GOODS SOLD →" label (22 chars)
+    { wch: 24 },  // REMARKS
+    { wch: 2 },   // spacer
+    { wch: 12 },  // COGS NO. / "LOCATION:" & "AS OF" labels
+    { wch: 38 },  // COGS PRODUCT DESCRIPTION
+    { wch: 13 },  // COGS SKU NUMBER
+    { wch: 16 },  // QUANTITY SOLD AS PER WIS
+    { wch: 24 },  // AVERAGE UNIT COST OF GOODS SOLD
+    { wch: 22 },  // TOTAL COST OF GOODS SOLD
   ];
 
   ws["!rows"] = [
@@ -683,14 +690,14 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
         }}
       />
 
-      {/* Tabs */}
-<div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: "0 0 0 0", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
-        {[["wis","Ending Inventory as per WIS"],["cogs","Cost of Goods Sold"]].map(([key,label]) => (
-          <button key={key} onClick={() => setActiveTab(key)} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab===key?"3px solid #e87c27":"3px solid transparent", color: activeTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, marginBottom: -2 }}>{label}</button>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+ {/* Tabs + Sort */}
+<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: "0 16px 0 0", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
+  <div style={{ display: "flex" }}>
+    {[["wis","Ending Inventory as per WIS"],["cogs","Cost of Goods Sold"]].map(([key,label]) => (
+      <button key={key} onClick={() => setActiveTab(key)} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab===key?"3px solid #e87c27":"3px solid transparent", color: activeTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, marginBottom: -2 }}>{label}</button>
+    ))}
+  </div>
+  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ position: "relative" }}>
           <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -719,6 +726,7 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
         </span>
       </div>
 
+</div>
       {/* Table */}
 <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginTop: 0 }}>        <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>

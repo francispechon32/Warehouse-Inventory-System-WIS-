@@ -106,19 +106,20 @@ function Pagination({ currentPage, totalPages, onPage }) {
 }
 
 const selectSt = {
-  padding: "11px 32px 11px 14px",
+  padding: "10px 30px 10px 12px",
   fontSize: 14,
-  border: "1px solid #b8bec9",
-  borderRadius: 8,
+  border: "2px solid #F95B02",
+  borderRadius: 15,
   background: "#ffffff",
-  color: "#111827",
+  color: "#F95B02",
   cursor: "pointer",
-  fontFamily: "inherit",
+  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   width: "100%",
   appearance: "none",
-  fontWeight: 500,
+  WebkitAppearance: "none",
+  fontWeight: 700,
   outline: "none",
-  boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)",
+  boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
 };
 
 function StockInInlineEditRow({ row, onSave, onCancel }) {
@@ -330,7 +331,6 @@ function writeSsMeta(ws, C, put, merges, styles, sku, skuInfo, location = "POLYL
     font: f.title(), alignment: left, fill: sheetFill,
   });
   merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } });
-  put(0, 9, "HOME", "s", { font: f.link(), alignment: center, fill: sheetFill });
 
   const meta = [
     ["LOCATION", location],
@@ -348,14 +348,6 @@ function writeSsMeta(ws, C, put, merges, styles, sku, skuInfo, location = "POLYL
     merges.push({ s: { r: row, c: 2 }, e: { r: row, c: 6 } });
   });
 
-  put(0, 12, "TDT POWERSTEEL", "s", {
-    font: { name: "Arial", sz: 12, bold: true, color: { rgb: "E87C27" } },
-    alignment: center, fill: sheetFill,
-  });
-  put(1, 12, "THE NO. 1 STEEL SUPPLIER", "s", {
-    font: { name: "Arial", sz: 8, bold: true, color: { rgb: "000000" } },
-    alignment: center, fill: sheetFill,
-  });
   merges.push({ s: { r: 0, c: 12 }, e: { r: 0, c: 15 } });
   merges.push({ s: { r: 1, c: 12 }, e: { r: 1, c: 15 } });
 }
@@ -382,6 +374,13 @@ function buildStockInWorksheet(sku, skuInfo, rows) {
   const DATA_START = 6;
   const LAST_COL = STOCK_IN_COLS.length - 1;
   const { hdrFill, yellowFill, totalFill, solidBorder, dottedRed, f, center, left, right } = styles;
+
+  // Fill gaps in meta rows 0–4 so sheetFill covers the full width
+  for (let r = 0; r < HDR_ROW; r++) {
+    for (let c = 0; c <= LAST_COL; c++) {
+      if (!ws[C(r, c)]) put(r, c, "", "s", { fill: styles.sheetFill });
+    }
+  }
 
   const rightInSet = RIGHT_IN;
   STOCK_IN_COLS.forEach((h, ci) => {
@@ -452,9 +451,23 @@ function buildStockInWorksheet(sku, skuInfo, rows) {
   ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
   ws["!merges"] = merges;
   ws["!cols"] = [
-    { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 22 },
-    { wch: 28 }, { wch: 13 }, { wch: 14 }, { wch: 9 }, { wch: 12 },
-    { wch: 14 }, { wch: 16 }, { wch: 13 }, { wch: 16 }, { wch: 16 }, { wch: 22 },
+    { wch: 30 },  // TRANS # / meta label col ("PRODUCT DESCRIPTION" = 19 chars)
+    { wch: 14 },  // DATE
+    { wch: 16 },  // TDT PO #
+    { wch: 14 },  // TDT PO DATE
+    { wch: 14 },  // VENDOR #
+    { wch: 24 },  // VENDOR NAME
+    { wch: 30 },  // CUSTOMER'S NAME AS PER DR (25 chars)
+    { wch: 14 },  // TDT WO #
+    { wch: 16 },  // ACCEPTANCE DATE
+    { wch: 10 },  // QTY
+    { wch: 14 },  // COST/KILO
+    { wch: 16 },  // COST/UNIT
+    { wch: 18 },  // TOTAL PURCHASE
+    { wch: 14 },  // RUNNING QTY
+    { wch: 18 },  // AVG UNIT COST
+    { wch: 18 },  // TOTAL VALUE
+    { wch: 24 },  // REMARK
   ];
   ws["!rows"] = [
     { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
@@ -477,6 +490,13 @@ function buildStockOutWorksheet(sku, skuInfo, rows, seriesCount = DEFAULT_SERIES
   const HDR_ROW = 5;
   const DATA_START = 6;
   const { hdrFill, yellowFill, totalFill, solidBorder, dottedRed, f, center, left, right } = styles;
+
+  // Fill gaps in meta rows 0–4 so sheetFill covers the full width
+  for (let r = 0; r < HDR_ROW; r++) {
+    for (let c = 0; c < exportCols.length; c++) {
+      if (!ws[C(r, c)]) put(r, c, "", "s", { fill: styles.sheetFill });
+    }
+  }
 
   exportCols.forEach((h, ci) => {
     const isSeries = h.startsWith("SERIES");
@@ -555,10 +575,21 @@ function buildStockOutWorksheet(sku, skuInfo, rows, seriesCount = DEFAULT_SERIES
   ws["!merges"] = merges;
   const seriesCols = Array.from({ length: seriesCount }, () => ({ wch: 22 }));
   ws["!cols"] = [
-    { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 24 }, { wch: 14 }, { wch: 12 },
-    { wch: 20 }, { wch: 12 }, { wch: 9 }, { wch: 13 }, { wch: 14 },
+    { wch: 22 },  // TRANS # / meta label col ("PRODUCT DESCRIPTION" = 19 chars)
+    { wch: 16 },  // DISPATCH DATE
+    { wch: 14 },  // TDT WO#
+    { wch: 26 },  // CUSTOMER NAME
+    { wch: 16 },  // TDT DR#
+    { wch: 14 },  // BRANCH
+    { wch: 22 },  // SUMMARY OF TDT BDR#
+    { wch: 14 },  // TDT SI#
+    { wch: 10 },  // QTY OUT
+    { wch: 14 },  // UNIT COST
+    { wch: 16 },  // TOTAL PRICE
     ...seriesCols,
-    { wch: 12 }, { wch: 15 }, { wch: 22 },
+    { wch: 14 },  // RUNNING QTY
+    { wch: 16 },  // RUNNING VALUE
+    { wch: 24 },  // REMARKS
   ];
   ws["!rows"] = [
     { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
@@ -892,29 +923,30 @@ export default function StockSheetsPage({
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: 6 }}>
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              style={{
-                padding: "10px 18px",
-                border: "none",
-                borderRadius: "8px 8px 0 0",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: "pointer",
-                background: activeTab === t.id ? "#e87c27" : "transparent",
-                color: activeTab === t.id ? "#fff" : "#6b7280",
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+    <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: "0 16px 0 0", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
+  <div style={{ display: "flex" }}>
+    {tabs.map((t) => (
+      <button
+        key={t.id}
+        type="button"
+        onClick={() => setActiveTab(t.id)}
+        style={{
+          padding: "14px 20px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          borderBottom: activeTab === t.id ? "3px solid #e87c27" : "3px solid transparent",
+          color: activeTab === t.id ? "#e87c27" : "#9ca3af",
+          fontSize: 14,
+          fontWeight: 700,
+          marginBottom: -2,
+        }}
+      >
+        {t.label}
+      </button>
+    ))}
+  </div>
+  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ position: "relative" }}>
             <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
