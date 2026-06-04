@@ -1384,7 +1384,7 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                     boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                   }}
                 >
-                  {["All Warehouses", "Manila Warehouse", "Cebu Warehouse", "Davao Warehouse"].map(w => (
+                  {["All Warehouses", "Meycauayan", "Pampanga", "Marilao"].map(w => (
                     <option key={w} value={w}>{w}</option>
                   ))}
                 </select>

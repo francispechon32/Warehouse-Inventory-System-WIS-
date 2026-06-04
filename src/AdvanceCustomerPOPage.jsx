@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import useSort from "./useSort";
 import {
   cellStr,
   cellNum,
@@ -10,6 +11,7 @@ import {
   rowHasData,
   readWorkbookSheet,
 } from "./excelImportUtils";
+import { modalCellInput } from "./modalFormStyles";
 
 function Highlight({ text, query }) {
   if (!query || !text) return <>{String(text)}</>;
@@ -27,7 +29,7 @@ function Highlight({ text, query }) {
 
 const PAGE_SIZE = 8;
 
-const PLACES = ["All locations", "Manila", "Cebu", "Davao"];
+const PLACES = ["All locations", "Meycauayan", "Pampanga", "Marilao"];
 
 /** Optional per-row overrides; otherwise SKU/item come from lineItems. */
 function getSummaryFields(row) {
@@ -291,6 +293,12 @@ function IconCalendar({ size = 16 }) {
 function IconX({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 }
+function IconEdit({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function IconSave({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
+}
 const STATUS_STYLE = {
   Active: { bg: "#dcfce7", color: "#15803d", badgeBg: "#22c55e" },
   Pending: { bg: "#fef3c7", color: "#d97706", badgeBg: "#f59e0b" },
@@ -472,6 +480,74 @@ async function importReservations(file, onDone, onError) {
     onError(err.message || "Import failed.");
   }
 }
+const selectSt = {
+  padding: "11px 32px 11px 14px",
+  fontSize: 14,
+  border: "1px solid #b8bec9",
+  borderRadius: 8,
+  background: "#ffffff",
+  color: "#111827",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  appearance: "none",
+  WebkitAppearance: "none",
+  backgroundImage: "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 8px center",
+  backgroundSize: 14,
+};
+function AcpoInlineEditRow({ row, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ ...row });
+  const set = (k, v) => setDraft(d => {
+    const next = { ...d, [k]: v };
+    const rqty = parseFloat(next.reservedQty) || 0;
+    const cstock = parseFloat(next.currentStock) || 0;
+    next.estEnding = cstock - rqty;
+    return next;
+  });
+  const st = STATUS_STYLE[draft.status] || STATUS_STYLE.Pending;
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600 }}>{draft.transNo}</td>
+      <td style={{ padding: "6px 10px" }}>
+        <input type="date" value={draft.resDate || ""} onChange={e => set("resDate", e.target.value)} {...modalCellInput({ width: 130 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.soWo || ""} onChange={e => set("soWo", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.tdtDr || ""} onChange={e => set("tdtDr", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.customer || ""} onChange={e => set("customer", e.target.value)} {...modalCellInput({ width: 140 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.place || ""} onChange={e => set("place", e.target.value)} {...modalCellInput({ width: 120 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input type="number" min={0} value={draft.reservedQty ?? ""} onChange={e => set("reservedQty", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input type="number" min={0} value={draft.currentStock ?? ""} onChange={e => set("currentStock", parseInt(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 600, color: draft.estEnding < 0 ? "#dc2626" : "#065f46" }}>{draft.estEnding}</td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.approvedBy || ""} onChange={e => set("approvedBy", e.target.value)} {...modalCellInput({ width: 100 })} />
+      </td>
+      <td style={{ padding: "6px 10px", textAlign: "center" }}>
+        <select value={draft.status} onChange={e => set("status", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 100, fontWeight: 700, color: st.color, background: st.bg }}>
+          {["Active","Pending","Completed","Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </td>
+      <td style={{ padding: "6px 8px", textAlign: "center" }}>
+        <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+          <button onClick={() => onSave(draft)} title="Save" style={{ padding: "5px 8px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={13} /></button>
+          <button onClick={onCancel} title="Cancel" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={13} /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
 export default function AdvanceCustomerPOPage() {
   const [searchSku, setSearchSku] = useState("");
   const [reservations, setReservations] = useState(SEED_RESERVATIONS);
@@ -489,6 +565,14 @@ export default function AdvanceCustomerPOPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const { sortBy, setSortBy, applySort } = useSort("resDate", "customer");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const handleSaveEdit = (updated) => {
+    setReservations(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+    setEditingId(null);
+    showToast("Reservation updated successfully.");
+  };
 
   const filtered = useMemo(() => {
     let rows = reservations;
@@ -525,8 +609,9 @@ export default function AdvanceCustomerPOPage() {
     }
   }, [filtered, selectedId]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paged = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const selected = selectedId != null ? reservations.find((r) => r.id === selectedId) : null;
   const panelLines = selected
@@ -616,11 +701,39 @@ export default function AdvanceCustomerPOPage() {
       </div>
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+              </svg>
+            </button>
+            {sortOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+                {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                  <div key={val} onClick={() => { setSortBy(val); setCurrentPage(1); setSortOpen(false); }}
+                    style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                    onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
+                  >
+                    <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                    <span>{text}</span>
+                    {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+            {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+          </span>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-                {["TRANS NO.", "RESERVATION DATE", "SO#/WO#", "TDT DR#", "CUSTOMER'S NAME", "PLACE OF DELIVERY", "RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE", "APPROVED BY", "STATUS"].map((h) => (
+                {["TRANS NO.", "RESERVATION DATE", "SO#/WO#", "TDT DR#", "CUSTOMER'S NAME", "PLACE OF DELIVERY", "RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE", "APPROVED BY", "STATUS", "ACTION"].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -641,7 +754,7 @@ export default function AdvanceCustomerPOPage() {
             <tbody>
               {paged.length === 0 && (
                 <tr>
-                  <td colSpan={11} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af", fontSize: 14 }}>
+                  <td colSpan={12} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af", fontSize: 14 }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
                     No results found for <strong style={{ color: "#374151" }}>"{searchSku || "your filters"}"</strong>
                     <div style={{ fontSize: 12, marginTop: 4 }}>Try a different search term or clear your filters.</div>
@@ -649,6 +762,9 @@ export default function AdvanceCustomerPOPage() {
                 </tr>
               )}
               {paged.map((row, idx) => {
+                if (editingId === row.id) {
+                  return <AcpoInlineEditRow key={row.id} row={row} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
+                }
                 const st = STATUS_STYLE[row.status] || STATUS_STYLE.Pending;
                 const isSel = selectedId === row.id;
                 return (
@@ -684,6 +800,11 @@ export default function AdvanceCustomerPOPage() {
                         {row.status}
                       </span>
                     </td>
+                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                        <IconEdit size={12} /> Edit
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -693,7 +814,7 @@ export default function AdvanceCustomerPOPage() {
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} Advance Customer PO — May 2026
+            Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length} Advance Customer PO — May 2026
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage === 1 ? "not-allowed" : "pointer", opacity: currentPage === 1 ? 0.4 : 1 }}>

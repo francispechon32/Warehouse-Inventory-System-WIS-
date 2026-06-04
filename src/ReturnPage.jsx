@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import useSort from "./useSort";
+import { modalCellInput } from "./modalFormStyles";
 import {
   cellStr,
   cellNum,
@@ -30,7 +32,7 @@ const PAGE_SIZE = 5;
 const STATUS_OPTS = ["All Status", "Approved", "Pending", "Received"];
 const DISP_OPTS = ["All Dispositions", "Restock", "Scrap", "Credit memo"];
 const REASON_OPTS = ["All Reasons", "Damaged During Delivery", "Wrong item", "Customer cancel", "Quality hold"];
-const WAREHOUSE_OPTS = ["All Warehouses", "Manila Warehouse", "Cebu Warehouse", "Davao Warehouse"];
+const WAREHOUSE_OPTS = ["All Warehouses", "Meycauayan", "Pampanga", "Marilao"];
 
 function fmtPHP(n) {
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -42,60 +44,60 @@ function formatDate(iso) {
 }
 
 const SEED_RETURNS = [
-  { id: 1, transNo: "011", returnDate: "2026-05-06", drNo: "DR26030", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g4", qtyReturned: 110, unitCost: 520, totalCost: 57200, customer: "Michael Santiago", reason: "Damaged During Delivery", totalQtyOut: 20, qtyBalance: 90, amountBalance: 46800, disposition: "Restock", status: "Received", returnNo: "RTN25031", warehouse: "Manila Warehouse", lineItems: [
+  { id: 1, transNo: "011", returnDate: "2026-05-06", drNo: "DR26030", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g4", qtyReturned: 110, unitCost: 520, totalCost: 57200, customer: "Michael Santiago", reason: "Damaged During Delivery", totalQtyOut: 20, qtyBalance: 90, amountBalance: 46800, disposition: "Restock", status: "Received", returnNo: "RTN25031", warehouse: "Meycauayan", lineItems: [
     { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 40, unit: 520, val: 20800 },
     { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 35, unit: 520, val: 18200 },
     { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 35, unit: 520, val: 18200 },
   ]},
-  { id: 2, transNo: "012", returnDate: "2026-05-07", drNo: "DR25888", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g40", qtyReturned: 24, unitCost: 346.73, totalCost: 8321.52, customer: "RCM Builders", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 24, amountBalance: 8321.52, disposition: "Credit memo", status: "Approved", returnNo: "RTN25032", warehouse: "Manila Warehouse", lineItems: [
+  { id: 2, transNo: "012", returnDate: "2026-05-07", drNo: "DR25888", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g40", qtyReturned: 24, unitCost: 346.73, totalCost: 8321.52, customer: "RCM Builders", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 24, amountBalance: 8321.52, disposition: "Credit memo", status: "Approved", returnNo: "RTN25032", warehouse: "Meycauayan", lineItems: [
     { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g40", qty: 24, unit: 346.73, val: 8321.52 },
   ]},
-  { id: 3, transNo: "013", returnDate: "2026-05-08", drNo: "DR25900", sku: "SHPT2", item: "Sheet Pile T2, 400mm x 100mm", qtyReturned: 3, unitCost: 22529.66, totalCost: 67588.98, customer: "Prime Builders Corp.", reason: "Quality hold", totalQtyOut: 1, qtyBalance: 2, amountBalance: 45059.32, disposition: "Scrap", status: "Pending", returnNo: "RTN25033", warehouse: "Cebu Warehouse", lineItems: [
+  { id: 3, transNo: "013", returnDate: "2026-05-08", drNo: "DR25900", sku: "SHPT2", item: "Sheet Pile T2, 400mm x 100mm", qtyReturned: 3, unitCost: 22529.66, totalCost: 67588.98, customer: "Prime Builders Corp.", reason: "Quality hold", totalQtyOut: 1, qtyBalance: 2, amountBalance: 45059.32, disposition: "Scrap", status: "Pending", returnNo: "RTN25033", warehouse: "Pampanga", lineItems: [
     { code: "SHPT2", desc: "Sheet Pile T2, 400mm x 100mm", qty: 3, unit: 22529.66, val: 67588.98 },
   ]},
-  { id: 4, transNo: "014", returnDate: "2026-05-09", drNo: "DR25912", sku: "MSP010", item: "MS Plate, 6mm x 4' x 8'", qtyReturned: 8, unitCost: 554.79, totalCost: 4438.32, customer: "EGB Construction", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 8, amountBalance: 4438.32, disposition: "Restock", status: "Received", returnNo: "RTN25034", warehouse: "Manila Warehouse", lineItems: [
+  { id: 4, transNo: "014", returnDate: "2026-05-09", drNo: "DR25912", sku: "MSP010", item: "MS Plate, 6mm x 4' x 8'", qtyReturned: 8, unitCost: 554.79, totalCost: 4438.32, customer: "EGB Construction", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 8, amountBalance: 4438.32, disposition: "Restock", status: "Received", returnNo: "RTN25034", warehouse: "Meycauayan", lineItems: [
     { code: "MSP010", desc: "MS Plate, 6mm x 4' x 8'", qty: 8, unit: 554.79, val: 4438.32 },
   ]},
-  { id: 5, transNo: "015", returnDate: "2026-05-10", drNo: "DR25920", sku: "WF10833", item: "Wide Flange, 10 x 8 x 33# x 6M", qtyReturned: 2, unitCost: 12300, totalCost: 24600, customer: "Sunway Construction Inc.", reason: "Customer cancel", totalQtyOut: 0, qtyBalance: 2, amountBalance: 24600, disposition: "Credit memo", status: "Approved", returnNo: "RTN26031", warehouse: "Manila Warehouse", lineItems: [
+  { id: 5, transNo: "015", returnDate: "2026-05-10", drNo: "DR25920", sku: "WF10833", item: "Wide Flange, 10 x 8 x 33# x 6M", qtyReturned: 2, unitCost: 12300, totalCost: 24600, customer: "Sunway Construction Inc.", reason: "Customer cancel", totalQtyOut: 0, qtyBalance: 2, amountBalance: 24600, disposition: "Credit memo", status: "Approved", returnNo: "RTN26031", warehouse: "Meycauayan", lineItems: [
     { code: "WF10833", desc: "Wide Flange, 10 x 8 x 33# x 6M", qty: 2, unit: 12300, val: 24600 },
   ]},
-  { id: 6, transNo: "016", returnDate: "2026-05-11", drNo: "DR25931", sku: "DRB007", item: "Deformed Round Bar, 10mm x 6M g33", qtyReturned: 50, unitCost: 138.6, totalCost: 6930, customer: "Talde Construction Inc.", reason: "Damaged During Delivery", totalQtyOut: 10, qtyBalance: 40, amountBalance: 5544, disposition: "Restock", status: "Pending", returnNo: "RTN26032", warehouse: "Cebu Warehouse", lineItems: [
+  { id: 6, transNo: "016", returnDate: "2026-05-11", drNo: "DR25931", sku: "DRB007", item: "Deformed Round Bar, 10mm x 6M g33", qtyReturned: 50, unitCost: 138.6, totalCost: 6930, customer: "Talde Construction Inc.", reason: "Damaged During Delivery", totalQtyOut: 10, qtyBalance: 40, amountBalance: 5544, disposition: "Restock", status: "Pending", returnNo: "RTN26032", warehouse: "Pampanga", lineItems: [
     { code: "DRB007", desc: "Deformed Round Bar, 10mm x 6M g33", qty: 50, unit: 138.6, val: 6930 },
   ]},
-  { id: 7, transNo: "017", returnDate: "2026-05-12", drNo: "DR25940", sku: "GP3302", item: 'GI pipe 1"', qtyReturned: 12, unitCost: 1380, totalCost: 16560, customer: "Brencon Developers Phils.", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 12, amountBalance: 16560, disposition: "Scrap", status: "Received", returnNo: "RTN26033", warehouse: "Manila Warehouse", lineItems: [
+  { id: 7, transNo: "017", returnDate: "2026-05-12", drNo: "DR25940", sku: "GP3302", item: 'GI pipe 1"', qtyReturned: 12, unitCost: 1380, totalCost: 16560, customer: "Brencon Developers Phils.", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 12, amountBalance: 16560, disposition: "Scrap", status: "Received", returnNo: "RTN26033", warehouse: "Meycauayan", lineItems: [
     { code: "GP3302", desc: 'GI pipe 1"', qty: 12, unit: 1380, val: 16560 },
   ]},
-  { id: 8, transNo: "018", returnDate: "2026-05-13", drNo: "DR25955", sku: "DRB020", item: "Deformed Round Bar, 20mm x 6M g60", qtyReturned: 15, unitCost: 539.31, totalCost: 8089.65, customer: "EC Structural Composite Inc.", reason: "Quality hold", totalQtyOut: 5, qtyBalance: 10, amountBalance: 5393.1, disposition: "Restock", status: "Approved", returnNo: "RTN26034", warehouse: "Manila Warehouse", lineItems: [
+  { id: 8, transNo: "018", returnDate: "2026-05-13", drNo: "DR25955", sku: "DRB020", item: "Deformed Round Bar, 20mm x 6M g60", qtyReturned: 15, unitCost: 539.31, totalCost: 8089.65, customer: "EC Structural Composite Inc.", reason: "Quality hold", totalQtyOut: 5, qtyBalance: 10, amountBalance: 5393.1, disposition: "Restock", status: "Approved", returnNo: "RTN26034", warehouse: "Meycauayan", lineItems: [
     { code: "DRB020", desc: "Deformed Round Bar, 20mm x 6M g60", qty: 15, unit: 539.31, val: 8089.65 },
   ]},
-  { id: 9, transNo: "019", returnDate: "2026-05-14", drNo: "DR25960", sku: "RECT24", item: "GI Rectangular Tube, 2 x 4 x 2mm x 6M", qtyReturned: 6, unitCost: 1380, totalCost: 8280, customer: "Aremar Construction Corp.", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 6, amountBalance: 8280, disposition: "Credit memo", status: "Pending", returnNo: "RTN26035", warehouse: "Davao Warehouse", lineItems: [
+  { id: 9, transNo: "019", returnDate: "2026-05-14", drNo: "DR25960", sku: "RECT24", item: "GI Rectangular Tube, 2 x 4 x 2mm x 6M", qtyReturned: 6, unitCost: 1380, totalCost: 8280, customer: "Aremar Construction Corp.", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 6, amountBalance: 8280, disposition: "Credit memo", status: "Pending", returnNo: "RTN26035", warehouse: "Marilao", lineItems: [
     { code: "RECT24", desc: "GI Rectangular Tube, 2 x 4 x 2mm x 6M", qty: 6, unit: 1380, val: 8280 },
   ]},
-  { id: 10, transNo: "020", returnDate: "2026-05-15", drNo: "DR25970", sku: "51181", item: "Wide Flange, 10 x 8 x 33# x 6M", qtyReturned: 4, unitCost: 12300, totalCost: 49200, customer: "Aguila Simbulan Partners", reason: "Customer cancel", totalQtyOut: 0, qtyBalance: 4, amountBalance: 49200, disposition: "Restock", status: "Received", returnNo: "RTN26036", warehouse: "Manila Warehouse", lineItems: [
+  { id: 10, transNo: "020", returnDate: "2026-05-15", drNo: "DR25970", sku: "51181", item: "Wide Flange, 10 x 8 x 33# x 6M", qtyReturned: 4, unitCost: 12300, totalCost: 49200, customer: "Aguila Simbulan Partners", reason: "Customer cancel", totalQtyOut: 0, qtyBalance: 4, amountBalance: 49200, disposition: "Restock", status: "Received", returnNo: "RTN26036", warehouse: "Meycauayan", lineItems: [
     { code: "51181", desc: "Wide Flange, 10 x 8 x 33# x 6M", qty: 4, unit: 12300, val: 49200 },
   ]},
-  { id: 11, transNo: "021", returnDate: "2026-05-16", drNo: "DR25980", sku: "DRB032", item: "Deformed Round Bar, 32mm x 6M g60", qtyReturned: 22, unitCost: 1479, totalCost: 32538, customer: "SUNWAY CONSTRUCTION INC.", reason: "Wrong item", totalQtyOut: 2, qtyBalance: 20, amountBalance: 29580, disposition: "Scrap", status: "Approved", returnNo: "RTN26037", warehouse: "Manila Warehouse", lineItems: [
+  { id: 11, transNo: "021", returnDate: "2026-05-16", drNo: "DR25980", sku: "DRB032", item: "Deformed Round Bar, 32mm x 6M g60", qtyReturned: 22, unitCost: 1479, totalCost: 32538, customer: "SUNWAY CONSTRUCTION INC.", reason: "Wrong item", totalQtyOut: 2, qtyBalance: 20, amountBalance: 29580, disposition: "Scrap", status: "Approved", returnNo: "RTN26037", warehouse: "Meycauayan", lineItems: [
     { code: "DRB032", desc: "Deformed Round Bar, 32mm x 6M g60", qty: 22, unit: 1479, val: 32538 },
   ]},
-  { id: 12, transNo: "022", returnDate: "2026-05-17", drNo: "DR25990", sku: "SQ22", item: "GI Square Tube, 2 x 2 x 2mm x 6M", qtyReturned: 10, unitCost: 880, totalCost: 8800, customer: "PRIME BUILDERS CORP.", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 10, amountBalance: 8800, disposition: "Restock", status: "Pending", returnNo: "RTN26038", warehouse: "Cebu Warehouse", lineItems: [
+  { id: 12, transNo: "022", returnDate: "2026-05-17", drNo: "DR25990", sku: "SQ22", item: "GI Square Tube, 2 x 2 x 2mm x 6M", qtyReturned: 10, unitCost: 880, totalCost: 8800, customer: "PRIME BUILDERS CORP.", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 10, amountBalance: 8800, disposition: "Restock", status: "Pending", returnNo: "RTN26038", warehouse: "Pampanga", lineItems: [
     { code: "SQ22", desc: "GI Square Tube, 2 x 2 x 2mm x 6M", qty: 10, unit: 880, val: 8800 },
   ]},
-  { id: 13, transNo: "023", returnDate: "2026-05-18", drNo: "DR26001", sku: "SHPT3", item: "Sheet Pile T3, 400mm x 125mm", qtyReturned: 1, unitCost: 28271.06, totalCost: 28271.06, customer: "EC STRUCTURAL COMPOSITE INC.", reason: "Quality hold", totalQtyOut: 0, qtyBalance: 1, amountBalance: 28271.06, disposition: "Scrap", status: "Received", returnNo: "RTN26039", warehouse: "Manila Warehouse", lineItems: [
+  { id: 13, transNo: "023", returnDate: "2026-05-18", drNo: "DR26001", sku: "SHPT3", item: "Sheet Pile T3, 400mm x 125mm", qtyReturned: 1, unitCost: 28271.06, totalCost: 28271.06, customer: "EC STRUCTURAL COMPOSITE INC.", reason: "Quality hold", totalQtyOut: 0, qtyBalance: 1, amountBalance: 28271.06, disposition: "Scrap", status: "Received", returnNo: "RTN26039", warehouse: "Meycauayan", lineItems: [
     { code: "SHPT3", desc: "Sheet Pile T3, 400mm x 125mm", qty: 1, unit: 28271.06, val: 28271.06 },
   ]},
-  { id: 14, transNo: "024", returnDate: "2026-05-19", drNo: "DR26010", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g40", qtyReturned: 100, unitCost: 346.73, totalCost: 34673, customer: "BRENCON DEVELOPERS PHILS.", reason: "Customer cancel", totalQtyOut: 40, qtyBalance: 60, amountBalance: 20803.8, disposition: "Credit memo", status: "Approved", returnNo: "RTN26040", warehouse: "Manila Warehouse", lineItems: [
+  { id: 14, transNo: "024", returnDate: "2026-05-19", drNo: "DR26010", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g40", qtyReturned: 100, unitCost: 346.73, totalCost: 34673, customer: "BRENCON DEVELOPERS PHILS.", reason: "Customer cancel", totalQtyOut: 40, qtyBalance: 60, amountBalance: 20803.8, disposition: "Credit memo", status: "Approved", returnNo: "RTN26040", warehouse: "Meycauayan", lineItems: [
     { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g40", qty: 100, unit: 346.73, val: 34673 },
   ]},
-  { id: 15, transNo: "025", returnDate: "2026-05-20", drNo: "DR26015", sku: "MSP018", item: "MS Plate, 12mm x 4' x 8'", qtyReturned: 4, unitCost: 1200, totalCost: 4800, customer: "RCM BUILDERS", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 4, amountBalance: 4800, disposition: "Restock", status: "Pending", returnNo: "RTN26041", warehouse: "Manila Warehouse", lineItems: [
+  { id: 15, transNo: "025", returnDate: "2026-05-20", drNo: "DR26015", sku: "MSP018", item: "MS Plate, 12mm x 4' x 8'", qtyReturned: 4, unitCost: 1200, totalCost: 4800, customer: "RCM BUILDERS", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 4, amountBalance: 4800, disposition: "Restock", status: "Pending", returnNo: "RTN26041", warehouse: "Meycauayan", lineItems: [
     { code: "MSP018", desc: "MS Plate, 12mm x 4' x 8'", qty: 4, unit: 1200, val: 4800 },
   ]},
-  { id: 16, transNo: "026", returnDate: "2026-05-21", drNo: "DR26022", sku: "JINXI", item: "Sheet Pile Z - Pile 770mm", qtyReturned: 2, unitCost: 41838.53, totalCost: 83677.06, customer: "TALDE CONSTRUCTION INC.", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 2, amountBalance: 83677.06, disposition: "Credit memo", status: "Received", returnNo: "RTN26042", warehouse: "Manila Warehouse", lineItems: [
+  { id: 16, transNo: "026", returnDate: "2026-05-21", drNo: "DR26022", sku: "JINXI", item: "Sheet Pile Z - Pile 770mm", qtyReturned: 2, unitCost: 41838.53, totalCost: 83677.06, customer: "TALDE CONSTRUCTION INC.", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 2, amountBalance: 83677.06, disposition: "Credit memo", status: "Received", returnNo: "RTN26042", warehouse: "Meycauayan", lineItems: [
     { code: "JINXI", desc: "Sheet Pile Z - Pile 770mm", qty: 2, unit: 41838.53, val: 83677.06 },
   ]},
-  { id: 17, transNo: "027", returnDate: "2026-05-22", drNo: "DR26028", sku: "DRB050", item: "Deformed Round Bar, 10mm x 6M g40", qtyReturned: 30, unitCost: 136.6, totalCost: 4098, customer: "AREMAR CONSTRUCTION CORP.", reason: "Quality hold", totalQtyOut: 0, qtyBalance: 30, amountBalance: 4098, disposition: "Restock", status: "Approved", returnNo: "RTN26043", warehouse: "Davao Warehouse", lineItems: [
+  { id: 17, transNo: "027", returnDate: "2026-05-22", drNo: "DR26028", sku: "DRB050", item: "Deformed Round Bar, 10mm x 6M g40", qtyReturned: 30, unitCost: 136.6, totalCost: 4098, customer: "AREMAR CONSTRUCTION CORP.", reason: "Quality hold", totalQtyOut: 0, qtyBalance: 30, amountBalance: 4098, disposition: "Restock", status: "Approved", returnNo: "RTN26043", warehouse: "Marilao", lineItems: [
     { code: "DRB050", desc: "Deformed Round Bar, 10mm x 6M g40", qty: 30, unit: 136.6, val: 4098 },
   ]},
-  { id: 18, transNo: "028", returnDate: "2026-05-23", drNo: "DR26035", sku: "WF016", item: "Wide Flange, 8 x 4 x 10# x 6M", qtyReturned: 6, unitCost: 9800, totalCost: 58800, customer: "SUNWAY CONSTRUCTION INC.", reason: "Damaged During Delivery", totalQtyOut: 1, qtyBalance: 5, amountBalance: 49000, disposition: "Scrap", status: "Pending", returnNo: "RTN26044", warehouse: "Manila Warehouse", lineItems: [
+  { id: 18, transNo: "028", returnDate: "2026-05-23", drNo: "DR26035", sku: "WF016", item: "Wide Flange, 8 x 4 x 10# x 6M", qtyReturned: 6, unitCost: 9800, totalCost: 58800, customer: "SUNWAY CONSTRUCTION INC.", reason: "Damaged During Delivery", totalQtyOut: 1, qtyBalance: 5, amountBalance: 49000, disposition: "Scrap", status: "Pending", returnNo: "RTN26044", warehouse: "Meycauayan", lineItems: [
     { code: "WF016", desc: "Wide Flange, 8 x 4 x 10# x 6M", qty: 6, unit: 9800, val: 58800 },
   ]},
 ];
@@ -118,6 +120,28 @@ function IconChevronRight({ size = 14 }) {
 function IconX({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 }
+function IconEdit({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function IconSave({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
+}
+
+const selectSt = {
+  padding: "11px 32px 11px 14px",
+  fontSize: 14,
+  border: "1px solid #b8bec9",
+  borderRadius: 8,
+  background: "#ffffff",
+  color: "#111827",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  width: "100%",
+  appearance: "none",
+  fontWeight: 500,
+  outline: "none",
+  boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)",
+};
 
 function lineQtySum(lines) {
   return lines.reduce((s, L) => s + L.qty, 0);
@@ -155,7 +179,7 @@ function formatReturnExportDate(iso) {
 /** Same 12 columns as the on-screen table (COLS). */
 const RETURN_TABLE_COLS = [
   "TRANS #", "RETURN DATE", "DR#", "SKU", "ITEM", "QTY RETURNED",
-  "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "DISPOSITION", "STATUS",
+  "UNIT COST", "TOTAL COST", "CUSTOMER NAME", "REASON", "DISPOSITION", "STATUS", "ACTION",
 ];
 
 function returnTransSlot(index, base = 11) {
@@ -392,7 +416,7 @@ async function importReturns(file, onDone, onError) {
         disposition,
         status,
         returnNo: "",
-        warehouse: "Manila Warehouse",
+        warehouse: "Meycauayan",
         lineItems: [],
       });
     }
@@ -402,6 +426,70 @@ async function importReturns(file, onDone, onError) {
   } catch (err) {
     onError(err.message || "Import failed.");
   }
+}
+
+function ReturnInlineEditRow({ row, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ ...row });
+  const set = (k, v) => setDraft(d => {
+    const next = { ...d, [k]: v };
+    next.totalCost = (parseFloat(next.qtyReturned)||0) * (parseFloat(next.unitCost)||0);
+    return next;
+  });
+  const st = STATUS_STYLE[draft.status] || STATUS_STYLE.Pending;
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding: "12px 10px 12px 20px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{draft.transNo}</td>
+      <td style={{ padding: "6px 10px" }}>
+        <input type="date" value={draft.returnDate || ""} onChange={e => set("returnDate", e.target.value)} {...modalCellInput({ width: 130 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.drNo || ""} onChange={e => set("drNo", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.sku || ""} onChange={e => set("sku", e.target.value)} {...modalCellInput({ width: 90 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.item || ""} onChange={e => set("item", e.target.value)} {...modalCellInput({ width: 160 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input type="number" min={0} value={draft.qtyReturned ?? ""} onChange={e => set("qtyReturned", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input type="number" min={0} step="0.01" value={draft.unitCost ?? ""} onChange={e => set("unitCost", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 90, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(draft.totalCost)}</td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.customer || ""} onChange={e => set("customer", e.target.value)} {...modalCellInput({ width: 120 })} />
+      </td>
+      <td style={{ padding: "2px 10px" }}>
+        <select value={draft.reason} onChange={e => set("reason", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 130 }}>
+          <option value="Damaged During Delivery">Damaged</option>
+          <option value="Wrong Item">Wrong Item</option>
+          <option value="Defective Product">Defective</option>
+          <option value="Customer Return">Customer Return</option>
+          <option value="Others">Others</option>
+        </select>
+      </td>
+      <td style={{ padding: "2px 10px" }}>
+        <select value={draft.disposition} onChange={e => set("disposition", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 100 }}>
+          <option value="Restock">Restock</option>
+          <option value="Scrap">Scrap</option>
+          <option value="Return to Supplier">Return to Supplier</option>
+        </select>
+      </td>
+      <td style={{ padding: "6px 10px", textAlign: "center" }}>
+        <select value={draft.status} onChange={e => set("status", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 100, fontWeight: 700, color: st.color, background: st.bg }}>
+          {["Approved","Pending","Received","Rejected","Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </td>
+      <td style={{ padding: "6px 8px", textAlign: "center" }}>
+        <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+          <button onClick={() => onSave(draft)} title="Save" style={{ padding: "5px 8px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={13} /></button>
+          <button onClick={onCancel} title="Cancel" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={13} /></button>
+        </div>
+      </td>
+    </tr>
+  );
 }
 
 export default function ReturnPage() {
@@ -418,9 +506,17 @@ export default function ReturnPage() {
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", disposition: "Restock", warehouse: "Manila Warehouse" });
+  const [createForm, setCreateForm] = useState({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", disposition: "Restock", warehouse: "Meycauayan" });
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const fileInputRef = useRef(null);
+  const { sortBy, setSortBy, applySort } = useSort("returnDate", "item");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const handleSaveEdit = (updated) => {
+    setReturns(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+    setEditingId(null);
+    showToast("Return row updated successfully.");
+  };
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
@@ -472,8 +568,9 @@ export default function ReturnPage() {
     }
   }, [filtered, selectedId]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paged = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const selected = selectedId != null ? returns.find((r) => r.id === selectedId) : null;
 
   const COLS = RETURN_TABLE_COLS;
@@ -511,6 +608,34 @@ export default function ReturnPage() {
       />
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+              </svg>
+            </button>
+            {sortOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+                {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                  <div key={val} onClick={() => { setSortBy(val); setCurrentPage(1); setSortOpen(false); }}
+                    style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                    onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
+                  >
+                    <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                    <span>{text}</span>
+                    {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+            {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+          </span>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
@@ -534,13 +659,16 @@ export default function ReturnPage() {
             </thead>
             <tbody>
               {paged.length === 0 && (
-                <tr><td colSpan={12} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
+                <tr><td colSpan={13} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
                   No results found for <strong style={{ color: "#374151" }}>"{searchQuery || "your filters"}"</strong>
                   <div style={{ fontSize: 12, marginTop: 4 }}>Try a different search term or clear your filters.</div>
                 </td></tr>
               )}
               {paged.map((row, idx) => {
+                if (editingId === row.id) {
+                  return <ReturnInlineEditRow key={row.id} row={row} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
+                }
                 const isSel = selectedId === row.id;
                 return (
                   <tr
@@ -572,6 +700,11 @@ export default function ReturnPage() {
                         {row.status}
                       </span>
                     </td>
+                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                        <IconEdit size={12} /> Edit
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -580,7 +713,7 @@ export default function ReturnPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} Purchase Orders — May 2026
+            Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length} Purchase Orders — May 2026
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage === 1 ? "not-allowed" : "pointer", opacity: currentPage === 1 ? 0.4 : 1 }}><IconChevronLeft size={14} /></button>
@@ -686,7 +819,7 @@ export default function ReturnPage() {
                 { label: "Qty Returned", key: "qtyReturned", type: "number", placeholder: "0" },
                 { label: "Unit Cost (₱)", key: "unitCost", type: "number", placeholder: "0.00" },
                 { label: "Customer Name", key: "customer", type: "text", placeholder: "e.g. RCM Builders" },
-                { label: "Warehouse", key: "warehouse", type: "select", options: ["Manila Warehouse", "Cebu Warehouse", "Davao Warehouse"] },
+                { label: "Warehouse", key: "warehouse", type: "select", options: ["Meycauayan", "Pampanga", "Marilao"] },
                 { label: "Return Reason", key: "reason", type: "select", options: ["Damaged During Delivery", "Wrong item", "Customer cancel", "Quality hold"] },
                 { label: "Disposition", key: "disposition", type: "select", options: ["Restock", "Scrap", "Credit memo"] },
               ].map(({ label, key, type, placeholder, options }) => (
@@ -749,7 +882,7 @@ export default function ReturnPage() {
                 };
                 setReturns(prev => [newReturn, ...prev]);
                 setShowCreate(false);
-                setCreateForm({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", disposition: "Restock", warehouse: "Manila Warehouse" });
+                setCreateForm({ returnDate: "", drNo: "", sku: "", item: "", qtyReturned: "", unitCost: "", customer: "", reason: "Damaged During Delivery", disposition: "Restock", warehouse: "Meycauayan" });
                 setToast({ msg: "Return created successfully.", type: "success" });
                 setTimeout(() => setToast(null), 3000);
               }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>

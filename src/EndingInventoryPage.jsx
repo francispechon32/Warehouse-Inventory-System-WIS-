@@ -1,6 +1,7 @@
 ﻿import { useState, useRef, useMemo, useEffect } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import useSort from "./useSort";
 import {
   cellStr,
   cellNum,
@@ -580,6 +581,8 @@ const [statusFilter, setStatusFilter] = useState("All Remarks");
   const [showAddModal, setShowAddModal] = useState(false);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const fileInputRef = useRef(null);
+  const { sortBy, setSortBy, applySort } = useSort("lastAcceptanceDate", "productDescription");
+  const [sortOpen, setSortOpen] = useState(false);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
@@ -602,9 +605,11 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
     return d;
   }, [inventoryData, searchQuery, statusFilter, dateRange]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const startIdx = (currentPage-1)*PAGE_SIZE;
-  const paged = filtered.slice(startIdx, startIdx+PAGE_SIZE);
+  const paged = sorted.slice(startIdx, startIdx+PAGE_SIZE);
 
   const handleImportWis = (e) => {
     const file = e.target.files[0];
@@ -684,6 +689,35 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
         ))}
       </div>
 
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+            </svg>
+          </button>
+          {sortOpen && (
+            <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+              {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                <div key={val} onClick={() => { setSortBy(val); setCurrentPage(1); setSortOpen(false); }}
+                  style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                  onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
+                >
+                  <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                  <span>{text}</span>
+                  {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+        <span style={{ fontSize: 12, color: "#9ca3af" }}>
+          {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+        </span>
+      </div>
+
       {/* Table */}
 <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginTop: 0 }}>        <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -761,7 +795,7 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {filtered.length===0?0:startIdx+1}–{Math.min(startIdx+PAGE_SIZE,filtered.length)} of {filtered.length} SKUs
+            Showing {sorted.length===0?0:startIdx+1}–{Math.min(startIdx+PAGE_SIZE,sorted.length)} of {sorted.length} SKUs
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button onClick={() => setCurrentPage(p => Math.max(1,p-1))} disabled={currentPage===1}

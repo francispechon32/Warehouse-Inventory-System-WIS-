@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import useSort from "./useSort";
 import {
   cellStr,
   cellNum,
@@ -65,6 +66,15 @@ function fmtPHP(n) {
   if (!n && n !== 0) return "—";
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+/* ─── QTY-OUT HISTORY SEED DATA ── */
+const SEED_QTY_OUT = [
+  { id: 1, itemId: 8,  qty: 10, date: "2025-12-10" },
+  { id: 2, itemId: 10, qty: 5,  date: "2026-02-15" },
+  { id: 3, itemId: 11, qty: 80, date: "2026-03-05" },
+  { id: 4, itemId: 11, qty: 120, date: "2026-03-12" },
+  { id: 5, itemId: 9,  qty: 3,  date: "2026-01-20" },
+];
 
 /* ─── ICONS ── */
 function IconSearch({ size = 16 }) {
@@ -210,7 +220,7 @@ function formatBackloadShortDate(iso) {
   return `${String(d.getDate()).padStart(2, "0")}-${months[d.getMonth()]}`;
 }
 
-function exportBackload(rows) {
+function exportBackload(rows, qtyOutRecords = []) {
   const wb = XLSX.utils.book_new();
   const C = (r, c) => XLSX.utils.encode_cell({ r, c });
 
@@ -379,6 +389,82 @@ function exportBackload(rows) {
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, "BACKLOAD INVENTORY");
+
+  /* ─── QTY-OUT HISTORY SHEET ── */
+  if (qtyOutRecords.length > 0) {
+    const ws2 = {};
+    const put2 = (r, c, v, t, style) => { ws2[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s: style }; };
+    const qtyOutHdrs = ["ITEM"];
+    for (let i = 0; i < OUT_TRACK_PAIRS; i++) qtyOutHdrs.push("QTY-OUT", "DATE");
+
+    const sheetFill2 = { patternType: "solid", fgColor: { rgb: "FFF9E6" } };
+    const greenFill2 = { patternType: "solid", fgColor: { rgb: "E2EFDA" } };
+    const peachFill2 = { patternType: "solid", fgColor: { rgb: "FCE4D6" } };
+    const hdrFill2 = { patternType: "solid", fgColor: { rgb: "D6DCE4" } };
+    const cellBorder2 = {
+      top: { style: "thin", color: { rgb: "000000" } },
+      bottom: { style: "thin", color: { rgb: "000000" } },
+      left: { style: "thin", color: { rgb: "000000" } },
+      right: { style: "thin", color: { rgb: "000000" } },
+    };
+    const cell2 = (fill, alignment, extra = {}) => ({ font: f.body(), fill, alignment, border: cellBorder2, ...extra });
+
+    put2(0, 0, "TDT", "s", { font: f.brand(), alignment: padLeft, fill: sheetFill2 });
+    put2(0, 1, "POWERSTEEL", "s", { font: f.brandDark(), alignment: { ...padLeft, indent: 0 }, fill: sheetFill2 });
+    put2(1, 0, "QTY-OUT HISTORY", "s", { font: f.title(), alignment: padLeft, fill: sheetFill2 });
+    put2(2, 0, `AS OF THIS DATE OF: ${now}`, "s", { font: f.meta(), alignment: padLeft, fill: sheetFill2 });
+
+    const qtyOutHdrStyle = (ci) => ({
+      font: f.hdr(),
+      fill: ci === 0 ? hdrFill2 : (ci - 1) % 2 === 1 ? greenFill2 : peachFill2,
+      alignment: padCenter,
+      border: cellBorder2,
+    });
+    qtyOutHdrs.forEach((h, ci) => put2(4, ci, h, "s", qtyOutHdrStyle(ci)));
+
+    const itemIds = [...new Set(qtyOutRecords.map(r => r.itemId))];
+    itemIds.forEach((itemId, idx) => {
+      const ri = 5 + idx;
+      const item = rows.find(r => r.id === itemId);
+      put2(ri, 0, item?.item || `Item #${itemId}`, "s", cell2(sheetFill2, padLeft, { font: f.item() }));
+      const itemRecords = qtyOutRecords.filter(r => r.itemId === itemId);
+      for (let p = 0; p < OUT_TRACK_PAIRS; p++) {
+        const rec = itemRecords[p];
+        const qtyCol = 1 + p * 2;
+        const dateCol = qtyCol + 1;
+        if (rec) {
+          put2(ri, qtyCol, rec.qty, "n", cell2(greenFill2, padCenter, { font: f.body(true), numFmt: qtyFmt }));
+          put2(ri, dateCol, formatBackloadShortDate(rec.date), "s", cell2(peachFill2, padCenter));
+        } else {
+          put2(ri, qtyCol, "", "s", cell2(greenFill2, padCenter));
+          put2(ri, dateCol, "", "s", cell2(peachFill2, padCenter));
+        }
+      }
+    });
+
+    const lastRow2 = 4 + itemIds.length;
+    const lastCol2 = 1 + OUT_TRACK_PAIRS * 2;
+    ws2["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow2, c: lastCol2 });
+    for (let r = 0; r <= lastRow2; r++) {
+      for (let c = 0; c <= lastCol2; c++) {
+        if (!ws2[C(r, c)]) put2(r, c, "", "s", { fill: sheetFill2, border: cellBorder2, alignment: padCenter });
+      }
+    }
+    ws2["!merges"] = [
+      { s: { r: 0, c: 1 }, e: { r: 0, c: lastCol2 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol2 } },
+    ];
+    ws2["!cols"] = [
+      { wch: 50 },
+      ...Array.from({ length: OUT_TRACK_PAIRS }, () => [{ wch: 10 }, { wch: 13 }]).flat(),
+    ];
+    ws2["!rows"] = [
+      { hpt: 26 }, { hpt: 24 }, { hpt: 20 }, { hpt: 12 }, { hpt: 46 },
+      ...itemIds.map(() => ({ hpt: 34 })),
+    ];
+    XLSX.utils.book_append_sheet(wb, ws2, "QTY-OUT HISTORY");
+  }
+
   XLSX.writeFile(wb, "TDT_Backload_Inventory_Summary.xlsx");
 }
 
@@ -435,7 +521,15 @@ export default function BackloadInventoryPage() {
   const [toast, setToast] = useState(null);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [importing, setImporting] = useState(false);
+  const { sortBy, setSortBy, applySort } = useSort("date", "item");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [backloadTab, setBackloadTab] = useState("summary");
+  const [qtyOutRecords, setQtyOutRecords] = useState(SEED_QTY_OUT);
+  const [qtyOutSlotCount, setQtyOutSlotCount] = useState(5);
+  const [editingQtyOutItem, setEditingQtyOutItem] = useState(null);
+  const [qtyOutDraft, setQtyOutDraft] = useState({});
   const nextId = useRef(SEED_BACKLOAD.length + 1);
+  const nextQtyOutId = useRef(SEED_QTY_OUT.length + 1);
   const importFileRef = useRef(null);
 
   const handleImport = (e) => {
@@ -482,8 +576,9 @@ export default function BackloadInventoryPage() {
     return rows;
   }, [data, searchQuery, dateRange]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
+  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paged = sorted.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
 
   const handleSaveEdit = (updated) => {
     setData(d => d.map(r => r.id === updated.id ? updated : r));
@@ -500,8 +595,13 @@ export default function BackloadInventoryPage() {
   // Summary stats
   const totalEntries = data.length;
   const totalValue = data.reduce((s, r) => s + (r.qty * r.unitCost), 0);
-  const totalBalance = data.reduce((s, r) => s + ((r.qty - r.totalQtyOut) * r.unitCost), 0);
-  const totalQtyBalance = data.reduce((s, r) => s + (r.qty - r.totalQtyOut), 0);
+  const qtyOutTotals = useMemo(() => {
+    const m = {};
+    qtyOutRecords.forEach(r => { m[r.itemId] = (m[r.itemId] || 0) + r.qty; });
+    return m;
+  }, [qtyOutRecords]);
+  const totalBalance = data.reduce((s, r) => s + ((r.qty - (qtyOutTotals[r.id] || 0)) * r.unitCost), 0);
+  const totalQtyBalance = data.reduce((s, r) => s + (r.qty - (qtyOutTotals[r.id] || 0)), 0);
 
 const COLS = [
   { label: "TRANS NO.",      align: "center" },
@@ -566,12 +666,47 @@ const COLS = [
           onFileChange: handleImport,
           importing,
           importDisabled: !xlsxReady,
-          onExport: () => exportBackload(data),
+          onExport: () => exportBackload(data, qtyOutRecords),
         }}
       />
 
+      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
+        {[["summary","Backload Inventory Summary"],["qtyout","Qty-Out History"]].map(([key,label]) => (
+          <button key={key} onClick={() => { setBackloadTab(key); setCurrentPage(1); }} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: backloadTab===key?"3px solid #e87c27":"3px solid transparent", color: backloadTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, marginBottom: -2, fontFamily: "inherit" }}>{label}</button>
+        ))}
+      </div>
+
       {/* Table */}
+      {backloadTab === "summary" && (
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+              </svg>
+            </button>
+            {sortOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+                {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                  <div key={val} onClick={() => { setSortBy(val); setCurrentPage(1); setSortOpen(false); }}
+                    style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                    onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
+                  >
+                    <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                    <span>{text}</span>
+                    {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+            {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+          </span>
+        </div>
         <div style={{ overflowX: "auto" }}>
 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>            <thead>
               <tr style={{ background: "#1c2235" }}>
@@ -589,7 +724,8 @@ const COLS = [
                   return <EditableRow key={row.id} row={row} idx={idx} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
                 }
                 const totalCost = row.qty * row.unitCost;
-                const qtyBalance = row.qty - row.totalQtyOut;
+                const rowTotalQtyOut = qtyOutTotals[row.id] || 0;
+                const qtyBalance = row.qty - rowTotalQtyOut;
                 const amtBalance = row.unitCost * qtyBalance;
                 return (
                   <tr key={row.id}
@@ -608,7 +744,7 @@ const COLS = [
                     <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(totalCost)}</td>
 <td title={row.customerName} style={{ padding: "12px 12px", color: "#374151", maxWidth: 160, minWidth: 120, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "default" }}>
   <Highlight text={row.customerName} query={searchQuery} />
-</td>                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{row.totalQtyOut}</td>
+</td>                    <td style={{ padding: "12px 12px", textAlign: "center", fontWeight: rowTotalQtyOut > 0 ? 700 : 400, color: rowTotalQtyOut > 0 ? "#dc2626" : "#9ca3af" }}>{rowTotalQtyOut > 0 ? rowTotalQtyOut : "0"}</td>
                     <td style={{ padding: "12px 12px", textAlign: "center" }}>
                       <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: qtyBalance > 0 ? "#fef3c7" : "#d1fae5", color: qtyBalance > 0 ? "#d97706" : "#065f46" }}>{qtyBalance}</span>
                     </td>
@@ -630,7 +766,7 @@ const COLS = [
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {filtered.length === 0 ? 0 : (currentPage-1)*PAGE_SIZE+1}–{Math.min(currentPage*PAGE_SIZE, filtered.length)} of {filtered.length} entries
+            Showing {sorted.length === 0 ? 0 : (currentPage-1)*PAGE_SIZE+1}–{Math.min(currentPage*PAGE_SIZE, sorted.length)} of {sorted.length} entries
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1}
@@ -650,6 +786,134 @@ const COLS = [
           </div>
         </div>
       </div>
+      )}
+
+      {/* QTY-OUT HISTORY */}
+      {backloadTab === "qtyout" && (
+      <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+        <div style={{ padding: "14px 20px", background: "#1c2235", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#fff", letterSpacing: "0.02em" }}>QTY-OUT HISTORY</h3>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "#93a3c7", fontWeight: 600 }}>Pairs: {qtyOutSlotCount}</span>
+            <button onClick={() => setQtyOutSlotCount(s => Math.min(20, s + 1))} title="Add QTY-OUT/DATE column pair" style={{ padding: "5px 12px", border: "1px solid #16a34a", borderRadius: 5, background: "#f0fdf4", cursor: "pointer", fontSize: 12, color: "#16a34a", fontWeight: 700, fontFamily: "inherit", lineHeight: 1 }}>+ Add Pair</button>
+            <button onClick={() => setQtyOutSlotCount(s => Math.max(1, s - 1))} title="Remove last column pair" disabled={qtyOutSlotCount <= 1} style={{ padding: "5px 12px", border: "1px solid #ef4444", borderRadius: 5, background: "#fef2f2", cursor: qtyOutSlotCount <= 1 ? "not-allowed" : "pointer", fontSize: 12, color: "#ef4444", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, opacity: qtyOutSlotCount <= 1 ? 0.4 : 1 }}>− Remove Pair</button>
+          </div>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          {(() => {
+            if (filtered.length === 0) {
+              return <div style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No inventory items match the current search.</div>;
+            }
+            const slots = qtyOutSlotCount;
+            const itemEntries = filtered.map(item => ({
+              item,
+              entries: qtyOutRecords.filter(r => r.itemId === item.id),
+            }));
+            const overallTotalQtyOut = itemEntries.reduce((s, g) => s + g.entries.reduce((ss, e) => ss + e.qty, 0), 0);
+            return (
+              <div>
+                <div style={{ padding: "8px 20px", borderBottom: "1px solid #f3f4f6" }}>
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>Edit a row below to record stock withdrawals (Qty Out / Date). New entries auto-deduct from available balance.</span>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#1c2235" }}>
+                      <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450", minWidth: 200 }}>ITEM</th>
+                      <th colSpan={slots * 2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, textAlign: "center", borderBottom: "1px solid #2a3450" }}>QTY-OUT / DATE RECORDS</th>
+                      <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 80 }}>TOTAL QTY OUT</th>
+                      <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 60 }}>ACTION</th>
+                    </tr>
+                    <tr style={{ background: "#1c2235" }}>
+                      {Array.from({ length: slots }, (_, i) => (
+                        <>
+                          <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>QTY-OUT</th>
+                          <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center" }}>DATE</th>
+                        </>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemEntries.map((g, gi) => {
+                      const isEditing = editingQtyOutItem === g.item.id;
+                      return (
+                        <tr key={g.item.id}
+                          style={{ borderBottom: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : gi % 2 === 0 ? "#fff" : "#fafafa" }}
+                        >
+                          <td style={{ padding: "10px 14px", color: "#111827", fontWeight: 600, fontSize: 12, textAlign: "left", borderRight: "1px solid #f3f4f6", maxWidth: 300, minWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={g.item.item}>{g.item.item}</td>
+                          {Array.from({ length: slots }, (_, slotIdx) => {
+                            const entry = g.entries[slotIdx];
+                            if (isEditing) {
+                              return (
+                                <>
+                                  <td style={{ padding: "4px 6px", borderRight: "1px solid #f3f4f6" }}>
+                                    <input type="number" min={0} value={qtyOutDraft[`${g.item.id}-${slotIdx}-qty`] ?? entry?.qty ?? ""} onChange={e => setQtyOutDraft(d => ({ ...d, [`${g.item.id}-${slotIdx}-qty`]: parseFloat(e.target.value) || "" }))} placeholder="Qty" {...modalCellInput({ width: 65, textAlign: "right" })} />
+                                  </td>
+                                  <td style={{ padding: "4px 6px" }}>
+                                    <input type="date" value={qtyOutDraft[`${g.item.id}-${slotIdx}-date`] ?? entry?.date ?? ""} onChange={e => setQtyOutDraft(d => ({ ...d, [`${g.item.id}-${slotIdx}-date`]: e.target.value }))} {...modalCellInput({ width: 120 })} />
+                                  </td>
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                <td style={{ padding: "10px 10px", color: entry ? "#dc2626" : "#e5e7eb", fontWeight: entry ? 700 : 400, fontSize: 12, textAlign: "center", borderRight: "1px solid #f3f4f6", minWidth: 70 }}>{entry ? entry.qty : "—"}</td>
+                                <td style={{ padding: "10px 10px", color: entry ? "#374151" : "#e5e7eb", fontWeight: entry ? 500 : 400, fontSize: 11, textAlign: "center", minWidth: 90 }}>{entry ? formatBackloadExportDate(entry.date) : "—"}</td>
+                              </>
+                            );
+                          })}
+                          <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 800, color: g.entries.reduce((s, e) => s + e.qty, 0) > 0 ? "#dc2626" : "#9ca3af", fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fef2f2" }}>{g.entries.reduce((s, e) => s + e.qty, 0)}</td>
+                          <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                            {isEditing ? (
+                              <div style={{ display: "flex", gap: 3, flexDirection: "column", alignItems: "center" }}>
+                                <button onClick={() => {
+                                  const draft = { ...qtyOutDraft };
+                                  const newEntries = [];
+                                  for (let i = 0; i < slots; i++) {
+                                    const q = parseFloat(draft[`${g.item.id}-${i}-qty`]);
+                                    const d = draft[`${g.item.id}-${i}-date`] || "";
+                                    if (q > 0 || d) {
+                                      const existing = g.entries[i];
+                                      newEntries.push({
+                                        id: existing ? existing.id : nextQtyOutId.current++,
+                                        itemId: g.item.id,
+                                        qty: q || 0,
+                                        date: d || existing?.date || "",
+                                      });
+                                    }
+                                  }
+                                  setQtyOutRecords(prev => {
+                                    const other = prev.filter(r => r.itemId !== g.item.id);
+                                    return [...other, ...newEntries];
+                                  });
+                                  setEditingQtyOutItem(null);
+                                  setQtyOutDraft({});
+                                  showToast("Qty-Out History updated. Balances auto-adjusted.");
+                                }} title="Save" style={{ padding: "4px 7px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center", fontSize: 11, fontWeight: 600, fontFamily: "inherit", gap: 2 }}>✓ Save</button>
+                                <button onClick={() => { setEditingQtyOutItem(null); setQtyOutDraft({}); }} title="Cancel" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center", fontSize: 11, fontWeight: 600, fontFamily: "inherit", gap: 2 }}>✕ Cancel</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => { setEditingQtyOutItem(g.item.id); setQtyOutDraft({}); }} title="Edit" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, fontWeight: 600, fontFamily: "inherit" }}><IconEdit size={11} /> Edit</button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr style={{ background: "#1c2235" }}>
+                      <td style={{ padding: "12px 14px", fontWeight: 800, color: "#fff", fontSize: 12, textAlign: "left", borderRight: "1px solid #2a3450" }}>GRAND TOTAL</td>
+                      {Array.from({ length: slots * 2 }, (_, i) => (
+                        <td key={i} style={{ padding: "10px", textAlign: "center", color: "#93a3c7", fontSize: 11, borderRight: i < slots * 2 - 1 ? "1px solid #2a3450" : "none" }}></td>
+                      ))}
+                      <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#fca5a5", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotalQtyOut}</td>
+                      <td style={{ padding: "12px 14px", borderLeft: "1px solid #2a3450" }}></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+      )}
 
       {showModal && <AddEntryModal onClose={() => setShowModal(false)} onSave={handleAddEntry} />}
       {toast && (

@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import useSort from "./useSort";
 import { SEED_STOCK_IN, SEED_STOCK_OUT } from "./stockTransactionSeeds";
+import { modalCellInput } from "./modalFormStyles";
 
 
 const SKU_CATALOG = {
@@ -22,14 +24,14 @@ const SKU_CATALOG = {
 const STOCK_IN_COLS = [
   "TRANS #", "DATE", "TDT PO #", "TDT PO DATE", "VENDOR #", "VENDOR NAME",
   "CUSTOMER'S NAME AS PER DR", "TDT WO #", "ACCEPTANCE DATE", "QTY", "COST/KILO",
-  "COST/UNIT", "TOTAL PURCHASE", "RUNNING QTY", "AVG UNIT COST", "TOTAL VALUE", "REMARK",
+  "COST/UNIT", "TOTAL PURCHASE", "RUNNING QTY", "AVG UNIT COST", "TOTAL VALUE", "REMARK", "ACTION",
 ];
 
 const STOCK_OUT_COLS = [
   "TRANS #", "DISPATCH DATE", "TDT WO#", "CUSTOMER NAME", "TDT DR#", "BRANCH",
   "SUMMARY OF TDT BDR#", "TDT SI#", "QTY OUT", "UNIT COST", "TOTAL PRICE",
   "SERIES 1 — QTY / DATE", "SERIES 2 — QTY / DATE", "SERIES 3 — QTY / DATE",
-  "RUNNING QTY", "RUNNING VALUE", "REMARKS",
+  "RUNNING QTY", "RUNNING VALUE", "REMARKS", "ACTION",
 ];
 
 function Highlight({ text, query }) {
@@ -83,6 +85,98 @@ function Pagination({ currentPage, totalPages, onPage }) {
   );
 }
 
+const selectSt = {
+  padding: "11px 32px 11px 14px",
+  fontSize: 14,
+  border: "1px solid #b8bec9",
+  borderRadius: 8,
+  background: "#ffffff",
+  color: "#111827",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  width: "100%",
+  appearance: "none",
+  fontWeight: 500,
+  outline: "none",
+  boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)",
+};
+
+function StockInInlineEditRow({ row, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ ...row });
+  const set = (k, v) => setDraft(d => {
+    const next = { ...d, [k]: v };
+    const q = parseFloat(next.qty) || 0;
+    const cu = parseFloat(next.costUnit) || 0;
+    next.totalPurchase = q * cu;
+    return next;
+  });
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{draft.transNo}</td>
+      <td style={{ padding: "6px 10px" }}><input type="date" value={draft.date||""} onChange={e=>set("date",e.target.value)} {...modalCellInput({width:120})} /></td>
+      <td style={{ padding: "4px 10px" }}><input value={draft.tdtPo||""} onChange={e=>set("tdtPo",e.target.value)} {...modalCellInput({width:100})} /></td>
+      <td style={{ padding: "6px 10px" }}><input type="date" value={draft.tdtPoDate||""} onChange={e=>set("tdtPoDate",e.target.value)} {...modalCellInput({width:120})} /></td>
+      <td style={{ padding: "4px 10px" }}><input value={draft.vendorNo||""} onChange={e=>set("vendorNo",e.target.value)} {...modalCellInput({width:80})} /></td>
+      <td style={{ padding: "4px 10px" }}><input value={draft.vendorName||""} onChange={e=>set("vendorName",e.target.value)} {...modalCellInput({width:110})} /></td>
+      <td style={{ padding: "4px 10px" }}><input value={draft.customerDr||""} onChange={e=>set("customerDr",e.target.value)} {...modalCellInput({width:100})} /></td>
+      <td style={{ padding: "4px 10px" }}><input value={draft.tdtWo||""} onChange={e=>set("tdtWo",e.target.value)} {...modalCellInput({width:100})} /></td>
+      <td style={{ padding: "6px 10px" }}><input type="date" value={draft.acceptDate||""} onChange={e=>set("acceptDate",e.target.value)} {...modalCellInput({width:120})} /></td>
+      <td style={{ padding: "4px 10px", textAlign: "right" }}><input type="number" min={0} value={draft.qty??""} onChange={e=>set("qty",parseFloat(e.target.value)||0)} {...modalCellInput({width:70,textAlign:"right"})} /></td>
+      <td style={{ padding: "4px 10px", textAlign: "right" }}><input type="number" min={0} step="0.01" value={draft.costKilo??""} onChange={e=>set("costKilo",parseFloat(e.target.value)||0)} {...modalCellInput({width:80,textAlign:"right"})} /></td>
+      <td style={{ padding: "4px 10px", textAlign: "right" }}><input type="number" min={0} step="0.01" value={draft.costUnit??""} onChange={e=>set("costUnit",parseFloat(e.target.value)||0)} {...modalCellInput({width:80,textAlign:"right"})} /></td>
+      <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(draft.totalPurchase)}</td>
+      <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{draft.runningQty}</td>
+      <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(draft.avgUnitCost)}</td>
+      <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(draft.totalValue)}</td>
+      <td style={{ padding: "4px 10px" }}><input value={draft.remark||""} onChange={e=>set("remark",e.target.value)} {...modalCellInput({width:120})} /></td>
+      <td style={{ padding: "6px 8px", textAlign: "center" }}>
+        <div style={{ display:"flex", gap:4, justifyContent:"center" }}>
+          <button onClick={()=>onSave(draft)} title="Save" style={{ padding:"5px 8px", background:"#16a34a", color:"#fff", border:"none", borderRadius:5, cursor:"pointer", display:"flex", alignItems:"center" }}><IconSave size={13} /></button>
+          <button onClick={onCancel} title="Cancel" style={{ padding:"5px 8px", background:"#f3f4f6", color:"#374151", border:"none", borderRadius:5, cursor:"pointer", display:"flex", alignItems:"center" }}><IconX size={13} /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function StockOutInlineEditRow({ row, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ ...row });
+  const set = (k, v) => setDraft(d => {
+    const next = { ...d, [k]: v };
+    const q = parseFloat(next.qtyOut) || 0;
+    const uc = parseFloat(next.unitCost) || 0;
+    next.totalPrice = q * uc;
+    return next;
+  });
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding:"10px", color:"#6b7280", fontWeight:600, textAlign:"center", whiteSpace:"nowrap" }}>{draft.transNo}</td>
+      <td style={{ padding:"6px 10px" }}><input type="date" value={draft.dispatchDate||""} onChange={e=>set("dispatchDate",e.target.value)} {...modalCellInput({width:120})} /></td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.tdtWo||""} onChange={e=>set("tdtWo",e.target.value)} {...modalCellInput({width:100})} /></td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.customer||""} onChange={e=>set("customer",e.target.value)} {...modalCellInput({width:120})} /></td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.tdtDr||""} onChange={e=>set("tdtDr",e.target.value)} {...modalCellInput({width:100})} /></td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.branch||""} onChange={e=>set("branch",e.target.value)} {...modalCellInput({width:90})} /></td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.bdrSummary||""} onChange={e=>set("bdrSummary",e.target.value)} {...modalCellInput({width:100})} /></td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.tdtSi||""} onChange={e=>set("tdtSi",e.target.value)} {...modalCellInput({width:100})} /></td>
+      <td style={{ padding:"4px 10px", textAlign:"right" }}><input type="number" min={0} value={draft.qtyOut??""} onChange={e=>set("qtyOut",parseFloat(e.target.value)||0)} {...modalCellInput({width:70,textAlign:"right"})} /></td>
+      <td style={{ padding:"4px 10px", textAlign:"right" }}><input type="number" min={0} step="0.01" value={draft.unitCost??""} onChange={e=>set("unitCost",parseFloat(e.target.value)||0)} {...modalCellInput({width:80,textAlign:"right"})} /></td>
+      <td style={{ padding:"10px", textAlign:"right", fontWeight:600 }}>{fmtPHP(draft.totalPrice)}</td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.s1||""} onChange={e=>set("s1",e.target.value)} {...modalCellInput({width:90})} /></td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.s2||""} onChange={e=>set("s2",e.target.value)} {...modalCellInput({width:90})} /></td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.s3||""} onChange={e=>set("s3",e.target.value)} {...modalCellInput({width:90})} /></td>
+      <td style={{ padding:"10px", textAlign:"right", fontWeight:700 }}>{draft.runningQty}</td>
+      <td style={{ padding:"10px", textAlign:"right" }}>{fmtPHP(draft.runningValue)}</td>
+      <td style={{ padding:"4px 10px" }}><input value={draft.remarks||""} onChange={e=>set("remarks",e.target.value)} {...modalCellInput({width:120})} /></td>
+      <td style={{ padding:"6px 8px", textAlign:"center" }}>
+        <div style={{ display:"flex", gap:4, justifyContent:"center" }}>
+          <button onClick={()=>onSave(draft)} title="Save" style={{ padding:"5px 8px", background:"#16a34a", color:"#fff", border:"none", borderRadius:5, cursor:"pointer", display:"flex", alignItems:"center" }}><IconSave size={13} /></button>
+          <button onClick={onCancel} title="Cancel" style={{ padding:"5px 8px", background:"#f3f4f6", color:"#374151", border:"none", borderRadius:5, cursor:"pointer", display:"flex", alignItems:"center" }}><IconX size={13} /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination, searchSku }) {
   return (
     <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginBottom: 18 }}>
@@ -120,6 +214,16 @@ function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination, se
 
 function useSheetJS() {
   return true; // XLSX is imported as a module, always available
+}
+
+function IconX({ size = 18 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
+}
+function IconEdit({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function IconSave({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
 }
 
 function IconUpload2({ size = 16 }) {
@@ -534,6 +638,20 @@ export default function StockSheetsPage({
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
   const importRef = useRef(null);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [sortBy, setSortBy] = useState("newest");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [editingInId, setEditingInId] = useState(null);
+  const [editingOutId, setEditingOutId] = useState(null);
+  const handleSaveInEdit = (updated) => {
+    setStockInData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+    setEditingInId(null);
+    showToast("Stock IN row updated.");
+  };
+  const handleSaveOutEdit = (updated) => {
+    setStockOutData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+    setEditingOutId(null);
+    showToast("Stock OUT row updated.");
+  };
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
@@ -569,10 +687,36 @@ export default function StockSheetsPage({
     return rows;
   }, [skuKey, stockOutData, dateRange]);
 
-  const inTotalPages = Math.max(1, Math.ceil(stockInRows.length / PAGE_SIZE));
-  const outTotalPages = Math.max(1, Math.ceil(stockOutRows.length / PAGE_SIZE));
-  const pagedIn = stockInRows.slice((inPage - 1) * PAGE_SIZE, inPage * PAGE_SIZE);
-  const pagedOut = stockOutRows.slice((outPage - 1) * PAGE_SIZE, outPage * PAGE_SIZE);
+  const sortedIn = useMemo(() => {
+    if (!stockInRows || stockInRows.length < 2) return stockInRows;
+    return [...stockInRows].sort((a, b) => {
+      switch (sortBy) {
+        case "newest": return (b.date || "").localeCompare(a.date || "");
+        case "oldest": return (a.date || "").localeCompare(b.date || "");
+        case "az": return String(a.vendorName || "").localeCompare(String(b.vendorName || ""), undefined, { sensitivity: "base" });
+        case "za": return String(b.vendorName || "").localeCompare(String(a.vendorName || ""), undefined, { sensitivity: "base" });
+        default: return 0;
+      }
+    });
+  }, [stockInRows, sortBy]);
+
+  const sortedOut = useMemo(() => {
+    if (!stockOutRows || stockOutRows.length < 2) return stockOutRows;
+    return [...stockOutRows].sort((a, b) => {
+      switch (sortBy) {
+        case "newest": return (b.dispatchDate || "").localeCompare(a.dispatchDate || "");
+        case "oldest": return (a.dispatchDate || "").localeCompare(b.dispatchDate || "");
+        case "az": return String(a.customer || "").localeCompare(String(b.customer || ""), undefined, { sensitivity: "base" });
+        case "za": return String(b.customer || "").localeCompare(String(a.customer || ""), undefined, { sensitivity: "base" });
+        default: return 0;
+      }
+    });
+  }, [stockOutRows, sortBy]);
+
+  const inTotalPages = Math.max(1, Math.ceil(sortedIn.length / PAGE_SIZE));
+  const outTotalPages = Math.max(1, Math.ceil(sortedOut.length / PAGE_SIZE));
+  const pagedIn = sortedIn.slice((inPage - 1) * PAGE_SIZE, inPage * PAGE_SIZE);
+  const pagedOut = sortedOut.slice((outPage - 1) * PAGE_SIZE, outPage * PAGE_SIZE);
 
   const showIn = activeTab === "all" || activeTab === "in";
   const showOut = activeTab === "all" || activeTab === "out";
@@ -673,26 +817,56 @@ export default function StockSheetsPage({
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 6 }}>
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setActiveTab(t.id)}
-            style={{
-              padding: "10px 18px",
-              border: "none",
-              borderRadius: "8px 8px 0 0",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-              background: activeTab === t.id ? "#e87c27" : "transparent",
-              color: activeTab === t.id ? "#fff" : "#6b7280",
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              style={{
+                padding: "10px 18px",
+                border: "none",
+                borderRadius: "8px 8px 0 0",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                background: activeTab === t.id ? "#e87c27" : "transparent",
+                color: activeTab === t.id ? "#fff" : "#6b7280",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+              </svg>
+            </button>
+            {sortOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+                {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                  <div key={val} onClick={() => { setSortBy(val); setSortOpen(false); }}
+                    style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                    onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
+                  >
+                    <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                    <span>{text}</span>
+                    {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+            {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+          </span>
+        </div>
       </div>
 
       {showIn && (
@@ -703,7 +877,11 @@ export default function StockSheetsPage({
           rightAlign={RIGHT_IN}
           searchSku={searchSku}
           pagination={<Pagination currentPage={inPage} totalPages={inTotalPages} onPage={setInPage} />}
-          renderRow={(row, idx) => (
+          renderRow={(row, idx) => {
+            if (editingInId === row.id) {
+              return <StockInInlineEditRow key={row.id} row={row} onSave={handleSaveInEdit} onCancel={() => setEditingInId(null)} />;
+            }
+            return (
             <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
               <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
               <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.date}</td>
@@ -722,8 +900,14 @@ export default function StockSheetsPage({
               <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.avgUnitCost)}</td>
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalValue)}</td>
               <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remark || "—"}</td>
+              <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                <button onClick={() => setEditingInId(row.id)} title="Edit" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  <IconEdit size={12} /> Edit
+                </button>
+              </td>
             </tr>
-          )}
+          );
+          }}
         />
       )}
 
@@ -735,7 +919,11 @@ export default function StockSheetsPage({
           rightAlign={RIGHT_OUT}
           searchSku={searchSku}
           pagination={<Pagination currentPage={outPage} totalPages={outTotalPages} onPage={setOutPage} />}
-          renderRow={(row, idx) => (
+          renderRow={(row, idx) => {
+            if (editingOutId === row.id) {
+              return <StockOutInlineEditRow key={row.id} row={row} onSave={handleSaveOutEdit} onCancel={() => setEditingOutId(null)} />;
+            }
+            return (
             <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
 <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo}</td>              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
 <td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
@@ -752,8 +940,14 @@ export default function StockSheetsPage({
               <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
               <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.runningValue)}</td>
               <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remarks || "—"}</td>
+              <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                <button onClick={() => setEditingOutId(row.id)} title="Edit" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  <IconEdit size={12} /> Edit
+                </button>
+              </td>
             </tr>
-          )}
+          );
+          }}
         />
       )}
 

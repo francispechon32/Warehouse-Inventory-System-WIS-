@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import {
@@ -18,7 +18,9 @@ import {
   syncProductsStatus,
   normalizeStock,
 } from "./productUtils";
+import useSort from "./useSort";
 import { INITIAL_PRODUCTS } from "./initialProducts";
+import { modalCellInput } from "./modalFormStyles";
 
 const sampleProducts = INITIAL_PRODUCTS;
 
@@ -52,6 +54,14 @@ function IconWarning({ size = 14 }) {
     </svg>
   );
 }
+
+function IconEdit({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function IconSave({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
+}
+function IconX({ size = 14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>; }
 
 /* ─── SEARCH HIGHLIGHT ───────────────────────────────────── */
 function HighlightText({ text, query }) {
@@ -228,6 +238,65 @@ function AddItemModal({ categories, onClose, onSave }) {
   );
 }
 
+/* ─── INLINE EDIT ROW ─────────────────────────────────────── */
+const selectSt = {
+  padding: "11px 32px 11px 14px",
+  fontSize: 14,
+  border: "1px solid #b8bec9",
+  borderRadius: 8,
+  background: "#ffffff",
+  color: "#111827",
+  cursor: "pointer",
+};
+
+function ProductInlineEditRow({ product, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ ...product });
+  const set = (k, v) => setDraft(d => {
+    const next = { ...d, [k]: v };
+    next.totalValue = (parseFloat(next.stock)||0) * (parseFloat(next.avgCost)||0);
+    return next;
+  });
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding: "6px 20px" }}>
+        <input value={draft.sku || ""} onChange={e => set("sku", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "6px 16px" }}>
+        <input value={draft.description || ""} onChange={e => set("description", e.target.value)} {...modalCellInput({ width: 200 })} />
+      </td>
+      <td style={{ padding: "4px 16px" }}>
+        <input value={draft.category || ""} onChange={e => set("category", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "4px 16px" }}>
+        <select value={draft.unit} onChange={e => set("unit", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 80 }}>
+          <option value="pcs">pcs</option>
+          <option value="kg">kg</option>
+          <option value="m">m</option>
+          <option value="L">L</option>
+        </select>
+      </td>
+      <td style={{ padding: "6px 16px", textAlign: "right" }}>
+        <input type="number" min={0} value={draft.stock ?? ""} onChange={e => set("stock", parseInt(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "6px 16px", textAlign: "right" }}>
+        <input type="number" min={0} step="0.01" value={draft.avgCost ?? ""} onChange={e => set("avgCost", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 90, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "16px 20px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>₱{draft.totalValue.toFixed(2)}</td>
+      <td style={{ padding: "16px 20px", textAlign: "center" }}>
+        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: draft.stock > 10 ? "#d1fae5" : "#fef3c7", color: draft.stock > 10 ? "#065f46" : "#d97706" }}>
+          {draft.stock > 10 ? "Active" : "Low Stock"}
+        </span>
+      </td>
+      <td style={{ padding: "6px 8px", textAlign: "center" }}>
+        <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+          <button onClick={() => onSave(draft)} title="Save" style={{ padding: "5px 8px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={13} /></button>
+          <button onClick={onCancel} title="Cancel" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={13} /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 /* ─── PRODUCT PAGE ───────────────────────────────────────── */
 /**
  * Props:
@@ -252,6 +321,8 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const [showAddModal, setShowAddModal]   = useState(false);
   const fileInputRef = useRef(null);
   const itemsPerPage = 8;
+  const { sortBy, setSortBy, applySort } = useSort("description", "description");
+  const [sortOpen, setSortOpen] = useState(false);
 
   // If navigated here with a pre-set filter, apply it on mount
   useEffect(() => {
@@ -260,6 +331,12 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   }, [initialStatusFilter]);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+  const [editingId, setEditingId] = useState(null);
+  const handleSaveEdit = (updated) => {
+    setProducts(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+    setEditingId(null);
+    showToast("Product updated successfully.");
+  };
 
   const filtered = products.filter(p => {
     const q = searchQuery.toLowerCase();
@@ -270,9 +347,10 @@ export default function ProductPage({ products: propProducts, setProducts: propS
     return matchSearch && matchCat && matchSt;
   });
 
-  const totalPages    = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const totalPages    = Math.max(1, Math.ceil(sorted.length / itemsPerPage));
   const startIdx      = (currentPage - 1) * itemsPerPage;
-  const paginatedItems = filtered.slice(startIdx, startIdx + itemsPerPage);
+  const paginatedItems = sorted.slice(startIdx, startIdx + itemsPerPage);
   const categories    = ["All Categories", ...new Set(products.map(p => p.category))];
 
   // Count low-stock items for the banner
@@ -344,11 +422,39 @@ export default function ProductPage({ products: propProducts, setProducts: propS
       />
 
       <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+              </svg>
+            </button>
+            {sortOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+                {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                  <div key={val} onClick={() => { setSortBy(val); setCurrentPage(1); setSortOpen(false); }}
+                    style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                    onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
+                  >
+                    <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                    <span>{text}</span>
+                    {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+            {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+          </span>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-               {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS"].map(h => (
+               {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS","ACTION"].map(h => (
   <th key={h} style={{
     padding: "16px 20px",
     textAlign: h === "PRODUCT DESCRIPTION" ? "left" : h === "CURRENT STOCK" || h === "AVG COST" || h === "TOTAL VALUE" ? "right" : "center",
@@ -361,7 +467,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
             <tbody>
               {paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ padding: "60px 20px", textAlign: "center" }}>
+                  <td colSpan={9} style={{ padding: "60px 20px", textAlign: "center" }}>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                       <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -394,6 +500,9 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                   </td>
                 </tr>
               ) : paginatedItems.map((product, idx) => {
+                if (editingId === product.id) {
+                  return <ProductInlineEditRow key={product.id} product={product} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
+                }
                 const low = isLowStock(product);
                 const displayStatus = deriveProductStatus(product.stock);
                 return (
@@ -451,6 +560,11 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                       {displayStatus}
                     </span>
                   </td>
+                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingId(product.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                        <IconEdit size={12} /> Edit
+                      </button>
+                    </td>
                 </tr>
               );})}
             </tbody>
@@ -463,7 +577,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
           background: "#fafafa", flexWrap: "wrap", gap: 10,
         }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {filtered.length === 0 ? 0 : startIdx + 1} to {Math.min(startIdx + itemsPerPage, filtered.length)} of {filtered.length} SKUs
+            Showing {sorted.length === 0 ? 0 : startIdx + 1} to {Math.min(startIdx + itemsPerPage, sorted.length)} of {sorted.length} SKUs
             {statusFilter === "Low Stock" && (
               <span style={{ marginLeft: 8, color: "#d97706", fontWeight: 600 }}>· {lowStockCount} Low Stock</span>
             )}
