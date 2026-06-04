@@ -70,22 +70,76 @@ function IconDownload({ size = 16 }) {
 }
 
 function FilterSelect({ value, onChange, options, minWidth = 160 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   return (
-    <div style={{ position: "relative", minWidth, flex: `0 1 ${minWidth}px` }}>
-      <select value={value} onChange={(e) => onChange(e.target.value)} style={filterSelectStyle}>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-      <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#F95B02" }}>
-        <IconChevronDown size={14} />
-      </span>
+    <div ref={ref} style={{ position: "relative", minWidth, flex: `0 1 ${minWidth}px` }}>
+      {/* Trigger button */}
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          ...filterSelectStyle,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          cursor: "pointer",
+          userSelect: "none",
+              paddingRight: 12,  // <-- dagdag ito
+
+        }}
+      >
+        <span style={{ flex: 1 }}>{value}</span>          {/* <-- dagdag flex:1 */}
+  <span style={{ color: "#9E9E9E", display: "flex", alignItems: "center", flexShrink: 0 }}>
+    <IconChevronDown size={14} />                    {/* <-- wrap sa span */}
+  </span>
+      </div>
+
+      {/* Options list */}
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 6px)",
+          left: 0,
+          minWidth: "100%",
+          background: "#fff",
+          border: "1.5px solid #E0E0E0",
+          borderRadius: 12,
+          boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+          overflow: "hidden",
+          zIndex: 100,
+        }}>
+          {options.map(opt => (
+            <div
+              key={opt}
+              onClick={() => { onChange(opt); setOpen(false); }}
+              style={{
+                padding: "10px 14px",
+                fontSize: 13,
+                cursor: "pointer",
+                color: opt === value ? "#E87722" : "#333",
+                fontWeight: opt === value ? 600 : 400,
+                background: opt === value ? "#FFF5EE" : "#fff",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#FFF5EE"}
+              onMouseLeave={e => e.currentTarget.style.background = opt === value ? "#FFF5EE" : "#fff"}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
 function IconX({ size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
@@ -191,10 +245,10 @@ function CalendarPopup({ dateRange, onDateRangeChange, onApply }) {
 
   return (
     <div style={{
-      background: "#fff", border: "2px solid #F95B02", borderRadius: 10,
-      padding: "10px 12px", zIndex: 999,
-      boxShadow: "0 4px 20px rgba(249,91,2,0.18)", width: 272,
-    }}>
+  background: "#fff", border: "1.5px solid #E0E0E0", borderRadius: 10,
+  padding: "10px 12px", zIndex: 999,
+  boxShadow: "0 4px 12px rgba(0,0,0,0.08)", width: 272,
+}}>
       <div style={{ display: "flex", gap: 6, marginBottom: 10, borderBottom: "1px solid #f3f4f6", paddingBottom: 10 }}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
           <span style={{ fontSize: 10, color: "#9ca3af", fontWeight: 600 }}>From</span>
@@ -354,10 +408,10 @@ export default function PageToolbar({
                   onClick={() => setCalOpen((v) => !v)}
                   style={{
                     ...dateRangeButtonStyle,
-                    background: dateRange.start || dateRange.end ? "#fff5f0" : "#fff",
-                    color: "#F95B02",
-                    border: "2px solid #F95B02",
-                  }}
+  background: dateRange.start || dateRange.end ? "#f9f9f9" : "#fff",
+  color: "#8a8787",
+  border: "1.5px solid #989090",
+}}
                 >
                   <IconCalendar size={16} />
                   {dateRange.start || dateRange.end

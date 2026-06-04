@@ -14,23 +14,21 @@ export const productSearchInputStyle = {
   outline: "none",
   boxShadow: "inset 0 1px 2px rgba(15,23,42,0.06)",
 };
-
 export const productSearchWrapStyle = {
-  flex: "1 1 280px",
   position: "relative",
-  minWidth: 240,
-  maxWidth: 520,
-  display: "flex",
-  lineHeight: "28px",
-  alignItems: "center",
+  flex: 1,
+  minWidth: 200,
+  maxWidth: 480,
+  border: "1.5px solid #E0E0E0",
+  borderRadius: 20,
+  background: "#fff",
 };
-
 export const productSearchIconLeftStyle = {
   position: "absolute",
   left: "1rem",
   top: "50%",
   transform: "translateY(-50%)",
-  color: "#000000",
+  color: "#9E9E9E",   // <-- dati orange, ngayon gray
   fill: "#000000",
   pointerEvents: "none",
   zIndex: 1,
@@ -39,19 +37,21 @@ export const productSearchIconLeftStyle = {
 };
 
 export const filterSelectStyle = {
-  padding: "11px 32px 11px 14px",
-  fontSize: 14,
-  border: "2px solid #F95B02",
-  borderRadius: 15,
-  background: "#ffffff",
-  color: "#F95B02",
+  padding: "10px 32px 10px 14px",
+  fontSize: 15,
+  fontWeight: 600,
+  border: "1.5px solid #E0E0E0",
+  borderRadius: 20,
+  background: "#fff",
+  color: "#333",
   cursor: "pointer",
   fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-  width: "100%",
   appearance: "none",
-  fontWeight: 700,
+  WebkitAppearance: "none",
   outline: "none",
-  boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
+  boxShadow: "0px 2px 4px 0px rgba(0,0,0,0.08)",
+  width: "100%",
+  height: 48,
 };
 
 export const toolbarCardStyle = {
@@ -100,8 +100,8 @@ export const dateRangeButtonStyle = {
   alignItems: "center",
   padding: "10px 16px",
   background: "#fff",
-  color: "#F95B02",
-  border: "2px solid #F95B02",
+  color: "#9E9E9E",
+  border: "1.5px solid #E0E0E0",
   borderRadius: 8,
   fontWeight: 600,
   fontSize: 14,
@@ -109,9 +109,7 @@ export const dateRangeButtonStyle = {
   gap: 8,
   whiteSpace: "nowrap",
   fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-  transition: "background 150ms ease-in-out",
 };
-
 export const importButtonStyle = {
   display: "inline-flex",
   alignItems: "center",

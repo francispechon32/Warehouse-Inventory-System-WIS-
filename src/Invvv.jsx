@@ -740,6 +740,85 @@ function ProfilePage({ profile, onClose }) {
   );
 }
 
+function WarehouseDropdown({ selected, setSelected }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const options = ["All Warehouses", "Meycauayan", "Pampanga", "Marilao"];
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 160 }}>
+     <div
+  onClick={() => setOpen(!open)}
+  style={{
+    padding: "8px 12px",
+    fontSize: 13,
+    fontWeight: 600,
+    border: "1.5px solid #E0E0E0",
+    borderRadius: 20,
+    background: "#fff",
+    color: "#333",
+    cursor: "pointer",
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    boxShadow: "0px 2px 4px rgba(0,0,0,0.08)",
+    userSelect: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",  // <-- space-between
+    gap: 4,
+  }}
+>
+  <span style={{ flex: 1 }}>{selected}</span>         {/* <-- flex:1 */}
+<span style={{ color: "#9E9E9E", display: "flex", alignItems: "center", flexShrink: 0, marginLeft: 9 }}>
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+      <path d="M19 9l-7 7-7-7"/>
+    </svg>
+  </span>
+</div>
+
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 6px)",
+          left: 0,
+          minWidth: "100%",
+          background: "#fff",
+          border: "1.5px solid #E0E0E0",
+          borderRadius: 12,
+          boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+          overflow: "hidden",
+          zIndex: 100,
+        }}>
+          {options.map(opt => (
+            <div
+              key={opt}
+              onClick={() => { setSelected(opt); setOpen(false); }}
+              style={{
+                padding: "10px 14px",
+                fontSize: 13,
+                cursor: "pointer",
+                color: opt === selected ? "#E87722" : "#333",
+                fontWeight: opt === selected ? 600 : 400,
+                background: opt === selected ? "#FFF5EE" : "#fff",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#FFF5EE"}
+              onMouseLeave={e => e.currentTarget.style.background = opt === selected ? "#FFF5EE" : "#fff"}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 export default function Dashboard({ onLogout, userName, navigateTarget, onNavigated }) {
   const [activeNav, setActiveNav]         = useState("Home");
 
@@ -1398,30 +1477,11 @@ const firstName = (userName || displayName).split(" ")[0];
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ position: "relative", minWidth: 160 }}>
-                <select
-                  value={selectedWarehouse}
-                  onChange={e => setSelectedWarehouse(e.target.value)}
-                  style={{
-                    padding: "8px 32px 8px 12px", fontSize: 13, fontWeight: 700,
-                    border: "2px solid #F95B02", borderRadius: 15,
-                    background: "#fff", color: "#F95B02", cursor: "pointer",
-                    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", appearance: "none", outline: "none",
-                    boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
-                  }}
-                >
-                  {["All Warehouses", "Meycauayan", "Pampanga", "Marilao"].map(w => (
-                    <option key={w} value={w}>{w}</option>
-                  ))}
-                </select>
-                <span style={{
-                  position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
-                  pointerEvents: "none", color: "#F95B02",
-                }}>
-                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M19 9l-7 7-7-7"/></svg>
-                </span>
-              </div>
-
+      <WarehouseDropdown
+  selected={selectedWarehouse}
+  setSelected={setSelectedWarehouse}
+/>
+ 
               <div style={{ position: "relative", zIndex: notificationsOpen ? 2001 : undefined }}>
                 <button
                   type="button"
