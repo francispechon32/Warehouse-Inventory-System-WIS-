@@ -114,15 +114,13 @@ export const importButtonStyle = {
   display: "inline-flex",
   alignItems: "center",
   padding: "10px 20px",
-  border: "1px solid transparent",
+  border: "1.5px solid #F95B02",   // <-- outlined
   fontSize: 14,
   fontWeight: 600,
   borderRadius: 8,
-  boxShadow: "0 1px 2px 0 rgba(0,0,0,0.05)",
-  color: "#fff",
-  background: "#F95B02",
+  color: "#F95B02",                 // <-- orange text
+  background: "#fff",              // <-- white bg
   cursor: "pointer",
-  transition: "background 150ms ease-in-out, box-shadow 150ms ease-in-out, transform 150ms ease-in-out",
   gap: 8,
   whiteSpace: "nowrap",
   fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
@@ -132,15 +130,13 @@ export const exportButtonStyle = {
   display: "inline-flex",
   alignItems: "center",
   padding: "10px 20px",
-  border: "1px solid transparent",
+  border: "1.5px solid #F95B02",   // <-- outlined
   fontSize: 14,
   fontWeight: 600,
   borderRadius: 8,
-  boxShadow: "0 1px 2px 0 rgba(0,0,0,0.05)",
-  color: "#fff",
-  background: "#F95B02",
+  color: "#F95B02",                 // <-- orange text
+  background: "#fff",              // <-- white bg
   cursor: "pointer",
-  transition: "background 150ms ease-in-out, box-shadow 150ms ease-in-out, transform 150ms ease-in-out",
   gap: 8,
   whiteSpace: "nowrap",
   fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
