@@ -42,19 +42,11 @@ const STOCK_IN_COLS = [
   "COST/UNIT", "TOTAL PURCHASE", "RUNNING QTY", "AVG UNIT COST", "TOTAL VALUE", "REMARK", "ACTION",
 ];
 
-const STOCK_OUT_BASE_COLS = [
+const STOCK_OUT_COLS = [
   "TRANS #", "DISPATCH DATE", "TDT WO#", "CUSTOMER NAME", "TDT DR#", "BRANCH",
   "SUMMARY OF TDT BDR#", "TDT SI#", "QTY OUT", "UNIT COST", "TOTAL PRICE",
+  "RUNNING QTY", "RUNNING VALUE", "REMARKS", "ACTION",
 ];
-const STOCK_OUT_TAIL_COLS = ["RUNNING QTY", "RUNNING VALUE", "REMARKS", "ACTION"];
-const DEFAULT_SERIES_COUNT = 3;
-
-function buildStockOutCols(seriesCount) {
-  const series = Array.from({ length: seriesCount }, (_, i) => `SERIES ${i + 1} — VDR# / QTY`);
-  return [...STOCK_OUT_BASE_COLS, ...series, ...STOCK_OUT_TAIL_COLS];
-}
-
-const STOCK_OUT_COLS = buildStockOutCols(DEFAULT_SERIES_COUNT);
 
 function Highlight({ text, query }) {
   if (!query || !text) return <>{String(text)}</>;
@@ -162,22 +154,14 @@ function StockInInlineEditRow({ row, onSave, onCancel }) {
   );
 }
 
-function StockOutInlineEditRow({ row, onSave, onCancel, seriesCount = DEFAULT_SERIES_COUNT }) {
-  const initSeries = Array.from({ length: seriesCount }, (_, si) =>
-    row.series?.[si] ?? row[`s${si + 1}`] ?? ""
-  );
-  const [draft, setDraft] = useState({ ...row, series: initSeries });
+function StockOutInlineEditRow({ row, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ ...row });
   const set = (k, v) => setDraft(d => {
     const next = { ...d, [k]: v };
     const q = parseFloat(next.qtyOut) || 0;
     const uc = parseFloat(next.unitCost) || 0;
     next.totalPrice = q * uc;
     return next;
-  });
-  const setSeries = (si, v) => setDraft(d => {
-    const newSeries = [...(d.series || [])];
-    newSeries[si] = v;
-    return { ...d, series: newSeries };
   });
   return (
     <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
@@ -192,11 +176,6 @@ function StockOutInlineEditRow({ row, onSave, onCancel, seriesCount = DEFAULT_SE
       <td style={{ padding:"4px 10px", textAlign:"right" }}><input type="number" min={0} value={draft.qtyOut??""} onChange={e=>set("qtyOut",parseFloat(e.target.value)||0)} {...modalCellInput({width:70,textAlign:"right"})} /></td>
       <td style={{ padding:"4px 10px", textAlign:"right" }}><input type="number" min={0} step="0.01" value={draft.unitCost??""} onChange={e=>set("unitCost",parseFloat(e.target.value)||0)} {...modalCellInput({width:80,textAlign:"right"})} /></td>
       <td style={{ padding:"10px", textAlign:"right", fontWeight:600 }}>{fmtPHP(draft.totalPrice)}</td>
-      {Array.from({ length: seriesCount }, (_, si) => (
-        <td key={`s${si}`} style={{ padding:"4px 10px" }}>
-          <input value={(draft.series?.[si]) ?? ""} onChange={e=>setSeries(si, e.target.value)} {...modalCellInput({width:90})} />
-        </td>
-      ))}
       <td style={{ padding:"10px", textAlign:"right", fontWeight:700 }}>{draft.runningQty}</td>
       <td style={{ padding:"10px", textAlign:"right" }}>{fmtPHP(draft.runningValue)}</td>
       <td style={{ padding:"4px 10px" }}><input value={draft.remarks||""} onChange={e=>set("remarks",e.target.value)} {...modalCellInput({width:120})} /></td>
@@ -478,7 +457,7 @@ function buildStockInWorksheet(sku, skuInfo, rows) {
   return ws;
 }
 
-function buildStockOutWorksheet(sku, skuInfo, rows, seriesCount = DEFAULT_SERIES_COUNT) {
+function buildStockOutWorksheet(sku, skuInfo, rows) {
   const styles = buildSsSheetStyles();
   const ws = {};
   const merges = [];
@@ -487,13 +466,11 @@ function buildStockOutWorksheet(sku, skuInfo, rows, seriesCount = DEFAULT_SERIES
 
   writeSsMeta(ws, C, put, merges, styles, sku, skuInfo);
 
-  const dynCols = buildStockOutCols(seriesCount);
-  const exportCols = dynCols.filter(h => h !== "ACTION");
+  const exportCols = STOCK_OUT_COLS.filter(h => h !== "ACTION");
   const HDR_ROW = 5;
   const DATA_START = 6;
-  const { hdrFill, yellowFill, totalFill, solidBorder, dottedRed, f, center, left, right } = styles;
+  const { hdrFill, totalFill, solidBorder, dottedRed, f, center, left, right } = styles;
 
-  // Fill gaps in meta rows 0–4 so sheetFill covers the full width
   for (let r = 0; r < HDR_ROW; r++) {
     for (let c = 0; c < exportCols.length; c++) {
       if (!ws[C(r, c)]) put(r, c, "", "s", { fill: styles.sheetFill });
@@ -501,12 +478,9 @@ function buildStockOutWorksheet(sku, skuInfo, rows, seriesCount = DEFAULT_SERIES
   }
 
   exportCols.forEach((h, ci) => {
-    const isSeries = h.startsWith("SERIES");
     put(HDR_ROW, ci, h, "s", {
       font: f.hdr(false),
-      fill: ["QTY OUT","UNIT COST","TOTAL PRICE","RUNNING QTY","RUNNING VALUE"].includes(h) ? totalFill
-           : isSeries ? yellowFill
-           : hdrFill,
+      fill: ["QTY OUT","UNIT COST","TOTAL PRICE","RUNNING QTY","RUNNING VALUE"].includes(h) ? totalFill : hdrFill,
       alignment: center,
       border: solidBorder,
     });
@@ -531,32 +505,16 @@ function buildStockOutWorksheet(sku, skuInfo, rows, seriesCount = DEFAULT_SERIES
       continue;
     }
 
-    const baseVals = [
-      row.transNo || i + 1,
-      formatSsDate(row.dispatchDate),
-      row.tdtWo || "",
-      row.customer || "",
-      row.tdtDr || "",
-      row.branch || "",
-      row.bdrSummary || "",
-      row.tdtSi || "",
-      row.qtyOut ?? 0,
-      row.unitCost ?? 0,
-      row.totalPrice ?? 0,
+    const vals = [
+      row.transNo || i + 1, formatSsDate(row.dispatchDate), row.tdtWo || "",
+      row.customer || "", row.tdtDr || "", row.branch || "",
+      row.bdrSummary || "", row.tdtSi || "",
+      row.qtyOut ?? 0, row.unitCost ?? 0, row.totalPrice ?? 0,
+      row.runningQty ?? 0, row.runningValue ?? 0, row.remarks || "",
     ];
-    const seriesVals = Array.from({ length: seriesCount }, (_, si) => {
-      if (row.series && Array.isArray(row.series)) return row.series[si] || "";
-      return row[`s${si + 1}`] || "";
-    });
-    const tailVals = [
-      row.runningQty ?? 0,
-      row.runningValue ?? 0,
-      row.remarks || "",
-    ];
-    const allVals = [...baseVals, ...seriesVals, ...tailVals];
 
     exportCols.forEach((h, ci) => {
-      const v = allVals[ci];
+      const v = vals[ci];
       const isPeso = ["UNIT COST","TOTAL PRICE","RUNNING VALUE"].includes(h);
       const isNum = ["QTY OUT","RUNNING QTY"].includes(h);
       const align = RIGHT_OUT_BASE.has(h) ? right : h === "CUSTOMER NAME" ? left : center;
@@ -575,23 +533,10 @@ function buildStockOutWorksheet(sku, skuInfo, rows, seriesCount = DEFAULT_SERIES
   const lastRow = DATA_START + slotCount - 1;
   ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: exportCols.length - 1 });
   ws["!merges"] = merges;
-  const seriesCols = Array.from({ length: seriesCount }, () => ({ wch: 22 }));
   ws["!cols"] = [
-    { wch: 22 },  // TRANS # / meta label col ("PRODUCT DESCRIPTION" = 19 chars)
-    { wch: 16 },  // DISPATCH DATE
-    { wch: 14 },  // TDT WO#
-    { wch: 26 },  // CUSTOMER NAME
-    { wch: 16 },  // TDT DR#
-    { wch: 14 },  // BRANCH
-    { wch: 22 },  // SUMMARY OF TDT BDR#
-    { wch: 14 },  // TDT SI#
-    { wch: 10 },  // QTY OUT
-    { wch: 14 },  // UNIT COST
-    { wch: 16 },  // TOTAL PRICE
-    ...seriesCols,
-    { wch: 14 },  // RUNNING QTY
-    { wch: 16 },  // RUNNING VALUE
-    { wch: 24 },  // REMARKS
+    { wch: 22 }, { wch: 16 }, { wch: 14 }, { wch: 26 }, { wch: 16 },
+    { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 14 },
+    { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 24 },
   ];
   ws["!rows"] = [
     { hpt: 22 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 }, { hpt: 18 },
@@ -620,11 +565,11 @@ function downloadWorkbook(wb, filename) {
   }
 }
 
-function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows, seriesCount = DEFAULT_SERIES_COUNT) {
+function exportStockSheets(sku, skuInfo, stockInRows, stockOutRows) {
   const safeSku = String(sku || "SKU").trim() || "SKU";
   const wb = XLSX.utils.book_new();
   const inSheet = buildStockInWorksheet(safeSku, skuInfo, stockInRows);
-  const outSheet = buildStockOutWorksheet(safeSku, skuInfo, stockOutRows, seriesCount);
+  const outSheet = buildStockOutWorksheet(safeSku, skuInfo, stockOutRows);
   XLSX.utils.book_append_sheet(wb, inSheet, `${safeSku} STOCK IN`.slice(0, 31));
   XLSX.utils.book_append_sheet(wb, outSheet, `${safeSku} STOCK OUT`.slice(0, 31));
   downloadWorkbook(wb, `TDT_WIS_Stock_Sheet_${safeSku}.xlsx`);
@@ -648,35 +593,14 @@ function importStockSheets(file, onInDone, onOutDone, onError) {
         ["qty",9,true],["costKilo",10,true],["costUnit",11,true],["totalPurchase",12,true],
         ["runningQty",13,true],["avgUnitCost",14,true],["totalValue",15,true],["remark",16,false],
       ];
-      // Detect series column count from OUT sheet headers
-      let outSeriesCount = DEFAULT_SERIES_COUNT;
-      const outWs = wb.Sheets[outSheetName];
-      if (outWs) {
-        const outRaw = XLSX.utils.sheet_to_json(outWs, { header: 1, defval: null, raw: false });
-        for (let i = 0; i < Math.min(outRaw.length, 15); i++) {
-          if (outRaw[i] && outRaw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) {
-            const hdrRow = outRaw[i];
-            // count SERIES columns starting after col 10 (after TOTAL PRICE)
-            let cnt = 0;
-            for (let c = 11; c < hdrRow.length; c++) {
-              const h = String(hdrRow[c] || "").toUpperCase();
-              if (h.startsWith("SERIES") || h.includes("VDR") || (h.includes("QTY") && !["QTY OUT","RUNNING QTY"].includes(h))) cnt++;
-              else break;
-            }
-            if (cnt > 0) outSeriesCount = cnt;
-            break;
-          }
-        }
-      }
-
-      // New flat OUT format: base cols (0-10) + dynamic series (11..11+seriesCount-1) + tail
+      // OUT format: base cols (0-10) + tail (11-13), no series
       const outCols = [
         ["transNo",0,false],["dispatchDate",1,false],["tdtWo",2,false],["customer",3,false],
         ["tdtDr",4,false],["branch",5,false],["bdrSummary",6,false],["tdtSi",7,false],
         ["qtyOut",8,true],["unitCost",9,true],["totalPrice",10,true],
+        ["runningQty",11,true],["runningValue",12,true],["remarks",13,false],
       ];
-      // parse series and tail dynamically
-      const parseSheet = (ws, fieldMap, extraParser) => {
+      const parseSheet = (ws, fieldMap) => {
         if (!ws) return [];
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
         let hdrIdx = -1;
@@ -692,25 +616,12 @@ function importStockSheets(file, onInDone, onOutDone, onError) {
           fieldMap.forEach(([field, idx, numeric]) => {
             row[field] = numeric ? toNum(r[idx]) : toStr(r[idx]);
           });
-          if (extraParser) extraParser(row, r, result.length);
           result.push(row);
         }
         return result;
       };
 
-      const outRows = parseSheet(wb.Sheets[outSheetName], outCols, (row, r) => {
-        // series columns
-        row.series = Array.from({ length: outSeriesCount }, (_, si) => toStr(r[11 + si]));
-        // legacy s1/s2/s3 for backward compat
-        row.s1 = row.series[0] || "";
-        row.s2 = row.series[1] || "";
-        row.s3 = row.series[2] || "";
-        // tail: runningQty, runningValue, remarks
-        const tailStart = 11 + outSeriesCount;
-        row.runningQty = toNum(r[tailStart]);
-        row.runningValue = toNum(r[tailStart + 1]);
-        row.remarks = toStr(r[tailStart + 2]);
-      });
+      const outRows = parseSheet(wb.Sheets[outSheetName], outCols);
 
       const inRows = parseSheet(wb.Sheets[inSheetName], inCols);
       if (!inRows.length && !outRows.length) throw new Error("No data rows found. Ensure you are importing a Stock Sheet exported from this system.");
@@ -730,13 +641,17 @@ export default function StockSheetsPage({
   const xlsxReady = useSheetJS();
   const apiIn  = useApi(`${ENDPOINTS.stockSheets}/in`,  SEED_STOCK_IN);
   const apiOut = useApi(`${ENDPOINTS.stockSheets}/out`, SEED_STOCK_OUT);
-  const stockInData  = propStockIn  ?? apiIn.data;
-  const stockOutData = propStockOut ?? apiOut.data;
-  const setStockInData  = setPropStockIn  ?? null;
-  const setStockOutData = setPropStockOut ?? null;
-  useEffect(() => { if (!propStockIn)  apiIn.getAll();  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!propStockOut) apiOut.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [searchSku, setSearchSku] = useState("DRB007");
+
+  // Local state for immediate UI updates
+  const [stockInData,  setStockInData]  = useState(() => propStockIn  ?? apiIn.data);
+  const [stockOutData, setStockOutData] = useState(() => propStockOut ?? apiOut.data);
+
+  useEffect(() => { if (propStockIn)  setStockInData(propStockIn);  else apiIn.getAll().then(d => setStockInData(d));  }, [propStockIn]);  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (propStockOut) setStockOutData(propStockOut); else apiOut.getAll().then(d => setStockOutData(d)); }, [propStockOut]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const syncInUp  = (d) => { if (setPropStockIn)  setPropStockIn(_ => d); };
+  const syncOutUp = (d) => { if (setPropStockOut) setPropStockOut(_ => d); };
+  const [searchSku, setSearchSku] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [inPage, setInPage] = useState(1);
   const [outPage, setOutPage] = useState(1);
@@ -751,14 +666,14 @@ export default function StockSheetsPage({
   const [sortOpen, setSortOpen] = useState(false);
   const [editingInId, setEditingInId] = useState(null);
   const [editingOutId, setEditingOutId] = useState(null);
-  const [seriesCount, setSeriesCount] = useState(DEFAULT_SERIES_COUNT);
+  const [lastAddedInId, setLastAddedInId] = useState(null);
+  const [lastAddedOutId, setLastAddedOutId] = useState(null);
   const handleSaveInEdit = async (updated) => {
     try {
-      if (setStockInData) {
-        setStockInData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
-      } else {
-        await apiIn.update(updated.id, updated);
-      }
+      const next = stockInData.map(r => r.id === updated.id ? { ...updated } : r);
+      setStockInData(next);
+      syncInUp(next);
+      if (!setPropStockIn) await apiIn.update(updated.id, updated);
       setEditingInId(null);
       showToast("Stock IN row updated.");
     } catch {
@@ -767,11 +682,10 @@ export default function StockSheetsPage({
   };
   const handleSaveOutEdit = async (updated) => {
     try {
-      if (setStockOutData) {
-        setStockOutData(d => d.map(r => r.id === updated.id ? { ...updated } : r));
-      } else {
-        await apiOut.update(updated.id, updated);
-      }
+      const next = stockOutData.map(r => r.id === updated.id ? { ...updated } : r);
+      setStockOutData(next);
+      syncOutUp(next);
+      if (!setPropStockOut) await apiOut.update(updated.id, updated);
       setEditingOutId(null);
       showToast("Stock OUT row updated.");
     } catch {
@@ -813,31 +727,52 @@ export default function StockSheetsPage({
     return rows;
   }, [skuKey, stockOutData, dateRange]);
 
+  const pinFirst = (arr, pinnedId) => {
+    if (!pinnedId) return arr;
+    const idx = arr.findIndex(r => r.id === pinnedId);
+    if (idx <= 0) return arr;
+    return [arr[idx], ...arr.slice(0, idx), ...arr.slice(idx + 1)];
+  };
+
   const sortedIn = useMemo(() => {
     if (!stockInRows || stockInRows.length < 2) return stockInRows;
-    return [...stockInRows].sort((a, b) => {
+    const base = [...stockInRows].sort((a, b) => {
       switch (sortBy) {
-        case "newest": return (b.date || "").localeCompare(a.date || "");
-        case "oldest": return (a.date || "").localeCompare(b.date || "");
+        case "newest":
+          if (!a.date && !b.date) return (b.id ?? 0) - (a.id ?? 0);
+          if (!a.date) return -1; if (!b.date) return 1;
+          return (b.date || "").localeCompare(a.date || "") || (b.id ?? 0) - (a.id ?? 0);
+        case "oldest":
+          if (!a.date && !b.date) return (a.id ?? 0) - (b.id ?? 0);
+          if (!a.date) return 1; if (!b.date) return -1;
+          return (a.date || "").localeCompare(b.date || "") || (a.id ?? 0) - (b.id ?? 0);
         case "az": return String(a.vendorName || "").localeCompare(String(b.vendorName || ""), undefined, { sensitivity: "base" });
         case "za": return String(b.vendorName || "").localeCompare(String(a.vendorName || ""), undefined, { sensitivity: "base" });
         default: return 0;
       }
     });
-  }, [stockInRows, sortBy]);
+    return pinFirst(base, lastAddedInId);
+  }, [stockInRows, sortBy, lastAddedInId]);
 
   const sortedOut = useMemo(() => {
     if (!stockOutRows || stockOutRows.length < 2) return stockOutRows;
-    return [...stockOutRows].sort((a, b) => {
+    const base = [...stockOutRows].sort((a, b) => {
       switch (sortBy) {
-        case "newest": return (b.dispatchDate || "").localeCompare(a.dispatchDate || "");
-        case "oldest": return (a.dispatchDate || "").localeCompare(b.dispatchDate || "");
+        case "newest":
+          if (!a.dispatchDate && !b.dispatchDate) return (b.id ?? 0) - (a.id ?? 0);
+          if (!a.dispatchDate) return -1; if (!b.dispatchDate) return 1;
+          return (b.dispatchDate || "").localeCompare(a.dispatchDate || "") || (b.id ?? 0) - (a.id ?? 0);
+        case "oldest":
+          if (!a.dispatchDate && !b.dispatchDate) return (a.id ?? 0) - (b.id ?? 0);
+          if (!a.dispatchDate) return 1; if (!b.dispatchDate) return -1;
+          return (a.dispatchDate || "").localeCompare(b.dispatchDate || "") || (a.id ?? 0) - (b.id ?? 0);
         case "az": return String(a.customer || "").localeCompare(String(b.customer || ""), undefined, { sensitivity: "base" });
         case "za": return String(b.customer || "").localeCompare(String(a.customer || ""), undefined, { sensitivity: "base" });
         default: return 0;
       }
     });
-  }, [stockOutRows, sortBy]);
+    return pinFirst(base, lastAddedOutId);
+  }, [stockOutRows, sortBy, lastAddedOutId]);
 
   const inTotalPages = Math.max(1, Math.ceil(sortedIn.length / PAGE_SIZE));
   const outTotalPages = Math.max(1, Math.ceil(sortedOut.length / PAGE_SIZE));
@@ -862,7 +797,7 @@ export default function StockSheetsPage({
         showDateRange={true}
         dateRange={dateRange}
         onDateRangeChange={(r) => { setDateRange(r); setInPage(1); setOutPage(1); }}
-        primaryAction={{ label: "New Stock Sheet", onClick: () => setShowCreate(true) }}
+        primaryAction={{ label: "New Stock Sheet", onClick: () => { setCreateForm(f => ({ ...f, sku: searchSku })); setShowCreate(true); } }}
         importExport={{
           fileInputRef: importRef,
           onFileChange: (e) => {
@@ -870,12 +805,12 @@ export default function StockSheetsPage({
             setImporting(true);
             importStockSheets(
               file,
-                async (inRows) => {
-                if (setStockInData) { setStockInData(inRows); } else { await apiIn.bulkReplace(inRows); }
+                (inRows) => {
+                setStockInData(inRows); syncInUp(inRows);
                 setInPage(1);
               },
-              async (outRows) => {
-                if (setStockOutData) { setStockOutData(outRows); } else { await apiOut.bulkReplace(outRows); }
+              (outRows) => {
+                setStockOutData(outRows); syncOutUp(outRows);
                 setOutPage(1); setImporting(false); showToast(`Imported stock sheet from ${file.name}`);
               },
               (err) => { setImporting(false); showToast(`Import failed: ${err}`, "error"); }
@@ -887,7 +822,7 @@ export default function StockSheetsPage({
           importLabel: "Import WIS",
           onExport: () => {
             try {
-              exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows, seriesCount);
+              exportStockSheets(skuKey, skuInfo, stockInRows, stockOutRows);
               showToast(`Exported stock sheet for ${skuKey || "SKU"}.`);
             } catch (err) {
               console.error("Stock sheet export failed:", err);
@@ -1044,60 +979,44 @@ export default function StockSheetsPage({
         />
       )}
 
-      {showOut && (() => {
-        const dynOutCols = buildStockOutCols(seriesCount);
-        const dynRightOut = new Set([...RIGHT_OUT_BASE]);
-        return (
+      {showOut && (
         <SectionTable
-          title={
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span>Delivered Goods — Stock OUT</span>
-              <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>Series pairs: {seriesCount}</span>
-              <button onClick={() => setSeriesCount(s => Math.min(20, s + 1))} title="Add series column" style={{ padding: "2px 8px", border: "1px solid #16a34a", borderRadius: 5, background: "#f0fdf4", cursor: "pointer", fontSize: 12, color: "#16a34a", fontWeight: 700, fontFamily: "inherit" }}>+</button>
-              <button onClick={() => setSeriesCount(s => Math.max(1, s - 1))} disabled={seriesCount <= 1} title="Remove last series column" style={{ padding: "2px 8px", border: "1px solid #ef4444", borderRadius: 5, background: "#fef2f2", cursor: seriesCount <= 1 ? "not-allowed" : "pointer", fontSize: 12, color: "#ef4444", fontWeight: 700, fontFamily: "inherit", opacity: seriesCount <= 1 ? 0.4 : 1 }}>−</button>
-            </div>
-          }
-          cols={dynOutCols}
+          title="Delivered Goods — Stock OUT"
+          cols={STOCK_OUT_COLS}
           rows={pagedOut}
-          rightAlign={dynRightOut}
+          rightAlign={RIGHT_OUT_BASE}
           searchSku={searchSku}
           pagination={<Pagination currentPage={outPage} totalPages={outTotalPages} onPage={setOutPage} />}
           renderRow={(row, idx) => {
             if (editingOutId === row.id) {
-              return <StockOutInlineEditRow key={row.id} row={row} onSave={handleSaveOutEdit} onCancel={() => setEditingOutId(null)} seriesCount={seriesCount} />;
+              return <StockOutInlineEditRow key={row.id} row={row} onSave={handleSaveOutEdit} onCancel={() => setEditingOutId(null)} />;
             }
-            const rowSeries = row.series && Array.isArray(row.series) ? row.series
-              : Array.from({ length: seriesCount }, (_, si) => row[`s${si + 1}`] || "");
             return (
-            <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-              <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo}</td>
-              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
-              <td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
-              <td style={{ padding: "10px", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.customer}</td>
-              <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.branch}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.bdrSummary}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtSi}</td>
-              <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.qtyOut}</td>
-              <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.unitCost)}</td>
-              <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPrice)}</td>
-              {Array.from({ length: seriesCount }, (_, si) => (
-                <td key={`s${si}`} style={{ padding: "10px", fontSize: 11, textAlign: "center" }}>{rowSeries[si] || "—"}</td>
-              ))}
-              <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
-              <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.runningValue)}</td>
-              <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remarks || "—"}</td>
-              <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                <button onClick={() => setEditingOutId(row.id)} title="Edit" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                  <IconEdit size={12} /> Edit
-                </button>
-              </td>
-            </tr>
-          );
+              <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo}</td>
+                <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
+                <td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
+                <td style={{ padding: "10px", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.customer}</td>
+                <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
+                <td style={{ padding: "10px", textAlign: "center" }}>{row.branch}</td>
+                <td style={{ padding: "10px", textAlign: "center" }}>{row.bdrSummary}</td>
+                <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtSi}</td>
+                <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.qtyOut}</td>
+                <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.unitCost)}</td>
+                <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPrice)}</td>
+                <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
+                <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.runningValue)}</td>
+                <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remarks || "—"}</td>
+                <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                  <button onClick={() => setEditingOutId(row.id)} title="Edit" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <IconEdit size={12} /> Edit
+                  </button>
+                </td>
+              </tr>
+            );
           }}
         />
-        );
-      })()}
+      )}
 
 
 
@@ -1184,11 +1103,12 @@ export default function StockSheetsPage({
                   return;
                 }
                 const sku = createForm.sku.trim().toUpperCase();
-                const doCreate = async () => {
+                const doCreate = () => {
                   if (isIn) {
                     const qty = Number(createForm.qty) || 0;
                     const costUnit = Number(createForm.costUnit) || 0;
-                    const entry = {
+                    const newRow = {
+                      id: Date.now(),
                       sku, transNo: String(stockInData.filter(r => r.sku === sku).length + 1).padStart(3, "0"),
                       date: createForm.date, tdtPo: createForm.tdtPo, tdtPoDate: createForm.tdtPoDate,
                       vendorNo: createForm.vendorNo, vendorName: createForm.vendorName,
@@ -1197,12 +1117,15 @@ export default function StockSheetsPage({
                       costKilo: Number(createForm.costKilo) || 0, costUnit,
                       totalPurchase: qty * costUnit, runningQty: 0, avgUnitCost: costUnit, totalValue: 0, remark: "",
                     };
-                    if (setStockInData) { setStockInData(prev => [...prev, { id: Date.now(), ...entry }]); }
-                    else { await apiIn.create(entry); }
+                    const next = [...stockInData, newRow];
+                    setStockInData(next);
+                    syncInUp(next);
+                    setLastAddedInId(newRow.id);
                   } else {
                     const qtyOut = Number(createForm.qtyOut) || 0;
                     const unitCost = Number(createForm.costUnit) || 0;
-                    const entry = {
+                    const newRow = {
+                      id: Date.now(),
                       sku, transNo: String(stockOutData.filter(r => r.sku === sku).length + 1).padStart(3, "0"),
                       dispatchDate: createForm.dispatchDate, tdtWo: createForm.tdtWo,
                       customer: createForm.customer, tdtDr: createForm.tdtDr,
@@ -1211,19 +1134,19 @@ export default function StockSheetsPage({
                       totalPrice: qtyOut * unitCost, s1: "", s2: "", s3: "",
                       runningQty: 0, runningValue: 0, remarks: createForm.remarks,
                     };
-                    if (setStockOutData) { setStockOutData(prev => [...prev, { id: Date.now(), ...entry }]); }
-                    else { await apiOut.create(entry); }
+                    const next = [...stockOutData, newRow];
+                    setStockOutData(next);
+                    syncOutUp(next);
+                    setLastAddedOutId(newRow.id);
                   }
                 };
-                doCreate().then(() => {
-                  setShowCreate(false);
-                  setCreateForm(EMPTY_FORM);
-                  setToast({ msg: "Stock sheet entry added successfully.", type: "success" });
-                  setTimeout(() => setToast(null), 3000);
-                }).catch(() => {
-                  setToast({ msg: "Failed to add entry.", type: "error" });
-                  setTimeout(() => setToast(null), 3000);
-                });
+                doCreate();
+                setShowCreate(false);
+                setCreateForm({ ...EMPTY_FORM, sku: searchSku });
+                setInPage(1);
+                setOutPage(1);
+                setToast({ msg: "Stock sheet entry added successfully.", type: "success" });
+                setTimeout(() => setToast(null), 3000);
               }} style={modalBtnPrimary}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Entry

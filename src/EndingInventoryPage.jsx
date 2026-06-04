@@ -419,9 +419,14 @@ function IconEdit({ size=14 }) { return <svg width={size} height={size} viewBox=
 /* ─── ADD ITEM MODAL ── */
 function AddEndingInventoryModal({ onClose, onSave, nextNo }) {
   const [form, setForm] = useState({ sku: "", productDescription: "", lastAcceptanceDate: "", qtyAsPerWis: 0, avgUnitCost: 0, qtyAsPerCounting: 0, remarks: "", cogsQty: 0, cogsAvgUnitCost: 0 });
+  const [validationError, setValidationError] = useState("");
 
   const handleSave = () => {
-    if (!form.sku.trim() || !form.productDescription.trim()) return;
+    if (!form.sku.trim() || !form.productDescription.trim()) {
+      setValidationError("SKU Number and Product Description are required.");
+      return;
+    }
+    setValidationError("");
     const qtyWis = parseFloat(form.qtyAsPerWis) || 0;
     const avg = parseFloat(form.avgUnitCost) || 0;
     const qtyCounting = parseFloat(form.qtyAsPerCounting) || 0;
@@ -480,6 +485,9 @@ function AddEndingInventoryModal({ onClose, onSave, nextNo }) {
             <input value={form.remarks} onChange={e => set("remarks", e.target.value)} {...modalInput()} />
           </div>
         </div>
+        {validationError && (
+          <div style={{ padding: "0 24px 12px", color: "#dc2626", fontSize: 12, fontWeight: 600 }}>{validationError}</div>
+        )}
         <div style={modalFooterStyle}>
           <button type="button" onClick={onClose} style={modalBtnSecondary}>Cancel</button>
           <button type="button" onClick={handleSave} style={modalBtnPrimary}><IconPlus size={14} /> Add Item</button>
@@ -576,9 +584,20 @@ export default function EndingInventoryPage({
 }) {
   const xlsxReady = useSheetJS();
   const api = useApi(ENDPOINTS.endingInventory, buildInitialEndingInventory(INITIAL_ENDING_INVENTORY));
-  const inventoryData = propInventoryData ?? api.data;
-  const setInventoryData = propSetInventoryData ?? null;
-  useEffect(() => { if (!propInventoryData) api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Local state for immediate UI updates — does not wait for parent re-render cycle
+  const [items, setItems] = useState(() => propInventoryData ?? api.data);
+  const inventoryData = items;
+
+  // Sync whenever parent passes new data (e.g. after Excel import from parent)
+  useEffect(() => {
+    if (propInventoryData) setItems(propInventoryData);
+    else api.getAll().then(d => setItems(d));
+  }, [propInventoryData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const syncUp = (updated) => {
+    if (propSetInventoryData) propSetInventoryData(_ => updated);
+  };
   const [searchQuery, setSearchQuery] = useState("");
 const [statusFilter, setStatusFilter] = useState("All Remarks");
   const [activeTab, setActiveTab] = useState("wis");
@@ -589,6 +608,7 @@ const [statusFilter, setStatusFilter] = useState("All Remarks");
   const [editingCogsNo, setEditingCogsNo] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [lastAddedId, setLastAddedId] = useState(null);
   const fileInputRef = useRef(null);
   const { sortBy, setSortBy, applySort } = useSort("lastAcceptanceDate", "productDescription");
   const [sortOpen, setSortOpen] = useState(false);
@@ -605,16 +625,21 @@ const [statusFilter, setStatusFilter] = useState("All Remarks");
           (r.productDescription || "").toLowerCase().includes(q)
       );
     }
-  if (statusFilter === "All Remarks") d = d;
-if (statusFilter === "Goods")            d = d.filter(r => (r.remarks || "").toLowerCase().includes("good"));
-else if (statusFilter === "Damaged")     d = d.filter(r => (r.remarks || "").toLowerCase().includes("damage"));
-else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || "").toLowerCase().includes("inspection"));
+    if (statusFilter === "Goods")                 d = d.filter(r => (r.remarks || "").toLowerCase().includes("good"));
+    else if (statusFilter === "Damaged")          d = d.filter(r => (r.remarks || "").toLowerCase().includes("damage"));
+    else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || "").toLowerCase().includes("inspection"));
     if (dateRange.start) d = d.filter((r) => (r.lastAcceptanceDate || "") >= dateRange.start);
     if (dateRange.end)   d = d.filter((r) => (r.lastAcceptanceDate || "") <= dateRange.end);
     return d;
   }, [inventoryData, searchQuery, statusFilter, dateRange]);
 
-  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const sorted = useMemo(() => {
+    const base = applySort(filtered);
+    if (!lastAddedId) return base;
+    const idx = base.findIndex(r => r.id === lastAddedId);
+    if (idx <= 0) return base;
+    return [base[idx], ...base.slice(0, idx), ...base.slice(idx + 1)];
+  }, [filtered, sortBy, lastAddedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const startIdx = (currentPage-1)*PAGE_SIZE;
@@ -627,11 +652,9 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
     importEndingInventory(file, async (parsed) => {
       const normalized = parsed.map((p) => ({ ...p, totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost }));
       try {
-        if (setInventoryData) {
-          setInventoryData(normalized);
-        } else {
-          await api.bulkReplace(normalized);
-        }
+        setItems(normalized);
+        syncUp(normalized);
+        if (!propSetInventoryData) await api.bulkReplace(normalized);
         setCurrentPage(1);
         setEditingNo(null);
         showToast(`Imported ${parsed.length} SKUs successfully.`);
@@ -650,11 +673,10 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
 
   const handleSaveEdit = async (updated) => {
     try {
-      if (setInventoryData) {
-        setInventoryData(d => d.map(r => r.no === updated.no ? { ...updated } : r));
-      } else {
-        await api.update(updated.id ?? updated.no, updated);
-      }
+      const next = items.map(r => r.no === updated.no ? { ...updated } : r);
+      setItems(next);
+      syncUp(next);
+      if (!propSetInventoryData) await api.update(updated.id ?? updated.no, updated);
       setEditingNo(null);
       showToast("Row updated successfully.");
     } catch {
@@ -664,11 +686,10 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
 
   const handleSaveCogsEdit = async (updated) => {
     try {
-      if (setInventoryData) {
-        setInventoryData(d => d.map(r => r.no === updated.no ? { ...r, cogsQty: updated.cogsQty, cogsAvgUnitCost: updated.cogsAvgUnitCost } : r));
-      } else {
-        await api.update(updated.id ?? updated.no, updated);
-      }
+      const next = items.map(r => r.no === updated.no ? { ...r, cogsQty: updated.cogsQty, cogsAvgUnitCost: updated.cogsAvgUnitCost } : r);
+      setItems(next);
+      syncUp(next);
+      if (!propSetInventoryData) await api.update(updated.id ?? updated.no, updated);
       setEditingCogsNo(null);
       showToast("COGS row updated successfully.");
     } catch {
@@ -676,18 +697,15 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
     }
   };
 
-  const handleAddItem = async (newItem) => {
-    try {
-      if (setInventoryData) {
-        setInventoryData(d => [...d, newItem]);
-      } else {
-        await api.create(newItem);
-      }
-      setCurrentPage(1);
-      showToast(`"${newItem.sku}" added successfully.`);
-    } catch {
-      showToast(`Failed to add "${newItem.sku}".`, "error");
-    }
+  const handleAddItem = (newItem) => {
+    const next = [...items, newItem];
+    setItems(next);
+    syncUp(next);
+    setLastAddedId(newItem.id);
+    setSearchQuery("");
+    setStatusFilter("All Remarks");
+    setCurrentPage(1);
+    showToast(`"${newItem.sku}" added successfully.`);
   };
 
   const totalValue = sumEndingInventoryValue(inventoryData);

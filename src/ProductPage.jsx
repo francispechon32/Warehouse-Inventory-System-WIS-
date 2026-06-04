@@ -332,7 +332,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const [showAddModal, setShowAddModal]   = useState(false);
   const fileInputRef = useRef(null);
   const itemsPerPage = 8;
-  const { sortBy, setSortBy, applySort } = useSort("description", "description");
+  const { sortBy, setSortBy, applySort } = useSort("id", "description");
   const [sortOpen, setSortOpen] = useState(false);
 
   useEffect(() => {
