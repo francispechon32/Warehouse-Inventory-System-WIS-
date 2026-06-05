@@ -467,7 +467,7 @@ export default function ApprovalPage({ items = [], onApprove, onReject }) {
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#111827" }}>Reservation Queue</h3>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#111827", textAlign: "left" }}>Reservation Queue</h3>
             <p style={{ margin: "3px 0 0", fontSize: 12, color: "#94a3b8" }}>
               {items.length === 0
                 ? "All reservations have been reviewed"
