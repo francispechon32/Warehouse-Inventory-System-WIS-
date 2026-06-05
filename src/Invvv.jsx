@@ -10,6 +10,7 @@ import PurchasingOrderPage, { INITIAL_PURCHASE_ORDERS } from "./PurchasingOrderP
 import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
 import BackloadInventoryPage from "./BackloadInventoryPage";
 import ReturnPage from "./ReturnPage";
+import ApprovalPage from "./ApprovalPage";
 import NotificationPanel from "./NotificationPanel";
 import { shouldShowLowStockPrompt, markLowStockPromptShown } from "./notificationPrompt";
 import Logo from "./assets/Untitled_design.svg";
@@ -263,6 +264,15 @@ function IconShield({ size = 16 }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+function IconApproval({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
     </svg>
   );
 }
@@ -962,6 +972,28 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
     setTimeout(() => setToast(null), 3500);
   };
   const lowStockPromptChecked = useRef(false);
+
+  // ── Approval flow ──────────────────────────────────────────
+  const [pendingApprovals, setPendingApprovals] = useState([
+    { id: 3, transNo: "013", resDate: "2026-05-03", soWo: "SO-88488", tdtDr: "DR1589722", customer: "Prime Builders Corp.", place: "Cebu", reservedQty: 18, currentStock: 200, estEnding: 182, approvedBy: "A. Reyes", status: "Pending", summarySku: "WF10833", summaryItem: "Wide Flange, 10 x 8 x 33# x 6M" },
+    { id: 8, transNo: "018", resDate: "2026-05-08", soWo: "SO-88550", tdtDr: "DR1590220", customer: "Brencon Developers Phils.", place: "Manila", reservedQty: 28, currentStock: 500, estEnding: 472, approvedBy: "A. Reyes", status: "Pending", summarySku: "GP3302", summaryItem: "GI pipe 1\"" },
+  ]);
+  const [acpoStatusUpdates, setAcpoStatusUpdates] = useState([]);
+
+  const handlePendingCreated = (item) => {
+    setPendingApprovals(prev => [...prev, item]);
+  };
+  const handleApprovalAction = (id, newStatus) => {
+    const item = pendingApprovals.find(p => p.id === id);
+    setPendingApprovals(prev => prev.filter(p => p.id !== id));
+    setAcpoStatusUpdates(prev => [...prev, { id, status: newStatus }]);
+    showToast(
+      newStatus === "Active"
+        ? `Reservation #${item?.transNo} approved.`
+        : `Reservation #${item?.transNo} rejected.`,
+      newStatus === "Active" ? "success" : "error"
+    );
+  };
  const displayName = userProfile.name || "Admin User";
 const firstName = (userName || displayName).split(" ")[0];
 
@@ -1452,6 +1484,49 @@ const firstName = (userName || displayName).split(" ")[0];
                 fontSize: 12, fontWeight: 700, color: "#3d4f63",
                 letterSpacing: "0.12em", textTransform: "uppercase",
                 padding: "12px 20px 8px",
+              }}>APPROVALS</p>
+            )}
+
+            <NavTooltip label={`Pending Approvals${pendingApprovals.length > 0 ? ` (${pendingApprovals.length})` : ""}`} show={!sidebarOpen}>
+              <button
+                className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${activeNav === "Pending Approvals" ? "active" : ""}`}
+                onClick={() => setActiveNav("Pending Approvals")}
+              >
+                <span style={{ position: "relative", flexShrink: 0, display: "flex" }}>
+                  <IconApproval size={22} />
+                  {!sidebarOpen && pendingApprovals.length > 0 && (
+                    <span style={{
+                      position: "absolute", top: -3, right: -3,
+                      width: 9, height: 9, borderRadius: "50%",
+                      background: "#dc2626", border: "1.5px solid #141C25",
+                    }} />
+                  )}
+                </span>
+                {sidebarOpen && (
+                  <>
+                    <span style={{ flex: 1 }}>Pending Approvals</span>
+                    {pendingApprovals.length > 0 && (
+                      <span style={{
+                        background: "#dc2626", color: "#fff",
+                        borderRadius: 10, padding: "2px 8px",
+                        fontSize: 11, fontWeight: 700, lineHeight: "16px",
+                        minWidth: 20, textAlign: "center",
+                      }}>
+                        {pendingApprovals.length}
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+            </NavTooltip>
+
+            <div style={{ height: 1, background: "#1e2a38", margin: "12px 14px 0" }} />
+
+            {sidebarOpen && (
+              <p style={{
+                fontSize: 12, fontWeight: 700, color: "#3d4f63",
+                letterSpacing: "0.12em", textTransform: "uppercase",
+                padding: "12px 20px 8px",
               }}>GENERAL</p>
             )}
 
@@ -1582,6 +1657,7 @@ const firstName = (userName || displayName).split(" ")[0];
                   : activeNav === "Backload Inventory" ? "Backload Inventory"
                   : activeNav === "Advance Customer PO"? "Advance Customer PO"
                   : activeNav === "Return"             ? "Returns"
+                  : activeNav === "Pending Approvals"  ? "Pending Approvals"
                   : `Welcome Back, ${firstName}!`}
               </h1>
               {activeNav === "Product"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
@@ -1591,6 +1667,7 @@ const firstName = (userName || displayName).split(" ")[0];
               {activeNav === "Backload Inventory"     && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Track backloaded inventory</p>}
               {activeNav === "Advance Customer PO"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Advance customer purchase orders</p>}
               {activeNav === "Return"                 && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
+              {activeNav === "Pending Approvals"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Review and act on pending reservation requests</p>}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1739,7 +1816,16 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
             ) : activeNav === "Backload Inventory" ? (
               <BackloadInventoryPage />
             ) : activeNav === "Advance Customer PO" ? (
-              <AdvanceCustomerPOPage />
+              <AdvanceCustomerPOPage
+                onPendingCreated={handlePendingCreated}
+                statusUpdates={acpoStatusUpdates}
+              />
+            ) : activeNav === "Pending Approvals" ? (
+              <ApprovalPage
+                items={pendingApprovals}
+                onApprove={(id) => handleApprovalAction(id, "Active")}
+                onReject={(id) => handleApprovalAction(id, "Rejected")}
+              />
             ) : activeNav === "Return" ? (
               <ReturnPage />
             ) : (

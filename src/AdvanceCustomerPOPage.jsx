@@ -302,9 +302,10 @@ function IconSave({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
 }
 const STATUS_STYLE = {
-  Active: { bg: "#dcfce7", color: "#15803d", badgeBg: "#22c55e" },
-  Pending: { bg: "#fef3c7", color: "#d97706", badgeBg: "#f59e0b" },
-  Closed: { bg: "#e5e7eb", color: "#4b5563", badgeBg: "#6b7280" },
+  Active:   { bg: "#dcfce7", color: "#15803d", badgeBg: "#22c55e" },
+  Pending:  { bg: "#fef3c7", color: "#d97706", badgeBg: "#f59e0b" },
+  Closed:   { bg: "#e5e7eb", color: "#4b5563", badgeBg: "#6b7280" },
+  Rejected: { bg: "#fee2e2", color: "#dc2626", badgeBg: "#ef4444" },
 };
 
 function lineTotals(lines) {
@@ -557,9 +558,21 @@ function AcpoInlineEditRow({ row, onSave, onCancel }) {
     </tr>
   );
 }
-export default function AdvanceCustomerPOPage() {
+export default function AdvanceCustomerPOPage({ onPendingCreated, statusUpdates }) {
   const api = useApi(ENDPOINTS.advanceCustomerPO, SEED_RESERVATIONS);
   useEffect(() => { api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Apply approval/rejection status updates from the Approval page
+  const appliedUpdates = useRef(new Set());
+  useEffect(() => {
+    if (!statusUpdates?.length) return;
+    statusUpdates.forEach(u => {
+      const key = `${u.id}-${u.status}`;
+      if (appliedUpdates.current.has(key)) return;
+      appliedUpdates.current.add(key);
+      api.update(u.id, { status: u.status }).catch(() => {});
+    });
+  }, [statusUpdates]); // eslint-disable-line react-hooks/exhaustive-deps
   const reservations    = api.data;
   const setReservations = null;
   const [searchSku, setSearchSku] = useState("");
@@ -1038,8 +1051,9 @@ export default function AdvanceCustomerPOPage() {
                 api.create(newRes).then(() => {
                   setShowCreate(false);
                   setCreateForm({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
-                  setToast({ msg: "Reservation created successfully.", type: "success" });
+                  setToast({ msg: "Reservation created. Pending approval.", type: "success" });
                   setTimeout(() => setToast(null), 3000);
+                  onPendingCreated?.(newRes);
                 }).catch(() => {
                   setToast({ msg: "Failed to create reservation.", type: "error" });
                   setTimeout(() => setToast(null), 3000);
