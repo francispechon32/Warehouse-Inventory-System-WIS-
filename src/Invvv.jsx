@@ -403,43 +403,63 @@ function buildRecentActivity(stockIn, stockOut, limit = 12) {
     .map(a => ({ ...a, time: new Date(a.time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) }));
 }
 
-const inventoryDataByRange = {
-  "Last 30 Days": [
-    { day: "Week 1", stockIn: 2240, stockOut: 1340 },
-    { day: "Week 2", stockIn: 2680, stockOut: 1820 },
-    { day: "Week 3", stockIn: 1950, stockOut: 1560 },
-    { day: "Week 4", stockIn: 2120, stockOut: 1680 },
-  ],
-  "Last 6 Months": [
-    { day: "Jan", stockIn: 8500, stockOut: 6200 },
-    { day: "Feb", stockIn: 7800, stockOut: 5900 },
-    { day: "Mar", stockIn: 9200, stockOut: 7100 },
-    { day: "Apr", stockIn: 8900, stockOut: 6800 },
-    { day: "May", stockIn: 9600, stockOut: 7400 },
-    { day: "Jun", stockIn: 8200, stockOut: 6500 },
-  ],
-  "Last 1 Year": [
-    { day: "Jan", stockIn: 8500, stockOut: 6200 },
-    { day: "Feb", stockIn: 7800, stockOut: 5900 },
-    { day: "Mar", stockIn: 9200, stockOut: 7100 },
-    { day: "Apr", stockIn: 8900, stockOut: 6800 },
-    { day: "May", stockIn: 9600, stockOut: 7400 },
-    { day: "Jun", stockIn: 8200, stockOut: 6500 },
-    { day: "Jul", stockIn: 9100, stockOut: 7200 },
-    { day: "Aug", stockIn: 8700, stockOut: 6900 },
-    { day: "Sep", stockIn: 9300, stockOut: 7500 },
-    { day: "Oct", stockIn: 8800, stockOut: 6700 },
-    { day: "Nov", stockIn: 9500, stockOut: 7600 },
-    { day: "Dec", stockIn: 9900, stockOut: 8000 },
-  ],
-  "Last 5 Years": [
-    { day: "2020", stockIn: 95000,  stockOut: 75000 },
-    { day: "2021", stockIn: 102000, stockOut: 81000 },
-    { day: "2022", stockIn: 115000, stockOut: 92000 },
-    { day: "2023", stockIn: 108000, stockOut: 86000 },
-    { day: "2024", stockIn: 120000, stockOut: 95000 },
-  ],
-};
+/* --- PERIOD FILTER HELPERS --------------------------------- */
+function filterByPeriod(data, period) {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  let startDate;
+  switch (period) {
+    case "Today":
+      startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case "Weekly":
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 6);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case "Monthly":
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 29);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case "Yearly":
+      startDate = new Date(today);
+      startDate.setFullYear(today.getFullYear() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    default:
+      return data;
+  }
+  const startStr = startDate.toISOString().slice(0, 10);
+  const endStr = today.toISOString().slice(0, 10);
+  return data.filter((t) => t.date >= startStr && t.date <= endStr);
+}
+
+function buildChartData(stockIn, stockOut, period) {
+  if (period === "Today") {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const inQty  = stockIn.filter((t) => t.date === todayStr).reduce((s, t) => s + t.qty, 0);
+    const outQty = stockOut.filter((t) => t.date === todayStr).reduce((s, t) => s + t.qty, 0);
+    return [{ day: "Today", stockIn: inQty, stockOut: outQty }];
+  }
+  if (period === "Weekly") return buildLast7DaysChart(stockIn, stockOut);
+  if (period === "Monthly") return buildLast30DaysChart(stockIn, stockOut);
+  if (period === "Yearly") {
+    const today = new Date();
+    const result = [];
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const inQty  = stockIn.filter((t) => t.date.startsWith(monthStr)).reduce((s, t) => s + t.qty, 0);
+      const outQty = stockOut.filter((t) => t.date.startsWith(monthStr)).reduce((s, t) => s + t.qty, 0);
+      result.push({ day: monthNames[d.getMonth()], stockIn: inQty, stockOut: outQty });
+    }
+    return result;
+  }
+  return [];
+}
 
 /* --- PROFILE PAGE ----------------------------------------- */
 function ProfileField({ label, value, type = "text" }) {
@@ -819,6 +839,91 @@ function WarehouseDropdown({ selected, setSelected }) {
     </div>
   );
 }
+
+function CalendarDropdown({ selected, setSelected }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const options = ["Today", "Weekly", "Monthly", "Yearly"];
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 140 }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          padding: "8px 12px",
+          fontSize: 13,
+          fontWeight: 600,
+          border: "1.5px solid #E0E0E0",
+          borderRadius: 20,
+          background: "#fff",
+          color: "#333",
+          cursor: "pointer",
+          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+          boxShadow: "0px 2px 4px rgba(0,0,0,0.08)",
+          userSelect: "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 4,
+        }}
+      >
+        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" style={{ flexShrink: 0, color: "#e87c27" }}>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span style={{ flex: 1, marginLeft: 4 }}>{selected}</span>
+        <span style={{ color: "#9E9E9E", display: "flex", alignItems: "center", flexShrink: 0, marginLeft: 4 }}>
+          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+            <path d="M19 9l-7 7-7-7"/>
+          </svg>
+        </span>
+      </div>
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 6px)",
+          left: 0,
+          minWidth: "100%",
+          background: "#fff",
+          border: "1.5px solid #E0E0E0",
+          borderRadius: 12,
+          boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+          overflow: "hidden",
+          zIndex: 100,
+        }}>
+          {options.map(opt => (
+            <div
+              key={opt}
+              onClick={() => { setSelected(opt); setOpen(false); }}
+              style={{
+                padding: "10px 14px",
+                fontSize: 13,
+                cursor: "pointer",
+                color: opt === selected ? "#E87722" : "#333",
+                fontWeight: opt === selected ? 600 : 400,
+                background: opt === selected ? "#FFF5EE" : "#fff",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#FFF5EE"}
+              onMouseLeave={e => e.currentTarget.style.background = opt === selected ? "#FFF5EE" : "#fff"}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard({ onLogout, userName, navigateTarget, onNavigated }) {
   const [activeNav, setActiveNav]         = useState("Home");
 
@@ -829,7 +934,7 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
     }
   }, [navigateTarget, onNavigated]);
   const [stockExpanded, setStockExpanded] = useState(false);
-  const [dateRange, setDateRange]         = useState("Last 30 Days");
+  const [dashboardPeriod, setDashboardPeriod] = useState("Weekly");
   const [sidebarOpen, setSidebarOpen]     = useState(true);
   const [productStatusFilter, setProductStatusFilter] = useState("All Status");
   const [poStatusFilter, setPoStatusFilter]           = useState("All Status");
@@ -889,10 +994,7 @@ const firstName = (userName || displayName).split(" ")[0];
     () => sumEndingInventoryValue(endingInventory),
     [endingInventory],
   );
-  const transactionsToday = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return stockIn.filter((t) => t.date === today).length + stockOut.filter((t) => t.date === today).length;
-  }, [stockIn, stockOut]);
+  const isMarilaoOnly = selectedWarehouse === "All Warehouses" || selectedWarehouse === "Marilao";
 
   const goToPendingDeliveries = () => {
     setPoStatusFilter("Pending");
@@ -906,17 +1008,37 @@ const firstName = (userName || displayName).split(" ")[0];
 
   const lowStockAll      = getLowStockProducts(products);
   const stockAlerts      = getUniqueStockAlerts(products);
-  const topReleasedItems = buildTopReleasedItems(stockOut, products);
-  const recentActivity        = buildRecentActivity(stockIn, stockOut, 30);
   const notificationActivity  = buildRecentActivity(stockIn, stockOut, 20);
   const notificationCount     = stockAlerts.length + notificationActivity.length;
-  const chartData = dateRange === "Last 7 Days"
-    ? buildLast7DaysChart(stockIn, stockOut)
-    : dateRange === "Last 30 Days"
-    ? buildLast30DaysChart(stockIn, stockOut)
-    : inventoryDataByRange[dateRange] || [];
+
+  const filteredStockIn = useMemo(
+    () => (isMarilaoOnly ? filterByPeriod(stockIn, dashboardPeriod) : []),
+    [stockIn, dashboardPeriod, isMarilaoOnly]
+  );
+  const filteredStockOut = useMemo(
+    () => (isMarilaoOnly ? filterByPeriod(stockOut, dashboardPeriod) : []),
+    [stockOut, dashboardPeriod, isMarilaoOnly]
+  );
+
+  const transactionsInPeriod = useMemo(
+    () => filteredStockIn.length + filteredStockOut.length,
+    [filteredStockIn, filteredStockOut]
+  );
+  const topReleasedItems = useMemo(
+    () => buildTopReleasedItems(filteredStockOut, products),
+    [filteredStockOut, products]
+  );
+  const recentActivity = useMemo(
+    () => buildRecentActivity(filteredStockIn, filteredStockOut, 30),
+    [filteredStockIn, filteredStockOut]
+  );
+  const chartData = useMemo(
+    () => buildChartData(filteredStockIn, filteredStockOut, dashboardPeriod),
+    [filteredStockIn, filteredStockOut, dashboardPeriod]
+  );
   const chartYMax = (() => {
     const peak = chartData.reduce((m, d) => Math.max(m, d.stockIn || 0, d.stockOut || 0), 0);
+    if (!isMarilaoOnly) return 100;
     if (peak <= 0) return 100;
     const padded = peak * 1.25;
     const step = padded <= 120 ? 25 : padded <= 600 ? 50 : 100;
@@ -1433,12 +1555,7 @@ const firstName = (userName || displayName).split(" ")[0];
                     <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                     About
                   </button>
-                  <button type="button"
-                    className={`sub-btn ${activeNav === "contact" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("contact"); setActiveModal("contact"); }}>
-                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    Contact Support
-                  </button>
+
                 </div>
               )}
             </div>
@@ -1481,7 +1598,13 @@ const firstName = (userName || displayName).split(" ")[0];
   selected={selectedWarehouse}
   setSelected={setSelectedWarehouse}
 />
- 
+              {activeNav === "Home" && (
+                <CalendarDropdown
+                  selected={dashboardPeriod}
+                  setSelected={setDashboardPeriod}
+                />
+              )}
+  
               <div style={{ position: "relative", zIndex: notificationsOpen ? 2001 : undefined }}>
                 <button
                   type="button"
@@ -1633,29 +1756,29 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                     />
                     <MetricCard
                       icon={<IconTruck size={28} />} iconBg="#F95B02" iconColor="#ffffff"
-                      label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
+                      label="Total Pending Deliveries" value={String(isMarilaoOnly ? pendingDeliveryCount : 0)}
                       badge={{
-                        text: pendingDeliveryCount > 0
+                        text: isMarilaoOnly && pendingDeliveryCount > 0
                           ? `${pendingDeliveryCount} pending order${pendingDeliveryCount === 1 ? "" : "s"}`
                           : "No pending orders",
                         color: "#d97706",
-                        bg: pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
-                        icon: pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
+                        bg: isMarilaoOnly && pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
+                        icon: isMarilaoOnly && pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
                       }}
                       onClick={goToPendingDeliveries}
                     />
                     <MetricCard
                       icon={<IconBarChart size={30} />} iconBg="#F95B02" iconColor="#ffffff"
-                      label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
+                      label="Total Inventory Value" value={isMarilaoOnly ? formatCompactPHP(totalInventoryValue) : "₱0"}
                       badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
                       onClick={goToEndingInventory}
                     />
                     <MetricCard
                       icon={<IconBag size={30} />} iconBg="#F95B02" iconColor="#ffffff"
-                      label="Transactions Today" value={String(transactionsToday)}
+                      label={`Transactions (${dashboardPeriod})`} value={String(transactionsInPeriod)}
                       badge={{
-                        text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
-                        color: transactionsToday > 0 ? "#e87c27" : "#6b7280",
+                        text: transactionsInPeriod > 0 ? "View in Stock Sheets" : "No transactions",
+                        color: transactionsInPeriod > 0 ? "#e87c27" : "#6b7280",
                         bg: "transparent",
                       }}
                       onClick={goToStockSheets}
@@ -1674,7 +1797,7 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
                       <div>
                         <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>
-                          Inventory Movement – {dateRange}
+                          Inventory Movement – {dashboardPeriod}
                         </p>
                         <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
                           {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
@@ -1684,17 +1807,6 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                             </div>
                           ))}
                         </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        {["Last 7 Days", "Last 30 Days"].map(r => (
-                          <button key={r} onClick={() => setDateRange(r)} style={{
-                            padding: "4px 10px", fontSize: 11, fontWeight: 600,
-                            borderRadius: 6, cursor: "pointer",
-                            border: dateRange === r ? "1px solid #e87c27" : "1px solid #e5e7eb",
-                            background: dateRange === r ? "#fff7ed" : "#fff",
-                            color: dateRange === r ? "#e87c27" : "#6b7280",
-                          }}>{r.replace("Last ", "")}</button>
-                        ))}
                       </div>
                     </div>
                     <div style={{ flex: 1, minHeight: 260 }}>

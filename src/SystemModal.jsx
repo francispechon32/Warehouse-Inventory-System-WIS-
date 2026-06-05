@@ -266,7 +266,6 @@ export default function SystemModal({ type, onClose, onAction, products, setProd
           style={{
             maxWidth:
               type === "user-guide"      ? 820 :
-              type === "contact"         ? 620 :
               type === "faqs"            ? 680 :
               type === "user-management" ? 740 :
               type === "stock-limits"    ? 640 :
@@ -281,7 +280,6 @@ export default function SystemModal({ type, onClose, onAction, products, setProd
           {type === "user-management" && <UserMgmtModal     onClose={onClose} onAction={onAction} />}
           {type === "stock-limits"    && <StockLimitsModal  onClose={onClose} products={products} setProducts={setProducts} onAction={onAction} />}
           {type === "faqs"            && <FAQsModal         onClose={onClose} />}
-          {type === "contact"         && <ContactModal      onClose={onClose} onAction={onAction} />}
         </div>
       </div>
     </>
@@ -991,87 +989,3 @@ function FAQsModal({ onClose }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   CONTACT SUPPORT MODAL
-───────────────────────────────────────────── */
-function ContactModal({ onClose, onAction }) {
-  const [contactName,    setContactName]    = useState("Chelsea Lopez");
-  const [contactEmail,   setContactEmail]   = useState("chelsea.lopez@tdt.com");
-  const [contactTopic,   setContactTopic]   = useState("Question");
-  const [contactMessage, setContactMessage] = useState("");
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!contactMessage.trim()) { onAction?.("Please type a message before submitting.", "error"); return; }
-    onAction?.("Support ticket sent! We'll reply within 24 hours.", "success");
-    onClose();
-  };
-
-  return (
-    <>
-      <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:38, height:38, borderRadius:10, background:"linear-gradient(135deg,#e87c27,#c96b1c)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}>
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-          </div>
-          <div>
-            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a", textAlign:"left" }}>Contact Support</h2>
-            <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p>
-          </div>
-        </div>
-        <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
-      </div>
-      <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
-          {[
-            { icon:"✉", label:"Support email",  value:"support@tdtpowersteel.com" },
-            { icon:"📞", label:"Phone / hotline", value:"+63 (2) 8XXX-XXXX" },
-            { icon:"🕐", label:"Hours",           value:"Mon–Fri, 8:00 AM – 5:00 PM" },
-            { icon:"⚡", label:"Response time",   value:"Within 1 business day" },
-          ].map((c, i) => (
-            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", background:"#f8fafc", borderRadius:10, border:"1px solid #e9ecef" }}>
-              <div style={{ width:36, height:36, borderRadius:8, background:"#fff7ed", border:"1px solid #fed7aa", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>{c.icon}</div>
-              <div>
-                <p style={{ margin:0, fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em" }}>{c.label}</p>
-                <p style={{ margin:"2px 0 0", fontSize:12, fontWeight:700, color:"#111827" }}>{c.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <form onSubmit={handleSubmit}>
-          <p style={{ margin:"0 0 14px", fontSize:13, color:"#475569", lineHeight:1.5 }}>Experiencing technical difficulties? Submit a help ticket and our team will respond shortly.</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-            <div>
-              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Your Name</label>
-              <input value={contactName} onChange={e => setContactName(e.target.value)} required style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Email Address</label>
-              <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
-            </div>
-          </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Inquiry Category</label>
-            <div style={{ position:"relative" }}>
-              <select value={contactTopic} onChange={e => setContactTopic(e.target.value)} style={{ width:"100%", padding:"9px 32px 9px 12px", border:"2px solid #F95B02", borderRadius:15, fontSize:13, fontWeight:700, color:"#F95B02", outline:"none", fontFamily:"'Segoe UI',Tahoma,Geneva,Verdana,sans-serif", background:"#fff", boxSizing:"border-box", appearance:"none", cursor:"pointer", boxShadow:"0px 8px 16px 0px rgba(0,0,0,0.2)" }}>
-                <option value="Question">General Question</option>
-                <option value="Bug">Technical Bug Report</option>
-                <option value="Feature">Feature Request</option>
-                <option value="Other">Other Topic</option>
-              </select>
-              <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", color:"#F95B02", pointerEvents:"none", fontSize:10 }}>▼</span>
-            </div>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Message</label>
-            <textarea rows={4} value={contactMessage} onChange={e => setContactMessage(e.target.value)} placeholder="Describe your issue or request..." required style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", resize:"none", boxSizing:"border-box" }} />
-          </div>
-          <div style={{ display:"flex", justifyContent:"flex-end", gap:10 }}>
-            <button type="button" onClick={onClose} style={{ padding:"9px 18px", borderRadius:9, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:13, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>Cancel</button>
-            <button type="submit" style={{ padding:"9px 18px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#e87c27,#c96b1c)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"inherit" }}>Submit Support Ticket</button>
-          </div>
-        </form>
-      </div>
-    </>
-  );
-}
