@@ -113,16 +113,16 @@ function exportProducts(rows) {
     ["LOCATION:", "MARILAO WAREHOUSE"],
     ["AS OF:", new Date().toLocaleString()],
     [],
-    ["NO.", "SKU CODE", "PRODUCT DESCRIPTION", "CATEGORY", "UNIT", "CURRENT STOCK", "AVG COST", "TOTAL VALUE", "STATUS"],
+    ["NO.", "SKU CODE", "PRODUCT DESCRIPTION", "CATEGORY", "UNIT", "BEGINNING INVENTORY", "STOCK IN", "STOCK OUT", "CURRENT STOCK", "AVG COST", "TOTAL VALUE", "STATUS"],
   ];
   const dataRows = rows.map((r, i) => [
-    i + 1, r.sku, r.description, r.category, r.unit, r.stock, r.avgCost, r.totalValue,
+    i + 1, r.sku, r.description, r.category, r.unit, r.beginningInventory || 0, r.stockIn || 0, r.stockOut || 0, r.stock, r.avgCost, r.totalValue,
     deriveProductStatus(r.stock),
   ]);
   const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:12},{wch:20},{wch:55},{wch:22},{wch:8},{wch:16},{wch:14},{wch:16},{wch:12}];
+  ws["!cols"] = [{wch:12},{wch:20},{wch:55},{wch:22},{wch:8},{wch:20},{wch:12},{wch:12},{wch:16},{wch:14},{wch:16},{wch:12}];
   const hStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center" } };
-  ["A6","B6","C6","D6","E6","F6","G6","H6","I6"].forEach(c => {
+  ["A6","B6","C6","D6","E6","F6","G6","H6","I6","J6","K6","L6"].forEach(c => {
     if (!ws[c]) ws[c] = { v: "" };
     ws[c].s = hStyle;
   });
@@ -160,6 +160,7 @@ async function importProducts(file, onDone, onError) {
         description,
         category: cellStr(pickCol(r, headers, ["CATEGORY"], 3)) || "Uncategorized",
         unit: cellStr(pickCol(r, headers, ["UNIT"], 4)) || "pcs",
+        beginningInventory: normalizeStock(cellNum(pickCol(r, headers, ["BEGINNING INVENTORY"], 5))) || stock,
         stock,
         avgCost,
         totalValue,
@@ -175,7 +176,7 @@ async function importProducts(file, onDone, onError) {
 }
 
 /* ─── ADD ITEM MODAL ─────────────────────────────────────── */
-const EMPTY_ITEM = { sku: "", description: "", category: "", unit: "pcs", stock: "", avgCost: "" };
+const EMPTY_ITEM = { sku: "", description: "", category: "", unit: "pcs", beginningInventory: "", stock: "", avgCost: "" };
 
 function AddItemModal({ categories, onClose, onSave }) {
   const [form, setForm] = useState(EMPTY_ITEM);
@@ -192,6 +193,7 @@ function AddItemModal({ categories, onClose, onSave }) {
       description: form.description.trim(),
       category: form.category.trim() || "Uncategorized",
       unit: form.unit.trim() || "pcs",
+      beginningInventory: parseFloat(form.beginningInventory) || 0,
       stock,
       avgCost,
       totalValue: stock * avgCost,
@@ -225,6 +227,7 @@ function AddItemModal({ categories, onClose, onSave }) {
               <datalist id="cat-list">{categories.filter(c => c !== "All Categories").map(c => <option key={c} value={c} />)}</datalist>
             </div>
             <div><label style={modalLabelStyle}>Warning Level (stock)</label><input type="number" min={1} value={form.warningLevel || 50} onChange={e => set("warningLevel", e.target.value)} {...modalInput()} /></div>
+            <div><label style={modalLabelStyle}>Beginning Inventory</label><input type="number" min={0} value={form.beginningInventory} onChange={e => set("beginningInventory", e.target.value)} placeholder="0" {...modalInput()} /></div>
             <div><label style={modalLabelStyle}>Current Stock</label><input type="number" min={0} value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="0" {...modalInput()} /></div>
             <div><label style={modalLabelStyle}>Avg Cost (₱)</label><input type="number" min={0} step="0.01" value={form.avgCost} onChange={e => set("avgCost", e.target.value)} placeholder="0.00" {...modalInput()} /></div>
           </div>
@@ -261,7 +264,11 @@ function ProductInlineEditRow({ product, onSave, onCancel }) {
   const [draft, setDraft] = useState({ ...product });
   const set = (k, v) => setDraft(d => {
     const next = { ...d, [k]: v };
-    next.totalValue = (parseFloat(next.stock)||0) * (parseFloat(next.avgCost)||0);
+    const bi = parseFloat(next.beginningInventory) || 0;
+    const si = parseFloat(next.stockIn) || 0;
+    const so = parseFloat(next.stockOut) || 0;
+    next.stock = bi + si - so;
+    next.totalValue = (next.stock) * (parseFloat(next.avgCost)||0);
     return next;
   });
   return (
@@ -283,6 +290,11 @@ function ProductInlineEditRow({ product, onSave, onCancel }) {
           <option value="L">L</option>
         </select>
       </td>
+      <td style={{ padding: "6px 16px", textAlign: "right" }}>
+        <input type="number" min={0} value={draft.beginningInventory ?? ""} onChange={e => set("beginningInventory", parseInt(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "14px 20px", textAlign: "center", color: "#6b7280" }}>{draft.stockIn?.toLocaleString() || 0}</td>
+      <td style={{ padding: "14px 20px", textAlign: "center", color: "#6b7280" }}>{draft.stockOut?.toLocaleString() || 0}</td>
       <td style={{ padding: "6px 16px", textAlign: "right" }}>
         <input type="number" min={0} value={draft.stock ?? ""} onChange={e => set("stock", parseInt(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
       </td>
@@ -312,7 +324,7 @@ function ProductInlineEditRow({ product, onSave, onCancel }) {
  *   setProducts – setter for shared product list (optional)
  *   initialStatusFilter – pre-select status filter, e.g. "Low Stock" (optional)
  */
-export default function ProductPage({ products: propProducts, setProducts: propSetProducts, initialStatusFilter = "All Status" }) {
+export default function ProductPage({ products: propProducts, setProducts: propSetProducts, stockInRows: propStockInRows, stockOutRows: propStockOutRows, initialStatusFilter = "All Status" }) {
   const xlsxReady = useSheetJS();
 
   const api = useApi(ENDPOINTS.products, MOCK_PRODUCTS);
@@ -321,10 +333,34 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const products    = propProducts    ?? api.data;
   const setProducts = propSetProducts ?? null; // mutations go through api when no prop setter
 
+  const stockInRows  = propStockInRows  ?? [];
+  const stockOutRows = propStockOutRows ?? [];
+
   useEffect(() => { if (!propProducts) api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Enrich products with computed stock in/out from transaction data
+  const enriched = useMemo(() => {
+    if (!stockInRows.length && !stockOutRows.length) return products;
+    return (products || []).map(p => {
+      const totalIn = stockInRows
+        .filter(t => t.sku === p.sku)
+        .reduce((sum, t) => sum + (t.qty || 0), 0);
+      const totalOut = stockOutRows
+        .filter(t => t.sku === p.sku)
+        .reduce((sum, t) => sum + (t.qtyOut || 0), 0);
+      const bi = p.beginningInventory || 0;
+      return {
+        ...p,
+        stockIn: totalIn,
+        stockOut: totalOut,
+        stock: bi + totalIn - totalOut,
+      };
+    });
+  }, [products, stockInRows, stockOutRows]);
 
   const [searchQuery, setSearchQuery]     = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [skuFilter, setSkuFilter]         = useState("All SKUs");
   const [statusFilter, setStatusFilter]   = useState(initialStatusFilter);
   const [currentPage, setCurrentPage]     = useState(1);
   const [importing, setImporting]         = useState(false);
@@ -345,10 +381,11 @@ export default function ProductPage({ products: propProducts, setProducts: propS
 
   const handleSaveEdit = async (updated) => {
     try {
+      const { stockIn, stockOut, ...safe } = updated;
       if (setProducts) {
-        setProducts(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+        setProducts(d => d.map(r => r.id === updated.id ? { ...safe } : r));
       } else {
-        await api.update(updated.id, updated);
+        await api.update(updated.id, safe);
       }
       setEditingId(null);
       showToast("Product updated successfully.");
@@ -357,13 +394,14 @@ export default function ProductPage({ products: propProducts, setProducts: propS
     }
   };
 
-  const filtered = products.filter(p => {
+  const filtered = (enriched || []).filter(p => {
     const q = searchQuery.toLowerCase();
     const matchSearch = !q || p.sku.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
     const matchCat    = categoryFilter === "All Categories" || p.category === categoryFilter;
+    const matchSku    = skuFilter === "All SKUs" || p.sku === skuFilter;
     const matchSt     = statusFilter === "All Status"
       || (statusFilter === "Low Stock" ? isLowStock(p) : statusFilter === "Active" ? !isLowStock(p) : p.status === statusFilter);
-    return matchSearch && matchCat && matchSt;
+    return matchSearch && matchCat && matchSku && matchSt;
   });
 
   const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
@@ -371,9 +409,13 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const startIdx      = (currentPage - 1) * itemsPerPage;
   const paginatedItems = sorted.slice(startIdx, startIdx + itemsPerPage);
   const categories    = ["All Categories", ...new Set(products.map(p => p.category))];
+  const skuOptions    = useMemo(() => {
+    if (categoryFilter === "All Categories") return [];
+    return [...new Set(products.filter(p => p.category === categoryFilter).map(p => p.sku))];
+  }, [products, categoryFilter]);
 
   // Count low-stock items for the banner
-  const lowStockCount = getLowStockProducts(products).length;
+  const lowStockCount = getLowStockProducts(enriched).length;
   const duplicateSkuCount = products.length - new Set(products.map((p) => (p.sku || "").trim().toUpperCase()).filter(Boolean)).size;
 
   const handleImport = (e) => {
@@ -437,7 +479,11 @@ export default function ProductPage({ products: propProducts, setProducts: propS
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "category", value: categoryFilter, onChange: (v) => { setCategoryFilter(v); setCurrentPage(1); }, options: categories, minWidth: 160 },
+          { key: "category", value: categoryFilter, onChange: (v) => { setCategoryFilter(v); setSkuFilter("All SKUs"); setCurrentPage(1); }, options: categories, minWidth: 160 },
+          ...(categoryFilter !== "All Categories" ? [{
+            key: "sku", value: skuFilter, onChange: (v) => { setSkuFilter(v); setCurrentPage(1); },
+            options: ["All SKUs", ...skuOptions], minWidth: 140,
+          }] : []),
           { key: "status",   value: statusFilter,   onChange: (v) => { setStatusFilter(v);   setCurrentPage(1); }, options: ["All Status", "Active", "Low Stock"], minWidth: 140 },
         ]}
         primaryAction={{ label: "Add Item", onClick: () => setShowAddModal(true) }}
@@ -484,7 +530,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-               {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS","ACTION"].map(h => (
+               {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","BEGINNING INVENTORY","STOCK IN","STOCK OUT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS","ACTION"].map(h => (
   <th key={h} style={{
     padding: "16px 20px",
     textAlign: h === "PRODUCT DESCRIPTION" ? "left" : h === "CURRENT STOCK" || h === "AVG COST" || h === "TOTAL VALUE" ? "right" : "center",
@@ -497,7 +543,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
             <tbody>
               {paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ padding: "60px 20px", textAlign: "center" }}>
+                  <td colSpan={12} style={{ padding: "60px 20px", textAlign: "center" }}>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                       <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -561,6 +607,9 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                     <HighlightText text={product.category} query={searchQuery} />
                   </td>
                   <td style={{ padding: "14px 20px", color: "#374151", textAlign: "center" }}>{product.unit}</td>
+                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{product.beginningInventory?.toLocaleString() || 0}</td>
+                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{product.stockIn?.toLocaleString() || 0}</td>
+                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{product.stockOut?.toLocaleString() || 0}</td>
                  <td style={{
   padding: "14px 20px", textAlign: "center",
   color: low ? "#d97706" : "#374151",

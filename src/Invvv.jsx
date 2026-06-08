@@ -1793,6 +1793,8 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
               <ProductPage
                 products={products}
                 setProducts={setProducts}
+                stockInRows={stockInRows}
+                stockOutRows={stockOutRows}
                 initialStatusFilter={productStatusFilter}
               />
             ) : activeNav === "Ending Inventory" ? (
