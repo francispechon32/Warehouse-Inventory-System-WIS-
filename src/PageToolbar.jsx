@@ -97,7 +97,7 @@ function FilterSelect({ value, onChange, options, minWidth = 160 }) {
 
         }}
       >
-        <span style={{ flex: 1 }}>{value}</span>          {/* <-- dagdag flex:1 */}
+        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</span>          {/* <-- dagdag flex:1 */}
   <span style={{ color: "#9E9E9E", display: "flex", alignItems: "center", flexShrink: 0 }}>
     <IconChevronDown size={14} />                    {/* <-- wrap sa span */}
   </span>
@@ -110,12 +110,14 @@ function FilterSelect({ value, onChange, options, minWidth = 160 }) {
           top: "calc(100% + 6px)",
           left: 0,
           minWidth: "100%",
+          maxHeight: 280,
+          overflowY: "auto",
           background: "#fff",
           border: "1.5px solid #E0E0E0",
           borderRadius: 12,
           boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
-          overflow: "hidden",
           zIndex: 100,
+          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
         }}>
           {options.map(opt => (
             <div
@@ -124,10 +126,12 @@ function FilterSelect({ value, onChange, options, minWidth = 160 }) {
               style={{
                 padding: "10px 14px",
                 fontSize: 13,
+                fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
                 cursor: "pointer",
                 color: opt === value ? "#E87722" : "#333",
                 fontWeight: opt === value ? 600 : 400,
                 background: opt === value ? "#FFF5EE" : "#fff",
+                whiteSpace: "nowrap",
               }}
               onMouseEnter={e => e.currentTarget.style.background = "#FFF5EE"}
               onMouseLeave={e => e.currentTarget.style.background = opt === value ? "#FFF5EE" : "#fff"}

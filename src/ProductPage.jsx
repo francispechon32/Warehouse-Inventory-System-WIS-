@@ -116,7 +116,7 @@ function exportProducts(rows) {
     ["NO.", "SKU CODE", "PRODUCT DESCRIPTION", "CATEGORY", "UNIT", "BEGINNING INVENTORY", "STOCK IN", "STOCK OUT", "CURRENT STOCK", "AVG COST", "TOTAL VALUE", "STATUS"],
   ];
   const dataRows = rows.map((r, i) => [
-    i + 1, r.sku, r.description, r.category, r.unit, r.beginningInventory || 0, r.stockIn || 0, r.stockOut || 0, r.stock, r.avgCost, r.totalValue,
+    i + 1, r.sku, r.description, r.category, r.unit, (r.beginningDisplay ?? r.beginningInventory) || 0, r.stockIn || 0, r.stockOut || 0, r.stock, r.avgCost, r.totalValue,
     deriveProductStatus(r.stock),
   ]);
   const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
@@ -324,6 +324,8 @@ function ProductInlineEditRow({ product, onSave, onCancel }) {
  *   setProducts – setter for shared product list (optional)
  *   initialStatusFilter – pre-select status filter, e.g. "Low Stock" (optional)
  */
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
 export default function ProductPage({ products: propProducts, setProducts: propSetProducts, stockInRows: propStockInRows, stockOutRows: propStockOutRows, initialStatusFilter = "All Status" }) {
   const xlsxReady = useSheetJS();
 
@@ -338,25 +340,63 @@ export default function ProductPage({ products: propProducts, setProducts: propS
 
   useEffect(() => { if (!propProducts) api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Enrich products with computed stock in/out from transaction data
+  const [selectedPeriod, setSelectedPeriod] = useState("All Time");
+
+  const periodOptions = useMemo(() => {
+    const dates = new Set();
+    stockInRows.forEach(t => { if (t.date) dates.add(t.date.slice(0, 7)); });
+    stockOutRows.forEach(t => { if (t.dispatchDate) dates.add(t.dispatchDate.slice(0, 7)); });
+    const sorted = [...dates].sort().reverse();
+    return ["All Time", ...sorted.map(m => {
+      const [y, mo] = m.split("-");
+      return `${MONTH_NAMES[parseInt(mo) - 1]} ${y}`;
+    })];
+  }, [stockInRows, stockOutRows]);
+
+  const periodPrefix = useMemo(() => {
+    if (selectedPeriod === "All Time") return null;
+    const [m, y] = selectedPeriod.split(" ");
+    const mo = String(MONTH_NAMES.indexOf(m) + 1).padStart(2, "0");
+    return `${y}-${mo}`;
+  }, [selectedPeriod]);
+
+  // Enrich products with period-aware stock in/out from transaction data
   const enriched = useMemo(() => {
     if (!stockInRows.length && !stockOutRows.length) return products;
     return (products || []).map(p => {
-      const totalIn = stockInRows
-        .filter(t => t.sku === p.sku)
-        .reduce((sum, t) => sum + (t.qty || 0), 0);
-      const totalOut = stockOutRows
-        .filter(t => t.sku === p.sku)
-        .reduce((sum, t) => sum + (t.qtyOut || 0), 0);
+      const skuMatch = t => t.sku === p.sku;
+      const inRows = stockInRows.filter(skuMatch);
+      const outRows = stockOutRows.filter(skuMatch);
+
+      let preIn = 0, preOut = 0, periodIn = 0, periodOut = 0;
+
+      if (periodPrefix) {
+        periodIn = inRows.filter(t => t.date && t.date.startsWith(periodPrefix))
+          .reduce((s, t) => s + (t.qty || 0), 0);
+        periodOut = outRows.filter(t => t.dispatchDate && t.dispatchDate.startsWith(periodPrefix))
+          .reduce((s, t) => s + (t.qtyOut || 0), 0);
+        preIn = inRows.filter(t => t.date && t.date < periodPrefix)
+          .reduce((s, t) => s + (t.qty || 0), 0);
+        preOut = outRows.filter(t => t.dispatchDate && t.dispatchDate < periodPrefix)
+          .reduce((s, t) => s + (t.qtyOut || 0), 0);
+      } else {
+        periodIn = inRows.reduce((s, t) => s + (t.qty || 0), 0);
+        periodOut = outRows.reduce((s, t) => s + (t.qtyOut || 0), 0);
+      }
+
       const bi = p.beginningInventory || 0;
+      const beginningDisplay = periodPrefix ? bi + preIn - preOut : bi;
+      const currentStock = beginningDisplay + periodIn - periodOut;
+
       return {
         ...p,
-        stockIn: totalIn,
-        stockOut: totalOut,
-        stock: bi + totalIn - totalOut,
+        stockIn: periodIn,
+        stockOut: periodOut,
+        stock: currentStock,
+        beginningDisplay,
       };
     });
-  }, [products, stockInRows, stockOutRows]);
+  }, [products, stockInRows, stockOutRows, periodPrefix]);
 
   const [searchQuery, setSearchQuery]     = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
@@ -479,12 +519,13 @@ export default function ProductPage({ products: propProducts, setProducts: propS
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "category", value: categoryFilter, onChange: (v) => { setCategoryFilter(v); setSkuFilter("All SKUs"); setCurrentPage(1); }, options: categories, minWidth: 160 },
+          { key: "period", value: selectedPeriod, onChange: (v) => { setSelectedPeriod(v); setCurrentPage(1); }, options: periodOptions, minWidth: 110 },
+          { key: "category", value: categoryFilter, onChange: (v) => { setCategoryFilter(v); setSkuFilter("All SKUs"); setCurrentPage(1); }, options: categories, minWidth: 140 },
           ...(categoryFilter !== "All Categories" ? [{
             key: "sku", value: skuFilter, onChange: (v) => { setSkuFilter(v); setCurrentPage(1); },
-            options: ["All SKUs", ...skuOptions], minWidth: 140,
+            options: ["All SKUs", ...skuOptions], minWidth: 120,
           }] : []),
-          { key: "status",   value: statusFilter,   onChange: (v) => { setStatusFilter(v);   setCurrentPage(1); }, options: ["All Status", "Active", "Low Stock"], minWidth: 140 },
+          { key: "status",   value: statusFilter,   onChange: (v) => { setStatusFilter(v);   setCurrentPage(1); }, options: ["All Status", "Active", "Low Stock"], minWidth: 120 },
         ]}
         primaryAction={{ label: "Add Item", onClick: () => setShowAddModal(true) }}
         showDateRange={false}
@@ -530,14 +571,22 @@ export default function ProductPage({ products: propProducts, setProducts: propS
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-               {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","BEGINNING INVENTORY","STOCK IN","STOCK OUT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS","ACTION"].map(h => (
+               {(() => {
+  const heads = ["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT",
+    periodPrefix ? `BEGINNING (${selectedPeriod})` : "BEGINNING INVENTORY",
+    periodPrefix ? `STOCK IN (${selectedPeriod})` : "STOCK IN",
+    periodPrefix ? `STOCK OUT (${selectedPeriod})` : "STOCK OUT",
+    "CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS","ACTION"];
+  const rightSet = new Set(["CURRENT STOCK","AVG COST","TOTAL VALUE"]);
+  return heads.map(h => (
   <th key={h} style={{
     padding: "16px 20px",
-    textAlign: h === "PRODUCT DESCRIPTION" ? "left" : h === "CURRENT STOCK" || h === "AVG COST" || h === "TOTAL VALUE" ? "right" : "center",
+    textAlign: h === "PRODUCT DESCRIPTION" ? "left" : rightSet.has(h) ? "right" : "center",
     color: "#fff", fontWeight: 700, fontSize: 12,
     whiteSpace: "nowrap",
   }}>{h}</th>
-))}
+));
+})()}
               </tr>
             </thead>
             <tbody>
@@ -607,7 +656,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                     <HighlightText text={product.category} query={searchQuery} />
                   </td>
                   <td style={{ padding: "14px 20px", color: "#374151", textAlign: "center" }}>{product.unit}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{product.beginningInventory?.toLocaleString() || 0}</td>
+                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{(product.beginningDisplay ?? product.beginningInventory) || 0}</td>
                   <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{product.stockIn?.toLocaleString() || 0}</td>
                   <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{product.stockOut?.toLocaleString() || 0}</td>
                  <td style={{

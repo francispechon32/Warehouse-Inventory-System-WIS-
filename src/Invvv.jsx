@@ -398,11 +398,15 @@ function buildTopReleasedItems(stockOut, products) {
 
 function buildRecentActivity(stockIn, stockOut, limit = 12) {
   const ins  = stockIn.map(t => ({
+    id: t.id,
+    sku: t.sku,
     text: `${t.description} – ${t.qty.toLocaleString()} units received`,
     time: t.date,
     type: "in",
   }));
   const outs = stockOut.map(t => ({
+    id: t.id,
+    sku: t.sku,
     text: `${t.description} – ${t.qty.toLocaleString()} units released`,
     time: t.date,
     type: "out",
@@ -411,6 +415,33 @@ function buildRecentActivity(stockIn, stockOut, limit = 12) {
     .sort((a, b) => b.time.localeCompare(a.time))
     .slice(0, limit)
     .map(a => ({ ...a, time: new Date(a.time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) }));
+}
+
+/* --- TRANSACTION DETAIL MODAL ----------------------------- */
+function TransactionDetailModal({ transaction, onClose, onViewInSheets }) {
+  if (!transaction) return null;
+  const isIn = transaction.type === "in";
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)" }} onClick={onClose}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: "32px 36px", minWidth: 420, maxWidth: 520, boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: "0 0 20px 0", color: "#111827", fontSize: 18, fontWeight: 700 }}>
+          {isIn ? "Stock In" : "Stock Out"} — {transaction.sku}
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "10px 16px", fontSize: 14, color: "#374151" }}>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Transaction No.</span><span>{transaction.transNo || transaction.id || "—"}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Description</span><span>{transaction.description}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Quantity</span><span>{transaction.qty.toLocaleString()}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Date</span><span>{transaction.date}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Vendor / Recipient</span><span>{transaction.vendor || transaction.recipient || "—"}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Type</span><span>{isIn ? "Receiving" : "Release"}</span>
+        </div>
+        <div style={{ marginTop: 24, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", color: "#374151", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Close</button>
+          <button onClick={onViewInSheets} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#3571b9", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>View in Stock Sheets</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* --- PERIOD FILTER HELPERS --------------------------------- */
@@ -956,6 +987,8 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
   const [activeModal, setActiveModal] = useState(null);
   const [showProfilePage, setShowProfilePage] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState("All Warehouses");
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [stockSheetsSku, setStockSheetsSku] = useState(null);
   const [userProfile, setUserProfile] = useState({
     name: userName || "Admin User",
     email: "chelsea.lopez@tdt.com",
@@ -1037,6 +1070,18 @@ const firstName = (userName || displayName).split(" ")[0];
     setActiveNav("Ending Inventory");
   };
   const goToStockSheets = () => setActiveNav("Stock Sheets");
+  const handleActivityClick = (a) => {
+    const allRows = [...stockInRows.map(r => ({ ...r, type: "in" })), ...stockOutRows.map(r => ({ ...r, type: "out" }))];
+    const full = allRows.find(r => r.id === a.id);
+    setSelectedTransaction(full || null);
+  };
+  const handleViewInSheets = () => {
+    if (selectedTransaction) {
+      setStockSheetsSku(selectedTransaction.sku);
+      setSelectedTransaction(null);
+      setActiveNav("Stock Sheets");
+    }
+  };
 
   const lowStockAll      = getLowStockProducts(products);
   const stockAlerts      = getUniqueStockAlerts(products);
@@ -1808,6 +1853,8 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                 setStockInData={setStockInRows}
                 stockOutData={stockOutRows}
                 setStockOutData={setStockOutRows}
+                defaultSku={stockSheetsSku}
+                onConsumeDefaultSku={() => setStockSheetsSku(null)}
               />
             ) : activeNav === "Purchasing Order" ? (
               <PurchasingOrderPage
@@ -2032,7 +2079,7 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                     ) : (
                       <div className="dashboard-scroll-panel" style={{ maxHeight: 320, paddingLeft: 24, paddingRight: 24 }}>
                         {recentActivity.map((a, i) => (
-                          <div key={i} className="activity-row" onClick={goToStockSheets}>
+                          <div key={i} className="activity-row" onClick={() => handleActivityClick(a)}>
                             <div style={{
                               width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
                               background: a.type === "in" ? "#22c55e" : "#ef4444",
@@ -2075,6 +2122,15 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
         <ProfilePage
           profile={userProfile}
           onClose={() => setShowProfilePage(false)}
+        />
+      )}
+
+      {/* Transaction Detail Modal */}
+      {selectedTransaction && (
+        <TransactionDetailModal
+          transaction={selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
+          onViewInSheets={handleViewInSheets}
         />
       )}
 

@@ -637,6 +637,8 @@ export default function StockSheetsPage({
   setStockInData: setPropStockIn,
   stockOutData: propStockOut,
   setStockOutData: setPropStockOut,
+  defaultSku,
+  onConsumeDefaultSku,
 }) {
   const xlsxReady = useSheetJS();
   const apiIn  = useApi(`${ENDPOINTS.stockSheets}/in`,  SEED_STOCK_IN);
@@ -648,6 +650,14 @@ export default function StockSheetsPage({
 
   useEffect(() => { if (propStockIn)  setStockInData(propStockIn);  else apiIn.getAll().then(d => setStockInData(d));  }, [propStockIn]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (propStockOut) setStockOutData(propStockOut); else apiOut.getAll().then(d => setStockOutData(d)); }, [propStockOut]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (defaultSku) {
+      setSearchSku(defaultSku);
+      setActiveTab("all");
+      onConsumeDefaultSku?.();
+    }
+  }, [defaultSku]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const syncInUp  = (d) => { if (setPropStockIn)  setPropStockIn(_ => d); };
   const syncOutUp = (d) => { if (setPropStockOut) setPropStockOut(_ => d); };
