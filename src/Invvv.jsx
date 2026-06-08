@@ -1,16 +1,18 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import ProductPage from "./ProductPage";
-import EndingInventoryPage, { INITIAL_ENDING_INVENTORY } from "./EndingInventoryPage";
+import EndingInventoryPage from "./EndingInventoryPage";
 import StockSheetsPage from "./StockSheetsPage";
-import PurchasingOrderPage, { INITIAL_PURCHASE_ORDERS } from "./PurchasingOrderPage";
+import PurchasingOrderPage from "./PurchasingOrderPage";
 import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
 import BackloadInventoryPage from "./BackloadInventoryPage";
 import ReturnPage from "./ReturnPage";
 import NotificationPanel from "./NotificationPanel";
+import MultiSheetImportModal from "./MultiSheetImportModal";
 import { shouldShowLowStockPrompt, markLowStockPromptShown } from "./notificationPrompt";
 import Logo from "./assets/Untitled_design.svg";
 import {
@@ -19,20 +21,31 @@ import {
   syncProductsStatus,
   normalizeWarningLevel,
 } from "./productUtils";
-import { INITIAL_PRODUCTS } from "./initialProducts";
 import {
-  buildInitialEndingInventory,
+  getProducts,
+  saveProducts,
+  getStockIn,
+  saveStockIn,
+  getStockOut,
+  saveStockOut,
+  getPurchaseOrders,
+  savePurchaseOrders,
+  getEndingInventory,
+  saveEndingInventory,
+  getAdvanceCustomerPo,
+  saveAdvanceCustomerPo,
+  getBackload,
+  saveBackload,
+  getReturns,
+  saveReturns,
+} from "./apiClient";
+import {
   sumEndingInventoryValue,
   formatCompactPHP,
 } from "./inventoryUtils";
-import {
-  SEED_STOCK_IN,
-  SEED_STOCK_OUT,
-  toDashboardStockIn,
-  toDashboardStockOut,
-} from "./stockTransactionSeeds";
 import MetricCard from "./MetricCard";
 import SystemModal from "./SystemModal";
+import PendingApprovalsPage from "./PendingApprovalsPage";
 
 /* --- ICONS ----------------------------------------------- */
 function IconHome({ size = 22 }) {
@@ -154,24 +167,6 @@ function IconBag({ size = 22 }) {
       stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18" />
       <path d="M16 10a4 4 0 01-8 0" />
-    </svg>
-  );
-}
-function IconTrendUp({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-      <polyline points="17 6 23 6 23 12" />
-    </svg>
-  );
-}
-function IconTrendDown({ size = 14 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 18 13.5 8.5 8.5 13.5 1 6" />
-      <polyline points="17 18 23 18 23 12" />
     </svg>
   );
 }
@@ -340,8 +335,8 @@ function buildLast7DaysChart(stockIn, stockOut) {
     d.setDate(today.getDate() - i);
     const dateStr = d.toISOString().slice(0, 10);
     const dayLabel = days[d.getDay()];
-    const inQty  = stockIn.filter(t => t.date === dateStr).reduce((s, t) => s + t.qty, 0);
-    const outQty = stockOut.filter(t => t.date === dateStr).reduce((s, t) => s + t.qty, 0);
+    const inQty  = stockIn.filter(t => t.date === dateStr).reduce((s, t) => s + (t.qty || 0), 0);
+    const outQty = stockOut.filter(t => (t.dispatch_date || t.date) === dateStr).reduce((s, t) => s + (t.qty_out || t.qty || 0), 0);
     result.push({ day: dayLabel, stockIn: inQty, stockOut: outQty });
   }
   return result;
@@ -358,7 +353,10 @@ function buildLast30DaysChart(stockIn, stockOut) {
     const startStr = weekStart.toISOString().slice(0, 10);
     const endStr = weekEnd.toISOString().slice(0, 10);
     const inQty  = stockIn.filter(t => t.date >= startStr && t.date <= endStr).reduce((s, t) => s + (t.qty || 0), 0);
-    const outQty = stockOut.filter(t => t.date >= startStr && t.date <= endStr).reduce((s, t) => s + (t.qty || 0), 0);
+    const outQty = stockOut.filter(t => {
+      const date = t.dispatch_date || t.date;
+      return date >= startStr && date <= endStr;
+    }).reduce((s, t) => s + (t.qty_out || t.qty || 0), 0);
     result.push({ day: `Wk ${4 - i}`, stockIn: inQty, stockOut: outQty });
   }
   return result;
@@ -367,7 +365,8 @@ function buildLast30DaysChart(stockIn, stockOut) {
 function buildTopReleasedItems(stockOut, products) {
   const totals = {};
   stockOut.forEach(t => {
-    totals[t.sku] = (totals[t.sku] || 0) + t.qty;
+    const qty = t.qty_out || t.qty || 0;
+    totals[t.sku] = (totals[t.sku] || 0) + qty;
   });
   const sorted = Object.entries(totals)
     .sort((a, b) => b[1] - a[1])
@@ -388,17 +387,22 @@ function buildTopReleasedItems(stockOut, products) {
 
 function buildRecentActivity(stockIn, stockOut, limit = 12) {
   const ins  = stockIn.map(t => ({
-    text: `${t.description} – ${t.qty.toLocaleString()} units received`,
-    time: t.date,
+    text: `${t.sku} – ${(t.qty || 0).toLocaleString()} units received`,
+    time: t.date || new Date().toISOString(),
     type: "in",
   }));
   const outs = stockOut.map(t => ({
-    text: `${t.description} – ${t.qty.toLocaleString()} units released`,
-    time: t.date,
+    text: `${t.sku} – ${(t.qty_out || t.qty || 0).toLocaleString()} units released`,
+    time: t.dispatch_date || t.date || new Date().toISOString(),
     type: "out",
   }));
   return [...ins, ...outs]
-    .sort((a, b) => b.time.localeCompare(a.time))
+    .filter(a => a.time) // Filter out items without time
+    .sort((a, b) => {
+      const timeA = a.time || '';
+      const timeB = b.time || '';
+      return timeB.localeCompare(timeA);
+    })
     .slice(0, limit)
     .map(a => ({ ...a, time: new Date(a.time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) }));
 }
@@ -442,7 +446,7 @@ const inventoryDataByRange = {
 };
 
 /* --- PROFILE PAGE ----------------------------------------- */
-function ProfileField({ label, value, type = "text" }) {
+function ProfileField({ label, value }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
       <label style={{
@@ -740,7 +744,7 @@ function ProfilePage({ profile, onClose }) {
   );
 }
 
-export default function Dashboard({ onLogout, userName, navigateTarget, onNavigated }) {
+export default function Dashboard({ onLogout, currentUser, navigateTarget, onNavigated }) {
   const [activeNav, setActiveNav]         = useState("Home");
 
   useEffect(() => {
@@ -760,16 +764,27 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
+  const [showMultiImport, setShowMultiImport] = useState(false);
   const [showProfilePage, setShowProfilePage] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState("All Warehouses");
-  const [userProfile, setUserProfile] = useState({
-    name: userName || "Admin User",
-    email: "chelsea.lopez@tdt.com",
-    phone: "+63 917 123 4567",
-    role: "Warehouse Administrator",
-    department: "Operations",
-    location: "Marilao Warehouse",
-  });
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  
+  // Create userProfile from currentUser data (database-driven)
+  const userProfile = {
+    name: currentUser?.name || "Admin User",
+    email: currentUser?.email || "admin@example.com", 
+    phone: currentUser?.phone || "N/A",
+    role: currentUser?.role || "Admin",
+    department: currentUser?.department || "N/A",
+    location: currentUser?.location || "N/A"
+  };
+  const isEmployee = currentUser?.role === 'Employee';
+  useEffect(() => {
+    if (isEmployee && ["Settings", "user-management", "stock-limits"].includes(activeNav)) {
+      setActiveNav("Home");
+      setSettingsOpen(false);
+    }
+  }, [isEmployee, activeNav]);
   const sidebarRef = useRef(null);
   const profileRef = useRef(null);
   const [toast, setToast] = useState(null);
@@ -778,27 +793,235 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
     setTimeout(() => setToast(null), 3500);
   };
   const lowStockPromptChecked = useRef(false);
-  const displayName = userProfile.name || "Admin User";
+  const displayName = currentUser?.name || "Admin User";
   const firstName = displayName.split(" ")[0];
 
-  const [products, setProducts] = useState(() =>
-    syncProductsStatus(INITIAL_PRODUCTS).map((p) => ({
+  const [products, setProductsState] = useState(() => []);
+  const [stockInRows, setStockInRowsState] = useState([]);
+  const [stockOutRows, setStockOutRowsState] = useState([]);
+  const stockIn = useMemo(() => stockInRows.map((r) => ({
+    id: r.id,
+    sku: r.sku,
+    description: r.description || r.sku,
+    date: r.date,
+    qty: r.qty,
+    vendor: r.vendorName,
+  })), [stockInRows]);
+  const stockOut = useMemo(() => stockOutRows.map((r) => ({
+    id: r.id,
+    sku: r.sku,
+    description: r.description || r.sku,
+    date: r.dispatchDate,
+    qty: r.qtyOut,
+    customer: r.customer,
+    totalPrice: r.totalPrice,
+  })), [stockOutRows]);
+  const [purchaseOrders, setPurchaseOrdersState] = useState([]);
+  const [endingInventory, setEndingInventoryState] = useState([]);
+  const [backendLoaded, setBackendLoaded] = useState(false);
+  const [backendError, setBackendError] = useState(null);
+
+  // Load pending approvals count
+  useEffect(() => {
+    const fetchPendingApprovalsCount = async () => {
+      try {
+        const response = await fetch('/api/advance-customer-po/pending-count');
+        if (response.ok) {
+          const data = await response.json();
+          setPendingApprovalsCount(data.count);
+        }
+      } catch (error) {
+        console.error('Error fetching pending approvals count:', error);
+      }
+    };
+
+    fetchPendingApprovalsCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchPendingApprovalsCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const hydrateProductList = (productList) =>
+    syncProductsStatus(productList || []).map((p) => ({
       ...p,
       warningLevel: normalizeWarningLevel(p.warningLevel),
       targetMax: Math.max(
         normalizeWarningLevel(p.warningLevel),
         Number(p.targetMax) || normalizeWarningLevel(p.warningLevel) * 4
       ),
-    }))
-  );
-  const [stockInRows, setStockInRows] = useState(SEED_STOCK_IN);
-  const [stockOutRows, setStockOutRows] = useState(SEED_STOCK_OUT);
-  const stockIn = useMemo(() => toDashboardStockIn(stockInRows), [stockInRows]);
-  const stockOut = useMemo(() => toDashboardStockOut(stockOutRows), [stockOutRows]);
-  const [purchaseOrders, setPurchaseOrders] = useState(INITIAL_PURCHASE_ORDERS);
-  const [endingInventory, setEndingInventory] = useState(() =>
-    buildInitialEndingInventory(INITIAL_ENDING_INVENTORY),
-  );
+    }));
+
+  const setProducts = (updater) => {
+    setProductsState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      saveProducts(next).catch((error) => {
+        console.error("Failed to save products:", error);
+      });
+      return next;
+    });
+  };
+
+  const setStockInRows = (updater) => {
+    setStockInRowsState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      saveStockIn(next).catch((error) => {
+        console.error("Failed to save stock-in rows:", error);
+      });
+      return next;
+    });
+  };
+
+  const setStockOutRows = (updater) => {
+    setStockOutRowsState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      saveStockOut(next).catch((error) => {
+        console.error("Failed to save stock-out rows:", error);
+      });
+      return next;
+    });
+  };
+
+  const setPurchaseOrders = (updater) => {
+    setPurchaseOrdersState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      savePurchaseOrders(next).catch((error) => {
+        console.error("Failed to save purchase orders:", error);
+      });
+      return next;
+    });
+  };
+
+  const setEndingInventory = (updater) => {
+    setEndingInventoryState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      saveEndingInventory(next).catch((error) => {
+        console.error("Failed to save ending inventory:", error);
+      });
+      return next;
+    });
+  };
+
+  // Multi-sheet import save function
+  const handleMultiSheetImportSave = async (importResults) => {
+    try {
+      console.log('Saving multi-sheet import results:', importResults);
+      
+      // Save each data type that has records
+      const promises = [];
+      
+      if (importResults.products.length > 0) {
+        promises.push(saveProducts(importResults.products));
+      }
+      
+      if (importResults.purchaseOrders.length > 0) {
+        promises.push(savePurchaseOrders(importResults.purchaseOrders));
+      }
+      
+      if (importResults.endingInventory.length > 0) {
+        promises.push(saveEndingInventory(importResults.endingInventory));
+      }
+      
+      if (importResults.advanceCustomerPo.length > 0) {
+        promises.push(saveAdvanceCustomerPo(importResults.advanceCustomerPo));
+      }
+      
+      if (importResults.backload.length > 0) {
+        promises.push(saveBackload(importResults.backload));
+      }
+      
+      if (importResults.returns.length > 0) {
+        promises.push(saveReturns(importResults.returns));
+      }
+      
+      if (importResults.stockIn.length > 0) {
+        promises.push(saveStockIn(importResults.stockIn));
+      }
+      
+      if (importResults.stockOut.length > 0) {
+        promises.push(saveStockOut(importResults.stockOut));
+      }
+      
+      await Promise.all(promises);
+      
+      // Update local state with imported data
+      if (importResults.products.length > 0) {
+        setProducts(importResults.products);
+      }
+      
+      if (importResults.purchaseOrders.length > 0) {
+        setPurchaseOrders(importResults.purchaseOrders);
+      }
+      
+      if (importResults.endingInventory.length > 0) {
+        setEndingInventory(importResults.endingInventory);
+      }
+      
+      const totalImported = importResults.summary.totalProducts + 
+                          importResults.summary.totalPurchaseOrders + 
+                          importResults.summary.totalEndingInventory +
+                          importResults.summary.totalAdvanceCustomerPo +
+                          importResults.summary.totalBackload +
+                          importResults.summary.totalReturns +
+                          importResults.summary.totalStockIn +
+                          importResults.summary.totalStockOut;
+                          
+      let successMessage = `Successfully imported ${totalImported} records from Excel file: `;
+      const parts = [];
+      
+      if (importResults.summary.totalProducts > 0) parts.push(`${importResults.summary.totalProducts} products`);
+      if (importResults.summary.totalPurchaseOrders > 0) parts.push(`${importResults.summary.totalPurchaseOrders} purchase orders`);
+      if (importResults.summary.totalEndingInventory > 0) parts.push(`${importResults.summary.totalEndingInventory} inventory records`);
+      if (importResults.summary.totalAdvanceCustomerPo > 0) parts.push(`${importResults.summary.totalAdvanceCustomerPo} customer POs`);
+      if (importResults.summary.totalBackload > 0) parts.push(`${importResults.summary.totalBackload} backload items`);
+      if (importResults.summary.totalReturns > 0) parts.push(`${importResults.summary.totalReturns} returns`);
+      if (importResults.summary.totalStockSheets > 0) parts.push(`${importResults.summary.totalStockSheets} stock sheets`);
+      if (importResults.summary.totalStockIn > 0) parts.push(`${importResults.summary.totalStockIn} stock in`);
+      if (importResults.summary.totalStockOut > 0) parts.push(`${importResults.summary.totalStockOut} stock out`);
+      
+      successMessage += parts.join(', ');
+      showToast(successMessage, "success");
+      
+    } catch (error) {
+      console.error('Failed to save multi-sheet import:', error);
+      throw new Error('Failed to save imported data: ' + error.message);
+    }
+  };
+
+  useEffect(() => {
+    async function loadBackendData() {
+      try {
+        const [apiProducts, apiStockIn, apiStockOut, apiPurchaseOrders, apiEndingInventory] = await Promise.all([
+          getProducts(),
+          getStockIn(),
+          getStockOut(),
+          getPurchaseOrders(),
+          getEndingInventory(),
+        ]);
+        setProductsState(hydrateProductList(apiProducts || []));
+        setStockInRowsState(Array.isArray(apiStockIn) ? apiStockIn : []);
+        setStockOutRowsState(Array.isArray(apiStockOut) ? apiStockOut : []);
+        setPurchaseOrdersState(Array.isArray(apiPurchaseOrders) ? apiPurchaseOrders : []);
+        setEndingInventoryState(Array.isArray(apiEndingInventory) ? apiEndingInventory : []);
+        setBackendLoaded(true);
+      } catch (error) {
+        console.error("Failed to load backend data:", error);
+        setBackendError(error.message || "Unable to reach backend");
+      }
+    }
+    loadBackendData();
+  }, []);
+
+  useEffect(() => {
+    if (backendLoaded) {
+      showToast("Connected to backend", "success");
+    }
+  }, [backendLoaded]);
+
+  useEffect(() => {
+    if (backendError) {
+      showToast(`Backend error: ${backendError}`, "warning");
+    }
+  }, [backendError]);
 
   const pendingDeliveries = useMemo(
     () => purchaseOrders.filter((o) => o.status === "Pending"),
@@ -883,9 +1106,8 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
     { label: "Stock Management", Icon: IconStock,  hasChildren: true  },
     { label: "Purchasing Order", Icon: IconPO,     hasChildren: false },
     { label: "Stock Sheets",     Icon: IconSheets, hasChildren: false },
+    { label: "Pending Approvals", Icon: IconSettings, hasChildren: false, badge: pendingApprovalsCount },
   ];
-
-  const isAnyStockSubActive = stockSubItems.some(s => s.label === activeNav);
 
   return (
     <>
@@ -1139,6 +1361,11 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
           from { opacity: 0; transform: scale(0.97) translateY(8px); }
           to   { opacity: 1; transform: scale(1) translateY(0); }
         }
+        
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
       `}</style>
 
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
@@ -1184,7 +1411,7 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
           )}
 
           <nav style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 20 }}>
-            {menuItems.map(({ label, Icon, hasChildren }) => {
+            {menuItems.map(({ label, Icon, hasChildren, badge }) => {
               const isActive     = activeNav === label;
               const isItemActive = isActive;
 
@@ -1208,11 +1435,27 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                           setActiveNav(label);
                         }
                       }}
+                      style={{ position: 'relative' }}
                     >
                       <Icon size={25} style={{ flexShrink: 0 }} />
                       {sidebarOpen && (
                         <>
                           <span style={{ flex: 1 }}>{label}</span>
+                          {badge > 0 && (
+                            <span style={{
+                              background: '#ef4444',
+                              color: '#fff',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              padding: '2px 6px',
+                              borderRadius: '10px',
+                              minWidth: '18px',
+                              textAlign: 'center',
+                              lineHeight: '1.2'
+                            }}>
+                              {badge}
+                            </span>
+                          )}
                           {hasChildren && (
                             <span style={{
                               display: "flex",
@@ -1223,6 +1466,24 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                             </span>
                           )}
                         </>
+                      )}
+                      {!sidebarOpen && badge > 0 && (
+                        <span style={{
+                          position: 'absolute',
+                          top: '-2px',
+                          right: '-2px',
+                          background: '#ef4444',
+                          color: '#fff',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                          padding: '2px 5px',
+                          borderRadius: '8px',
+                          minWidth: '16px',
+                          textAlign: 'center',
+                          lineHeight: '1.2'
+                        }}>
+                          {badge > 99 ? '99+' : badge}
+                        </span>
                       )}
                     </button>
                   </NavTooltip>
@@ -1253,54 +1514,56 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
               }}>GENERAL</p>
             )}
 
-            <div>
-              <NavTooltip label="Settings" show={!sidebarOpen}>
-                <button
-                  type="button"
-                  className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${activeNav === "Settings" ? "active" : ""}`}
-                  onClick={() => {
-                    if (!sidebarOpen) {
-                      setSidebarOpen(true);
-                      setSettingsOpen(true);
-                    } else {
-                      setSettingsOpen((current) => !current);
-                    }
-                    setActiveNav("Settings");
-                  }}
-                >
-                  <IconSettings size={22} />
-                  {sidebarOpen && (
-                    <>
-                      <span style={{ flex: 1 }}>Settings</span>
-                      <span style={{
-                        display: "flex",
-                        transform: settingsOpen ? "rotate(180deg)" : "rotate(0deg)",
-                        transition: "transform .22s ease", opacity: 0.6,
-                      }}>
-                        <IconChevronDown size={13} />
-                      </span>
-                    </>
-                  )}
-                </button>
-              </NavTooltip>
+            {!isEmployee && (
+              <div>
+                <NavTooltip label="Settings" show={!sidebarOpen}>
+                  <button
+                    type="button"
+                    className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${activeNav === "Settings" ? "active" : ""}`}
+                    onClick={() => {
+                      if (!sidebarOpen) {
+                        setSidebarOpen(true);
+                        setSettingsOpen(true);
+                      } else {
+                        setSettingsOpen((current) => !current);
+                      }
+                      setActiveNav("Settings");
+                    }}
+                  >
+                    <IconSettings size={22} />
+                    {sidebarOpen && (
+                      <>
+                        <span style={{ flex: 1 }}>Settings</span>
+                        <span style={{
+                          display: "flex",
+                          transform: settingsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                          transition: "transform .22s ease", opacity: 0.6,
+                        }}>
+                          <IconChevronDown size={13} />
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </NavTooltip>
 
-              {settingsOpen && sidebarOpen && (
-                <div>
-                  <button type="button"
-                    className={`sub-btn ${activeNav === "user-management" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("user-management"); setActiveModal("user-management"); }}>
-                    <IconUser size={15} />
-                    User Management
-                  </button>
-                  <button type="button"
-                    className={`sub-btn ${activeNav === "stock-limits" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("stock-limits"); setActiveModal("stock-limits"); }}>
-                    <IconShield size={15} />
-                    Stock Limits
-                  </button>
-                </div>
-              )}
-            </div>
+                {settingsOpen && sidebarOpen && (
+                  <div>
+                    <button type="button"
+                      className={`sub-btn ${activeNav === "user-management" ? "active" : ""}`}
+                      onClick={() => { setActiveNav("user-management"); setActiveModal("user-management"); }}>
+                      <IconUser size={15} />
+                      User Management
+                    </button>
+                    <button type="button"
+                      className={`sub-btn ${activeNav === "stock-limits" ? "active" : ""}`}
+                      onClick={() => { setActiveNav("stock-limits"); setActiveModal("stock-limits"); }}>
+                      <IconShield size={15} />
+                      Stock Limits
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ marginTop: 4 }}>
               <NavTooltip label="Help" show={!sidebarOpen}>
@@ -1353,12 +1616,6 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                     <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                     About
                   </button>
-                  <button type="button"
-                    className={`sub-btn ${activeNav === "contact" ? "active" : ""}`}
-                    onClick={() => { setActiveNav("contact"); setActiveModal("contact"); }}>
-                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    Contact Support
-                  </button>
                 </div>
               )}
             </div>
@@ -1385,6 +1642,7 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                   : activeNav === "Backload Inventory" ? "Backload Inventory"
                   : activeNav === "Advance Customer PO"? "Advance Customer PO"
                   : activeNav === "Return"             ? "Returns"
+                  : activeNav === "Pending Approvals"  ? "Pending Approvals"
                   : `Welcome Back, ${firstName}!`}
               </h1>
               {activeNav === "Product"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
@@ -1394,6 +1652,7 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
               {activeNav === "Backload Inventory"     && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Track backloaded inventory</p>}
               {activeNav === "Advance Customer PO"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Advance customer purchase orders</p>}
               {activeNav === "Return"                 && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
+              {activeNav === "Pending Approvals"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Review and approve reservation requests</p>}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1420,6 +1679,38 @@ export default function Dashboard({ onLogout, userName, navigateTarget, onNaviga
                   <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M19 9l-7 7-7-7"/></svg>
                 </span>
               </div>
+
+              {/* Multi-Sheet Import Button */}
+              <button
+                type="button"
+                onClick={() => setShowMultiImport(true)}
+                title="Import Excel File (Multi-Sheet)"
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 16px", fontSize: 13, fontWeight: 600,
+                  border: "1.5px solid #e87c27", borderRadius: 9,
+                  background: "#fff", color: "#e87c27", cursor: "pointer",
+                  fontFamily: "inherit", outline: "none",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = "#e87c27";
+                  e.target.style.color = "#fff";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = "#fff";
+                  e.target.style.color = "#e87c27";
+                }}
+              >
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                  <line x1="12" y1="18" x2="12" y2="12"/>
+                  <polyline points="9,15 12,12 15,15"/>
+                </svg>
+                Import Excel
+              </button>
 
               <div style={{ position: "relative", zIndex: notificationsOpen ? 2001 : undefined }}>
                 <button
@@ -1551,13 +1842,16 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                 initialStatusFilter={poStatusFilter}
                 orders={purchaseOrders}
                 setOrders={setPurchaseOrders}
+                currentUser={currentUser}
               />
             ) : activeNav === "Backload Inventory" ? (
               <BackloadInventoryPage />
             ) : activeNav === "Advance Customer PO" ? (
-              <AdvanceCustomerPOPage />
+              <AdvanceCustomerPOPage currentUser={currentUser} />
             ) : activeNav === "Return" ? (
               <ReturnPage />
+            ) : activeNav === "Pending Approvals" ? (
+              <PendingApprovalsPage currentUser={currentUser} />
             ) : (
               /* ══ HOME DASHBOARD ══ */
               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
@@ -1808,6 +2102,17 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
           setProducts={setProducts}
         />
       )}
+
+      {/* Multi-Sheet Import Modal */}
+      <MultiSheetImportModal
+        isOpen={showMultiImport}
+        onClose={() => setShowMultiImport(false)}
+        onImportComplete={(results) => {
+          showToast(`Successfully imported data from Excel file`, "success");
+          setShowMultiImport(false);
+        }}
+        onSaveData={handleMultiSheetImportSave}
+      />
 
       {/* Profile Page Modal */}
       {showProfilePage && (

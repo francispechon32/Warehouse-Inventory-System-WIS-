@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getUsers, createUser, updateUser, deleteUser, getUserRoles } from "./apiClient";
 
 /* ── tiny icon helpers ── */
 function X({ s = 16 }) {
@@ -243,12 +244,7 @@ const ROLE_BADGE_COLORS = {
 /* ─────────────────────────────────────────────
    INITIAL SEED USERS
 ───────────────────────────────────────────── */
-const SEED_USERS = [
-  { id: 1, name: "Chelsea Lopez",  role: "Admin",  lastActive: "Active now"  },
-  { id: 2, name: "Mark Reyes",     role: "Manager",  lastActive: "2 hours ago" },
-  { id: 3, name: "Alyssa Santos",  role: "Employee", lastActive: "Yesterday"   },
-];
-const ROLES = ["Admin", "Manager", "Employee"];
+// Users and roles are loaded from backend; no hardcoded data here.
 
 /* ─────────────────────────────────────────────
    MODAL SHELL
@@ -266,7 +262,6 @@ export default function SystemModal({ type, onClose, onAction, products, setProd
           style={{
             maxWidth:
               type === "user-guide"      ? 820 :
-              type === "contact"         ? 620 :
               type === "faqs"            ? 680 :
               type === "user-management" ? 740 :
               type === "stock-limits"    ? 640 :
@@ -281,7 +276,6 @@ export default function SystemModal({ type, onClose, onAction, products, setProd
           {type === "user-management" && <UserMgmtModal     onClose={onClose} onAction={onAction} />}
           {type === "stock-limits"    && <StockLimitsModal  onClose={onClose} products={products} setProducts={setProducts} onAction={onAction} />}
           {type === "faqs"            && <FAQsModal         onClose={onClose} />}
-          {type === "contact"         && <ContactModal      onClose={onClose} onAction={onAction} />}
         </div>
       </div>
     </>
@@ -559,52 +553,173 @@ function LogoutModal({ onClose, onAction }) {
 /* ─────────────────────────────────────────────
    USER MANAGEMENT MODAL  — full CRUD
 ───────────────────────────────────────────── */
+
 function UserMgmtModal({ onClose, onAction }) {
-  const [users, setUsers]         = useState(SEED_USERS);
+  const [users, setUsers]         = useState([]);
+  const [roles, setRoles]         = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const [showAdd, setShowAdd]     = useState(false);
   const [confirmId, setConfirmId] = useState(null);
 
+  // Form states
   const [newName, setNewName] = useState("");
-  const [newRole, setNewRole] = useState("Staff");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState("");
+  const [newDepartment, setNewDepartment] = useState("");
+  const [newLocation, setNewLocation] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("");
+  const [editDepartment, setEditDepartment] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editPhone, setEditPhone] = useState("");
 
-  const openEdit = (u) => { setEditingId(u.id); setEditRole(u.role); setShowAdd(false); };
-  const cancelEdit = () => setEditingId(null);
+  const openEdit = (u) => { 
+    setEditingId(u.id); 
+    setEditName(u.name);
+    setEditEmail(u.email || "");
+    setEditPassword(u.password || "");
+    setEditRole(u.role); 
+    setEditDepartment(u.department || "");
+    setEditLocation(u.location || "");
+    setEditPhone(u.phone || "");
+    setExpandedId(u.id); // Auto-expand when editing
+    setShowAdd(false); 
+  };
+
+  const toggleExpand = (userId) => {
+    setExpandedId(expandedId === userId ? null : userId);
+  };
+  
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+    setEditEmail("");
+    setEditPassword("");
+    setEditRole("");
+    setEditDepartment("");
+    setEditLocation("");
+    setEditPhone("");
+  };
 
   const handleRemove = (id) => setConfirmId(id);
 
-  const confirmRemove = () => {
-    setUsers(prev => prev.filter(u => u.id !== confirmId));
-    if (editingId === confirmId) setEditingId(null);
-    setConfirmId(null);
-    onAction?.("User removed successfully.", "success");
+  const confirmRemove = async () => {
+    try {
+      await deleteUser(confirmId);
+      setUsers(prev => prev.filter(u => u.id !== confirmId));
+      if (editingId === confirmId) setEditingId(null);
+      setConfirmId(null);
+      onAction?.("User removed successfully.", "success");
+    } catch (err) {
+      onAction?.(err.message || String(err), "error");
+    }
   };
 
-  const saveEdit = () => {
-    setUsers(prev => prev.map(u => u.id === editingId ? { ...u, role: editRole } : u));
-    setEditingId(null);
-    onAction?.("User updated successfully!", "success");
+  const saveEdit = async () => {
+    if (!editName.trim() || !editEmail.trim()) return;
+    try {
+      const updates = { 
+        name: editName.trim(), 
+        email: editEmail.trim(),
+        role: editRole,
+        department: editDepartment.trim() || null,
+        location: editLocation.trim() || null,
+        phone: editPhone.trim() || null
+      };
+      
+      // Only include password in update if it was changed
+      if (editPassword.trim()) {
+        updates.password = editPassword.trim();
+      }
+      
+      const res = await updateUser(editingId, updates);
+      setUsers(prev => prev.map(u => u.id === editingId ? res : u));
+      setEditingId(null);
+      setEditName("");
+      setEditEmail("");
+      setEditPassword("");
+      setEditRole("");
+      setEditDepartment("");
+      setEditLocation("");
+      setEditPhone("");
+      onAction?.("User updated successfully!", "success");
+    } catch (err) {
+      onAction?.(err.message || String(err), "error");
+    }
   };
 
-  const saveNew = () => {
-    if (!newName.trim()) return;
-    const initials = newName.trim().split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase();
-    setUsers(prev => [...prev, {
-      id: Date.now(),
-      name: newName.trim(),
-      role: newRole,
-      lastActive: "Just now",
-      initials,
-    }]);
-    setNewName(""); setNewRole("Staff"); setShowAdd(false);
-    onAction?.("New user added successfully!", "success");
+  const saveNew = async () => {
+    if (!newName.trim() || !newEmail.trim() || !newPassword.trim() || !newRole) return;
+    try {
+      const res = await createUser({ 
+        name: newName.trim(), 
+        email: newEmail.trim(),
+        password: newPassword,
+        role: newRole,
+        department: newDepartment.trim() || null,
+        location: newLocation.trim() || null,
+        phone: newPhone.trim() || null
+      });
+      setUsers(prev => [...prev, res]);
+      setNewName(""); 
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole(""); 
+      setNewDepartment("");
+      setNewLocation("");
+      setNewPhone("");
+      setShowAdd(false);
+      onAction?.("New user added successfully!", "success");
+    } catch (err) {
+      onAction?.(err.message || String(err), "error");
+    }
   };
 
-  const roleColor = (role) =>
-    role === "Admin"  ? { bg:"#fff7ed", color:"#c2410c", border:"#fed7aa" } :
-    role === "Staff"  ? { bg:"#eff6ff", color:"#1d4ed8", border:"#bfdbfe" } :
-                        { bg:"#f1f5f9", color:"#475569", border:"#e2e8f0" };
+  // load users and roles
+  useEffect(() => {
+    let mounted = true;
+    
+    // Load users
+    getUsers().then(list => { 
+      if (mounted) setUsers(list || []); 
+    }).catch(err => {
+      console.error('Error loading users:', err);
+    });
+    
+    // Load roles
+    getUserRoles().then(rolesList => {
+      if (mounted) {
+        const sortedRoles = rolesList || [];
+        setRoles(sortedRoles);
+        // Set default role for new users if not already set
+        if (sortedRoles.length > 0 && !newRole) {
+          const defaultRole = sortedRoles.find(r => r.role_name === 'Employee') || sortedRoles[0];
+          setNewRole(defaultRole.role_name);
+        }
+      }
+    }).catch(err => {
+      console.error('Error loading roles:', err);
+    });
+    
+    return () => { mounted = false; };
+  }, []);
+
+  const getRoleColor = (roleName) => {
+    // Dynamic role colors based on role name
+    const colorMap = {
+      "Admin": { bg:"#fff7ed", color:"#c2410c", border:"#fed7aa" },
+      "Manager": { bg:"#f0f9ff", color:"#0284c7", border:"#bae6fd" },
+      "Employee": { bg:"#eff6ff", color:"#1d4ed8", border:"#bfdbfe" },
+      "Viewer": { bg:"#f8fafc", color:"#475569", border:"#e2e8f0" }
+    };
+    
+    return colorMap[roleName] || { bg:"#f1f5f9", color:"#475569", border:"#e2e8f0" };
+  };
 
   return (
     /* ↓ THIS is the only structural change: <> replaced with this <div> */
@@ -636,66 +751,69 @@ function UserMgmtModal({ onClose, onAction }) {
       </div>
 
       {/* Table header */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 24px", background:"#f8fafc", borderBottom:"1px solid #e9ecef", flexShrink:0 }}>
-        {["Name","Role","Last Active","Action"].map(h => (
-  <span key={h} style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em" }}>{h}</span>
-))}
+      <div style={{ display:"grid", gridTemplateColumns:"40px 1fr 1fr 1fr", padding:"10px 24px", background:"#f8fafc", borderBottom:"1px solid #e9ecef", flexShrink:0 }}>
+        {["","Name","Role","Action"].map(h => (
+          <span key={h} style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.07em" }}>{h}</span>
+        ))}
       </div>
 
       {/* User rows */}
       <div className="um-scroll" style={{ flex:1, overflowY:"auto", minHeight:0 }}>
         {users.map(u => {
-          const rc = roleColor(u.role);
+          const rc = getRoleColor(u.role);
           const initials = u.initials || u.name.split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase();
           const isEditing = editingId === u.id;
+          const isExpanded = expandedId === u.id;
 
           return (
-            <div key={u.id} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", alignItems:"center", padding:"14px 24px", borderBottom:"1px solid #f3f4f6", transition:"background .12s", cursor:"default" }}
-              onMouseEnter={e => e.currentTarget.style.background="#fafafa"}
-              onMouseLeave={e => e.currentTarget.style.background="transparent"}
-            >
-              {/* Name */}
-              <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-                <div style={{ width:36, height:36, borderRadius:"50%", background:rc.bg, border:`1.5px solid ${rc.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:rc.color, flexShrink:0 }}>
-                  {initials}
+            <div key={u.id} style={{ borderBottom:"1px solid #f3f4f6" }}>
+              {/* Main Row */}
+              <div style={{ display:"grid", gridTemplateColumns:"40px 1fr 1fr 1fr", alignItems:"center", padding:"14px 24px", transition:"background .12s", cursor:"default" }}
+                onMouseEnter={e => e.currentTarget.style.background="#fafafa"}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}
+              >
+                {/* Expand button */}
+                <div style={{ display:"flex", justifyContent:"center" }}>
+                  <button 
+                    type="button" 
+                    onClick={() => toggleExpand(u.id)}
+                    style={{ 
+                      width:24, height:24, border:"1px solid #e2e8f0", borderRadius:6, 
+                      background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", 
+                      justifyContent:"center", color:"#9ca3af", transition:"all .15s",
+                      transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)"
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor="#e87c27"; e.currentTarget.style.color="#e87c27"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor="#e2e8f0"; e.currentTarget.style.color="#9ca3af"; }}
+                  >
+                    <ChevR s={12} />
+                  </button>
                 </div>
-                <p title={u.name} style={{ margin:0, fontSize:13, fontWeight:700, color:"#111827", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                  {u.name}
-                </p>
-              </div>
 
-              {/* Role */}
-              <div style={{ display:"flex", justifyContent:"center" }}>
-                {isEditing ? (
-                  <select className="um-role-select" value={editRole} onChange={e => setEditRole(e.target.value)} style={{ width:88 }}>
-                    {ROLES.map(r => <option key={r}>{r}</option>)}
-                  </select>
-                ) : (
-                  <span style={{ fontSize:12, fontWeight:700, padding:"4px 14px", borderRadius:20, background:rc.bg, color:rc.color, border:`1px solid ${rc.border}`, whiteSpace:"nowrap" }}>
-                    {u.role}
-                  </span>
-                )}
-              </div>
-
-              {/* Last Active */}
-              <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:6, fontSize:12 }}>
-                {u.lastActive === "Active now"
-                  ? <span style={{ width:7, height:7, borderRadius:"50%", background:"#22c55e", display:"inline-block", flexShrink:0 }} />
-                  : <span style={{ color:"#9ca3af", display:"flex", alignItems:"center" }}><IconClock s={13} /></span>
-                }
-                <span style={{ color: u.lastActive === "Active now" ? "#16a34a" : "#9ca3af", fontWeight: u.lastActive === "Active now" ? 700 : 400 }}>
-                  {u.lastActive}
-                </span>
-              </div>
-
-              {/* Action */}
-              <div style={{ display:"flex", justifyContent:"center" }}>
-                {isEditing ? (
-                  <div style={{ display:"flex", gap:5 }}>
-                    <button type="button" className="um-btn-save" onClick={saveEdit}><IconCheck s={12} /></button>
-                    <button type="button" className="um-btn-ghost" onClick={cancelEdit} style={{ padding:"6px 10px" }}><X s={12} /></button>
+                {/* Name */}
+                <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+                  <div style={{ width:36, height:36, borderRadius:"50%", background:rc.bg, border:`1.5px solid ${rc.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:rc.color, flexShrink:0 }}>
+                    {initials}
                   </div>
-                ) : (
+                  <div style={{ minWidth:0 }}>
+                    <p title={u.name} style={{ margin:0, fontSize:13, fontWeight:700, color:"#111827", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {u.name}
+                    </p>
+                    <p style={{ margin:"2px 0 0", fontSize:11, color:"#9ca3af", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {u.email}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Role */}
+                <div style={{ display:"flex", justifyContent:"center" }}>
+                  <span style={{ fontSize:12, fontWeight:700, padding:"4px 14px", borderRadius:20, background:rc.bg, color:rc.color, border:`1px solid ${rc.border}`, whiteSpace:"nowrap" }}>
+                    {roles.find(r => r.role_name === u.role)?.display_name || u.role}
+                  </span>
+                </div>
+
+                {/* Action */}
+                <div style={{ display:"flex", justifyContent:"center" }}>
                   <div style={{ display:"flex", gap:4 }}>
                     <button type="button" className="um-btn-ghost" onClick={() => openEdit(u)} style={{ padding:"6px 10px" }}>
                       <IconEdit s={13} />
@@ -707,8 +825,158 @@ function UserMgmtModal({ onClose, onAction }) {
                       <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                     </button>
                   </div>
-                )}
+                </div>
               </div>
+
+              {/* Expanded Details */}
+              {isExpanded && (
+                <div style={{ padding:"16px 24px 20px 64px", background:"#fafbfc", borderTop:"1px solid #f1f5f9" }}>
+                  {isEditing ? (
+                    /* Edit Form */
+                    <div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+                        <IconEdit s={16} />
+                        <h3 style={{ margin:0, fontSize:14, fontWeight:700, color:"#111827" }}>Edit User Details</h3>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+                        <div>
+                          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Full Name</label>
+                          <input 
+                            className="um-add-field" 
+                            value={editName} 
+                            onChange={e => setEditName(e.target.value)} 
+                            placeholder="Enter full name"
+                            style={{ fontSize:13, fontWeight:600 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Email Address</label>
+                          <input 
+                            className="um-add-field" 
+                            type="email"
+                            value={editEmail} 
+                            onChange={e => setEditEmail(e.target.value)} 
+                            placeholder="Enter email address"
+                            style={{ fontSize:13, fontWeight:600 }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+                        <div>
+                          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Password</label>
+                          <input 
+                            className="um-add-field" 
+                            type="text"
+                            value={editPassword} 
+                            onChange={e => setEditPassword(e.target.value)} 
+                            placeholder="Enter password"
+                            style={{ fontSize:13, fontWeight:600 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Role</label>
+                          <select className="um-add-field" value={editRole} onChange={e => setEditRole(e.target.value)} style={{ cursor:"pointer", fontSize:13, fontWeight:600 }}>
+                            {roles.map(r => <option key={r.role_name} value={r.role_name}>{r.display_name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+                        <div>
+                          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Department</label>
+                          <input 
+                            className="um-add-field" 
+                            value={editDepartment} 
+                            onChange={e => setEditDepartment(e.target.value)} 
+                            placeholder="Enter department"
+                            style={{ fontSize:13, fontWeight:600 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Location</label>
+                          <input 
+                            className="um-add-field" 
+                            value={editLocation} 
+                            onChange={e => setEditLocation(e.target.value)} 
+                            placeholder="Enter location"
+                            style={{ fontSize:13, fontWeight:600 }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+                        <div>
+                          <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>Phone</label>
+                          <input 
+                            className="um-add-field" 
+                            value={editPhone} 
+                            onChange={e => setEditPhone(e.target.value)} 
+                            placeholder="Enter phone number"
+                            style={{ fontSize:13, fontWeight:600 }}
+                          />
+                        </div>
+                        <div>
+                          {/* Empty space for layout */}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+                        <button type="button" onClick={cancelEdit}
+                          style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:13, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>
+                          Cancel
+                        </button>
+                        <button type="button" onClick={saveEdit} disabled={!editName.trim() || !editEmail.trim()}
+                          style={{ padding:"8px 16px", borderRadius:8, border:"none", background: (editName.trim() && editEmail.trim()) ? "linear-gradient(135deg,#e87c27,#c96b1c)" : "#e5e7eb", color: (editName.trim() && editEmail.trim()) ? "#fff" : "#9ca3af", cursor: (editName.trim() && editEmail.trim()) ? "pointer" : "not-allowed", fontSize:13, fontWeight:700, fontFamily:"inherit" }}>
+                          <IconCheck s={12} style={{ marginRight:4 }} /> Save Changes
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* View Details */
+                    <div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+                        <IconUser s={16} />
+                        <h3 style={{ margin:0, fontSize:14, fontWeight:700, color:"#111827" }}>User Details</h3>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                        <div>
+                          <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Full Name</label>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827" }}>{u.name}</p>
+                        </div>
+                        <div>
+                          <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Email Address</label>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827" }}>{u.email || "N/A"}</p>
+                        </div>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:12 }}>
+                        <div>
+                          <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Password</label>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827" }}>{u.password || "N/A"}</p>
+                        </div>
+                        <div>
+                          <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Role</label>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827" }}>
+                            {roles.find(r => r.role_name === u.role)?.display_name || u.role}
+                          </p>
+                        </div>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:12 }}>
+                        <div>
+                          <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Department</label>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827" }}>{u.department || "N/A"}</p>
+                        </div>
+                        <div>
+                          <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Location</label>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827" }}>{u.location || "N/A"}</p>
+                        </div>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:16, marginTop:12 }}>
+                        <div>
+                          <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Phone</label>
+                          <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#111827" }}>{u.phone || "N/A"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -718,25 +986,86 @@ function UserMgmtModal({ onClose, onAction }) {
       {showAdd && (
         <div style={{ padding:"16px 24px", background:"#f8fafc", borderTop:"1px solid #e9ecef", flexShrink:0 }}>
           <p style={{ margin:"0 0 12px", fontSize:13, fontWeight:700, color:"#0f172a" }}>Add New User</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 160px", gap:10, marginBottom:10 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
             <div>
               <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Full Name</label>
               <input className="um-add-field" value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Juan Dela Cruz" />
             </div>
             <div>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Email Address</label>
+              <input 
+                className="um-add-field" 
+                type="email" 
+                value={newEmail} 
+                onChange={e => setNewEmail(e.target.value)} 
+                placeholder="e.g. juan@company.com" 
+              />
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Password</label>
+              <input 
+                className="um-add-field" 
+                type="password" 
+                value={newPassword} 
+                onChange={e => setNewPassword(e.target.value)} 
+                placeholder="Enter password" 
+              />
+            </div>
+            <div>
               <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Assign Role</label>
               <select className="um-add-field" value={newRole} onChange={e => setNewRole(e.target.value)} style={{ cursor:"pointer" }}>
-                {ROLES.map(r => <option key={r}>{r}</option>)}
+                <option value="">Select role...</option>
+                {roles.map(r => (
+                  <option key={r.role_name} value={r.role_name}>
+                    {r.display_name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Department</label>
+              <input 
+                className="um-add-field" 
+                value={newDepartment} 
+                onChange={e => setNewDepartment(e.target.value)} 
+                placeholder="e.g. IT Department" 
+              />
+            </div>
+            <div>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Location</label>
+              <input 
+                className="um-add-field" 
+                value={newLocation} 
+                onChange={e => setNewLocation(e.target.value)} 
+                placeholder="e.g. Manila Warehouse" 
+              />
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div>
+              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Phone</label>
+              <input 
+                className="um-add-field" 
+                value={newPhone} 
+                onChange={e => setNewPhone(e.target.value)} 
+                placeholder="e.g. +63 123 456 7890" 
+              />
+            </div>
+            <div>
+              {/* Empty space for layout */}
+            </div>
+          </div>
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-            <button type="button" onClick={() => { setShowAdd(false); setNewName(""); setNewRole("Staff"); }}
+            <button type="button" onClick={() => { setShowAdd(false); setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole(""); setNewDepartment(""); setNewLocation(""); setNewPhone(""); }}
               style={{ padding:"8px 16px", borderRadius:8, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:12, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>
               Cancel
             </button>
-            <button type="button" onClick={saveNew} disabled={!newName.trim()}
-              style={{ padding:"8px 16px", borderRadius:8, border:"none", background: newName.trim() ? "linear-gradient(135deg,#e87c27,#c96b1c)" : "#e5e7eb", color: newName.trim() ? "#fff" : "#9ca3af", cursor: newName.trim() ? "pointer" : "not-allowed", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
+            <button type="button" onClick={saveNew} disabled={!newName.trim() || !newEmail.trim() || !newPassword.trim() || !newRole}
+              style={{ padding:"8px 16px", borderRadius:8, border:"none", background: (newName.trim() && newEmail.trim() && newPassword.trim() && newRole) ? "linear-gradient(135deg,#e87c27,#c96b1c)" : "#e5e7eb", color: (newName.trim() && newEmail.trim() && newPassword.trim() && newRole) ? "#fff" : "#9ca3af", cursor: (newName.trim() && newEmail.trim() && newPassword.trim() && newRole) ? "pointer" : "not-allowed", fontSize:12, fontWeight:700, fontFamily:"inherit" }}>
               Save
             </button>
           </div>
@@ -913,7 +1242,7 @@ function StockLimitsModal({ onClose, products, setProducts, onAction }) {
                 <p style={{ margin:"2px 0 0", fontSize:11, color:"#9ca3af" }}>{p.sku}</p>
               </div>
               <div style={{ textAlign:"center" }}>
-                <p style={{ margin:0, fontSize:14, fontWeight:700, color:"#111827" }}>{stock.toLocaleString()}</p>
+                <p style={{ margin:0, fontSize:14, fontWeight:700, color:"#111827" }}>{(stock || 0).toLocaleString()}</p>
                 <span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:20, background:st.bg, color:st.color }}>{st.label}</span>
               </div>
               <div style={{ display:"flex", justifyContent:"center" }}>
@@ -963,6 +1292,43 @@ function FAQsModal({ onClose }) {
     <>
       <div style={{ position:"relative", padding:"28px 24px 20px", textAlign:"center", borderBottom:"1px solid #f0f2f5", flexShrink:0 }}>
         <button type="button" onClick={onClose} style={{ position:"absolute", top:16, right:16, width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
+        <h2 style={{ margin:"0 0 8px", fontSize:20, fontWeight:800, color:"#0f172a" }}>Frequently Asked Questions</h2>
+        <p style={{ margin:0, fontSize:13, color:"#64748b" }}>Common questions and troubleshooting tips for WIS users</p>
+      </div>
+
+      <div style={{ flex:1, overflowY:"auto", padding:"0 0 20px" }}>
+        {FAQS.map((faq, i) => (
+          <div key={i} style={{ borderBottom:"1px solid #f3f4f6" }}>
+            <button type="button" onClick={() => setOpen(open === i ? null : i)}
+              style={{ width:"100%", padding:"18px 24px", border:"none", background:"none", cursor:"pointer", textAlign:"left", fontSize:14, fontWeight:600, color:"#111827", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"space-between" }}
+              onMouseEnter={e => e.currentTarget.style.background="#fafbfc"}
+              onMouseLeave={e => e.currentTarget.style.background="none"}
+            >
+              <span>{faq.q}</span>
+              <span style={{ color:"#9ca3af", transform: open === i ? "rotate(180deg)" : "none", transition:"transform .2s" }}>
+                <ChevR s={16} />
+              </span>
+            </button>
+            {open === i && (
+              <div style={{ padding:"0 24px 18px", borderTop:"1px solid #f8fafc" }}>
+                <p style={{ margin:0, fontSize:13, color:"#64748b", lineHeight:1.7 }}>{faq.a}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   FAQs MODAL (Alternative implementation)
+───────────────────────────────────────────── */
+function FAQsModalAlt({ onClose }) {
+  return (
+    <>
+      <div style={{ position:"relative", padding:"28px 24px 20px", textAlign:"center", borderBottom:"1px solid #f0f2f5", flexShrink:0 }}>
+        <button type="button" onClick={onClose} style={{ position:"absolute", top:16, right:16, width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
         <div style={{ width:52, height:52, borderRadius:14, background:"#fff7ed", border:"1px solid #fcd9b0", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", fontSize:22 }}>?</div>
         <h2 style={{ margin:"0 0 4px", fontSize:20, fontWeight:900, color:"#0f172a" }}>Frequently Asked Questions</h2>
         <p style={{ margin:0, fontSize:13, color:"#94a3b8" }}>Answers to typical issues and questions</p>
@@ -985,91 +1351,6 @@ function FAQsModal({ onClose }) {
             )}
           </div>
         ))}
-      </div>
-    </>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   CONTACT SUPPORT MODAL
-───────────────────────────────────────────── */
-function ContactModal({ onClose, onAction }) {
-  const [contactName,    setContactName]    = useState("Chelsea Lopez");
-  const [contactEmail,   setContactEmail]   = useState("chelsea.lopez@tdt.com");
-  const [contactTopic,   setContactTopic]   = useState("Question");
-  const [contactMessage, setContactMessage] = useState("");
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!contactMessage.trim()) { onAction?.("Please type a message before submitting.", "error"); return; }
-    onAction?.("Support ticket sent! We'll reply within 24 hours.", "success");
-    onClose();
-  };
-
-  return (
-    <>
-      <div style={{ padding:"20px 24px", borderBottom:"1px solid #e9ecef", display:"flex", alignItems:"center", justifyContent:"space-between", background:"linear-gradient(135deg,#fff7ed 0%,#fff 100%)", flexShrink:0 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:38, height:38, borderRadius:10, background:"linear-gradient(135deg,#e87c27,#c96b1c)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}>
-            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-          </div>
-          <div>
-            <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:"#0f172a", textAlign:"left" }}>Contact Support</h2>
-            <p style={{ margin:0, fontSize:11, color:"#64748b" }}>Send a ticket to support engineers</p>
-          </div>
-        </div>
-        <button type="button" onClick={onClose} style={{ width:32, height:32, border:"1px solid #e2e8f0", borderRadius:8, background:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"#64748b" }}><X s={15} /></button>
-      </div>
-      <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
-          {[
-            { icon:"✉", label:"Support email",  value:"support@tdtpowersteel.com" },
-            { icon:"📞", label:"Phone / hotline", value:"+63 (2) 8XXX-XXXX" },
-            { icon:"🕐", label:"Hours",           value:"Mon–Fri, 8:00 AM – 5:00 PM" },
-            { icon:"⚡", label:"Response time",   value:"Within 1 business day" },
-          ].map((c, i) => (
-            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", background:"#f8fafc", borderRadius:10, border:"1px solid #e9ecef" }}>
-              <div style={{ width:36, height:36, borderRadius:8, background:"#fff7ed", border:"1px solid #fed7aa", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>{c.icon}</div>
-              <div>
-                <p style={{ margin:0, fontSize:10, fontWeight:700, color:"#9ca3af", textTransform:"uppercase", letterSpacing:"0.06em" }}>{c.label}</p>
-                <p style={{ margin:"2px 0 0", fontSize:12, fontWeight:700, color:"#111827" }}>{c.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <form onSubmit={handleSubmit}>
-          <p style={{ margin:"0 0 14px", fontSize:13, color:"#475569", lineHeight:1.5 }}>Experiencing technical difficulties? Submit a help ticket and our team will respond shortly.</p>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
-            <div>
-              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Your Name</label>
-              <input value={contactName} onChange={e => setContactName(e.target.value)} required style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Email Address</label>
-              <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box" }} />
-            </div>
-          </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Inquiry Category</label>
-            <div style={{ position:"relative" }}>
-              <select value={contactTopic} onChange={e => setContactTopic(e.target.value)} style={{ width:"100%", padding:"9px 32px 9px 12px", border:"1.5px solid #e87c27", borderRadius:8, fontSize:13, fontWeight:600, color:"#111827", outline:"none", fontFamily:"inherit", background:"#fff", boxSizing:"border-box", appearance:"none", cursor:"pointer" }}>
-                <option value="Question">General Question</option>
-                <option value="Bug">Technical Bug Report</option>
-                <option value="Feature">Feature Request</option>
-                <option value="Other">Other Topic</option>
-              </select>
-              <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", color:"#9ca3af", pointerEvents:"none", fontSize:10 }}>▼</span>
-            </div>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ display:"block", fontSize:11, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>Message</label>
-            <textarea rows={4} value={contactMessage} onChange={e => setContactMessage(e.target.value)} placeholder="Describe your issue or request..." required style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:8, fontSize:13, outline:"none", fontFamily:"inherit", resize:"none", boxSizing:"border-box" }} />
-          </div>
-          <div style={{ display:"flex", justifyContent:"flex-end", gap:10 }}>
-            <button type="button" onClick={onClose} style={{ padding:"9px 18px", borderRadius:9, border:"1px solid #e2e8f0", background:"#fff", cursor:"pointer", fontSize:13, fontWeight:600, color:"#374151", fontFamily:"inherit" }}>Cancel</button>
-            <button type="submit" style={{ padding:"9px 18px", borderRadius:9, border:"none", background:"linear-gradient(135deg,#e87c27,#c96b1c)", color:"#fff", cursor:"pointer", fontSize:13, fontWeight:700, fontFamily:"inherit" }}>Submit Support Ticket</button>
-          </div>
-        </form>
       </div>
     </>
   );

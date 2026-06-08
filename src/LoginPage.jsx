@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import TDTLogoImg from "./assets/Untitled_design.svg";
+import { loginUser, signupUser, verifySignupOtp, forgotPasswordRequest, verifyForgotPasswordOtp } from "./apiClient";
 
 /* ─── Animated grid background ─── */
 function GridBackground() {
@@ -228,57 +229,8 @@ function FloatingInput({ label, type = "text", value, onChange, autoComplete, ic
   );
 }
 
-/* ─── Divider ─── */
-function OrDivider() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
-      <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-      <span style={{
-        fontFamily: "'Inter', sans-serif",
-        fontSize: 12, fontWeight: 600,
-        color: "rgba(255,255,255,0.25)",
-        letterSpacing: "2px",
-        textTransform: "uppercase",
-      }}>or</span>
-      <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-    </div>
-  );
-}
 
-/* ─── Google button ─── */
-function GoogleButton({ onClick, label }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: "100%",
-        padding: "13px 16px",
-        background: hovered ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
-        border: "1.5px solid rgba(255,255,255,0.12)",
-        borderRadius: 10,
-        cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-        fontFamily: "'Inter', sans-serif",
-        fontSize: 14, fontWeight: 600,
-        color: "rgba(255,255,255,0.75)",
-        transition: "background 0.2s, border-color 0.2s",
-        letterSpacing: "0.3px",
-      }}
-    >
-      <svg width={18} height={18} viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-      </svg>
-      {label}
-    </button>
-  );
-}
+/* Google signup removed — handled by backend */
 
 /* ─── Primary action button ─── */
 function PrimaryButton({ children, onClick, loading }) {
@@ -400,20 +352,110 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetStage, setResetStage] = useState("request");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
-  const handleLogin = () => {
-    if (!email || !password) {
+  const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    
+    console.log('Attempting login with:', { email: trimmedEmail, password: trimmedPassword }); // Debug
+    
+    if (!trimmedEmail || !trimmedPassword) {
       setToast({ msg: "Please fill in all fields.", type: "error" });
       return;
     }
     setToast(null);
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await loginUser({ email: trimmedEmail, password: trimmedPassword });
+      console.log('Login successful:', res); // Debug
       setLoading(false);
-      onLoginSuccess?.(email);
-    }, 1600);
+      onLoginSuccess?.(res);
+    } catch (err) {
+      console.error('Login error:', err); // Debug
+      setLoading(false);
+      let errorMessage = "Login failed. Please try again.";
+      
+      if (err.message && err.message.includes('401')) {
+        errorMessage = "Invalid email/username or password.";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setToast({ msg: errorMessage, type: "error" });
+    }
+  };
+
+  const handleSendResetOtp = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setToast({ msg: "Please enter your email address.", type: "error" });
+      return;
+    }
+    setToast(null);
+    setLoading(true);
+
+    try {
+      const res = await forgotPasswordRequest({ email: trimmedEmail });
+      setLoading(false);
+      setResetStage("verify");
+      setToast({ msg: res?.developmentMode && res?.otp
+        ? `Development mode OTP: ${res.otp}`
+        : `OTP sent to ${trimmedEmail}. Check your email.`, type: "success" });
+    } catch (err) {
+      console.error('Forgot password request error:', err);
+      setLoading(false);
+      let errorMessage = "Unable to send reset OTP. Please try again.";
+      if (err.message) {
+        errorMessage = err.message;
+      }
+      setToast({ msg: errorMessage, type: "error" });
+    }
+  };
+
+  const handleVerifyResetOtp = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedOtp = otp.trim();
+    const trimmedNewPassword = newPassword.trim();
+    const trimmedConfirm = confirmPassword.trim();
+
+    if (!trimmedEmail || !trimmedOtp || !trimmedNewPassword || !trimmedConfirm) {
+      setToast({ msg: "Please complete all reset fields.", type: "error" });
+      return;
+    }
+    if (trimmedNewPassword !== trimmedConfirm) {
+      setToast({ msg: "Passwords do not match.", type: "error" });
+      return;
+    }
+
+    setToast(null);
+    setLoading(true);
+
+    try {
+      await verifyForgotPasswordOtp({ email: trimmedEmail, otp: trimmedOtp, password: trimmedNewPassword });
+      setLoading(false);
+      setToast({ msg: "Password updated successfully. Please sign in.", type: "success" });
+      setResetMode(false);
+      setResetStage("request");
+      setPassword(trimmedNewPassword);
+      setOtp("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      console.error('OTP verification error:', err);
+      setLoading(false);
+      let errorMessage = "Failed to reset password. Please try again.";
+      if (err.message) {
+        errorMessage = err.message;
+      }
+      setToast({ msg: errorMessage, type: "error" });
+    }
   };
 
   return (
@@ -445,12 +487,47 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
         autoComplete="email"
         icon={<IconMail size={16} />}
       />
-      <PasswordInput
-        label="Password"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-        autoComplete="current-password"
-      />
+
+      {resetMode ? (
+        <div style={{ marginBottom: 16, color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 1.5 }}>
+          {resetStage === "request"
+            ? "Enter your email to receive a password reset OTP."
+            : "Enter the OTP and choose a new password."}
+        </div>
+      ) : null}
+
+      {!resetMode && (
+        <PasswordInput
+          label="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          autoComplete="current-password"
+        />
+      )}
+
+      {resetMode && resetStage === "verify" && (
+        <>
+          <FloatingInput
+            label="OTP Code"
+            value={otp}
+            onChange={e => setOtp(e.target.value)}
+            autoComplete="one-time-code"
+            icon={<IconMail size={16} />}
+          />
+          <PasswordInput
+            label="New Password"
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+          <PasswordInput
+            label="Confirm Password"
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+        </>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <label style={{
@@ -475,6 +552,14 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
         </label>
         <button
           type="button"
+          onClick={() => {
+            setResetMode(true);
+            setResetStage("request");
+            setOtp("");
+            setNewPassword("");
+            setConfirmPassword("");
+            setToast(null);
+          }}
           style={{
             background: "none", border: "none", cursor: "pointer",
             fontFamily: "'Inter', sans-serif",
@@ -486,13 +571,14 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
         </button>
       </div>
 
-      <PrimaryButton onClick={handleLogin} loading={loading}>
-        Sign In
+      <PrimaryButton
+        onClick={resetMode ? (resetStage === "request" ? handleSendResetOtp : handleVerifyResetOtp) : handleLogin}
+        loading={loading}
+      >
+        {resetMode ? (resetStage === "request" ? "Send OTP" : "Reset Password") : "Sign In"}
       </PrimaryButton>
 
-      <OrDivider />
-
-      <GoogleButton onClick={() => {}} label="Continue with Google" />
+      {/* Google signup removed — authentication handled by backend */}
 
       <p style={{
         textAlign: "center", marginTop: 24,
@@ -517,40 +603,91 @@ function LoginForm({ onSwitch, onLoginSuccess }) {
 }
 
 /* ─── Sign Up Form ─── */
-function SignUpForm({ onSwitch, onLoginSuccess }) {
+const strengthColors = ["rgba(255,255,255,0.18)", "#f59e0b", "#fb923c", "#f97316", "#22c55e"];
+const strengthLabels = ["Too weak", "Weak", "Fair", "Strong", "Very strong"];
+
+function SignUpForm({ onSwitch }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [otp, setOtp] = useState("");
+  const [stage, setStage] = useState("form");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
-  const handleSignUp = () => {
-    if (!name || !email || !password || !confirm) {
-      setToast({ msg: "Please fill in all required fields.", type: "error" });
-      return;
-    }
-    if (password !== confirm) {
-      setToast({ msg: "Passwords do not match.", type: "error" });
-      return;
-    }
-    setToast(null);
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setToast({ msg: "Account created! Please sign in.", type: "success" });
-      setTimeout(() => onSwitch?.(), 1800);
-    }, 1600);
-  };
-
-  /* Password strength */
   const strength = password.length === 0 ? 0
     : password.length < 6 ? 1
     : password.length < 10 ? 2
     : /[A-Z]/.test(password) && /[0-9]/.test(password) ? 4
     : 3;
-  const strengthColors = ["transparent", "#ef4444", "#f59e0b", "#22c55e", "#16a34a"];
-  const strengthLabels = ["", "Weak", "Fair", "Strong", "Very strong"];
+
+  const handleSendOtp = async () => {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedConfirm = confirm.trim();
+
+    if (!trimmedName || !trimmedEmail || !trimmedPassword || !trimmedConfirm) {
+      setToast({ msg: "Please fill in all required fields.", type: "error" });
+      return;
+    }
+    if (trimmedPassword !== trimmedConfirm) {
+      setToast({ msg: "Passwords do not match.", type: "error" });
+      return;
+    }
+
+    setToast(null);
+    setLoading(true);
+
+    try {
+      const res = await signupUser({ name: trimmedName, email: trimmedEmail, password: trimmedPassword });
+      setLoading(false);
+      setStage("verify");
+      setOtp("");
+      
+      // Check if in development mode
+      if (res?.developmentMode && res?.otp) {
+        setToast({
+          msg: `DEVELOPMENT MODE: Your OTP is ${res.otp} (Email delivery disabled for testing)`,
+          type: "success",
+        });
+      } else {
+        setToast({
+          msg: res?.previewUrl
+            ? `OTP sent to ${trimmedEmail}. Preview: ${res.previewUrl}`
+            : `OTP sent to ${trimmedEmail}. Check your inbox.`,
+          type: "success",
+        });
+      }
+    } catch (err) {
+      setLoading(false);
+      setToast({ msg: err.message || String(err), type: "error" });
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedOtp = otp.trim();
+
+    if (!trimmedOtp) {
+      setToast({ msg: "Please enter the OTP sent to your email.", type: "error" });
+      return;
+    }
+
+    setToast(null);
+    setLoading(true);
+
+    try {
+      await verifySignupOtp({ email: trimmedEmail, otp: trimmedOtp });
+      setLoading(false);
+      setToast({ msg: "Your account is verified. Please sign in.", type: "success" });
+      setTimeout(() => onSwitch?.(), 900);
+    } catch (err) {
+      setLoading(false);
+      setToast({ msg: err.message || String(err), type: "error" });
+    }
+  };
 
   return (
     <div style={{ animation: "slideIn 0.35s ease" }}>
@@ -574,64 +711,116 @@ function SignUpForm({ onSwitch, onLoginSuccess }) {
 
       <Toast message={toast?.msg} type={toast?.type} />
 
-      <FloatingInput
-        label="Full Name"
-        value={name}
-        onChange={e => setName(e.target.value)}
-        autoComplete="name"
-        icon={<IconUser size={16} />}
-      />
-      <FloatingInput
-        label="Email Address"
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-        autoComplete="email"
-        icon={<IconMail size={16} />}
-      />
-
-      <PasswordInput
-        label="Password"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-        autoComplete="new-password"
-      />
-
-      {/* Password strength */}
-      {password.length > 0 && (
-        <div style={{ marginTop: -14, marginBottom: 16 }}>
-          <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} style={{
-                flex: 1, height: 3, borderRadius: 2,
-                background: i <= strength ? strengthColors[strength] : "rgba(255,255,255,0.08)",
-                transition: "background 0.3s",
-              }} />
-            ))}
-          </div>
-          <p style={{
-            fontSize: 11, fontFamily: "'Inter', sans-serif",
-            color: strengthColors[strength], fontWeight: 600,
-            textAlign: "right", margin: 0,
-          }}>{strengthLabels[strength]}</p>
-        </div>
+      {stage === "form" && (
+        <>
+          <FloatingInput
+            label="Full Name"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            autoComplete="name"
+            icon={<IconUser size={16} />}
+          />
+          <FloatingInput
+            label="Email Address"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            autoComplete="email"
+            icon={<IconMail size={16} />}
+          />
+          <PasswordInput
+            label="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+          {password.length > 0 && (
+            <div style={{ marginTop: -14, marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} style={{
+                    flex: 1, height: 3, borderRadius: 2,
+                    background: i <= strength ? strengthColors[strength] : "rgba(255,255,255,0.08)",
+                    transition: "background 0.3s",
+                  }} />
+                ))}
+              </div>
+              <p style={{
+                fontSize: 11, fontFamily: "'Inter', sans-serif",
+                color: strengthColors[strength], fontWeight: 600,
+                textAlign: "right", margin: 0,
+              }}>{strengthLabels[strength]}</p>
+            </div>
+          )}
+          <PasswordInput
+            label="Confirm Password"
+            value={confirm}
+            onChange={e => setConfirm(e.target.value)}
+            autoComplete="new-password"
+          />
+        </>
       )}
 
-      <PasswordInput
-        label="Confirm Password"
-        value={confirm}
-        onChange={e => setConfirm(e.target.value)}
-        autoComplete="new-password"
-      />
+      {stage === "verify" && (
+        <>
+          <div style={{ marginBottom: 18, color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
+            Enter the 6-digit code sent to <strong>{email}</strong>.
+          </div>
+          <FloatingInput
+            label="OTP Code"
+            type="text"
+            value={otp}
+            onChange={e => setOtp(e.target.value)}
+            autoComplete="one-time-code"
+            icon={<IconMail size={16} />}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+            <button
+              type="button"
+              onClick={() => setStage("form")}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#e87c27",
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              Edit details
+            </button>
+          </div>
+        </>
+      )}
 
-      <div style={{ marginBottom: 24 }} />
-
-      <PrimaryButton onClick={handleSignUp} loading={loading}>
-        Create Account
+      <PrimaryButton
+        onClick={stage === "form" ? handleSendOtp : handleVerifyOtp}
+        loading={loading}
+      >
+        {stage === "form" ? "Send OTP" : "Verify OTP"}
       </PrimaryButton>
 
-      <OrDivider />
-
-      <GoogleButton onClick={() => {}} label="Sign up with Google" />
+      {stage === "verify" && (
+        <button
+          type="button"
+          onClick={handleSendOtp}
+          disabled={loading}
+          style={{
+            marginTop: 12,
+            width: "100%",
+            padding: "12px 20px",
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 10,
+            color: "#f9fafb",
+            cursor: loading ? "not-allowed" : "pointer",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          Resend OTP
+        </button>
+      )}
 
       <p style={{
         textAlign: "center", marginTop: 24,

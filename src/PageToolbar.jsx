@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/refs */
 import { useState, useEffect, useRef } from "react";
 import {
   productSearchInputStyle,

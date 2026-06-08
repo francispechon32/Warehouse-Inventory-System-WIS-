@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import "./modalDesign.css";
 
 /** Shared modal shell + sections for settings, help, and alerts */

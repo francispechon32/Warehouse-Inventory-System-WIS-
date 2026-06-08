@@ -19,7 +19,6 @@ import {
   normalizeStock,
 } from "./productUtils";
 import useSort from "./useSort";
-import { INITIAL_PRODUCTS } from "./initialProducts";
 import {
   modalOverlayStyle,
   modalPanelStyle,
@@ -34,8 +33,6 @@ import {
   modalInput,
   modalCellInput,
 } from "./modalFormStyles";
-
-const sampleProducts = INITIAL_PRODUCTS;
 
 /* ─── ICONS ─────────────────────────────────────────────── */
 function IconSearch({ size = 16 }) {
@@ -134,10 +131,10 @@ function exportProducts(rows) {
 }
 
 /* ─── IMPORT ─────────────────────────────────────────────── */
-async function importProducts(file, onDone, onError) {
+async function importProducts(file, onDone, onError, existingProducts = []) {
   try {
     const { raw } = await readWorkbookSheet(file, ["LIST OF SKU", "SKU"]);
-    const headerIdx = findHeaderRowIndex(raw, ["SKU CODE", "PRODUCT DESCRIPTION"], 20);
+    const headerIdx = findHeaderRowIndex(raw, ["SKU", "ITEM"], 20);
     const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
     const parsed = [];
@@ -146,35 +143,182 @@ async function importProducts(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
-      const sku = cellStr(pickCol(r, headers, ["SKU CODE", "SKU"], 1));
-      const description = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 2));
+      const sku = cellStr(pickCol(r, headers, ["SKU"], 0));
+      const description = cellStr(pickCol(r, headers, ["ITEM"], 1));
       if (isInvalidProductRow(sku, description)) continue;
 
-      const stock = normalizeStock(cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 5)));
+      // Only import if both SKU and description exist
+      if (!sku || !description) continue;
+
+      const category = cellStr(pickCol(r, headers, ["CATEGORY"], 2));
+      const stock = cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 5));
       const avgCost = cellNum(pickCol(r, headers, ["AVG COST", "AVERAGE"], 6));
-      const totalValue = cellNum(pickCol(r, headers, ["TOTAL VALUE", "TOTAL"], 7)) || stock * avgCost;
+      const totalValue = cellNum(pickCol(r, headers, ["TOTAL VALUE", "TOTAL"], 7)) || (stock * avgCost);
 
       parsed.push({
         id: parsed.length + 1,
-        sku,
+        sku: sku.toUpperCase(),
         description,
-        category: cellStr(pickCol(r, headers, ["CATEGORY"], 3)) || "Uncategorized",
-        unit: cellStr(pickCol(r, headers, ["UNIT"], 4)) || "pcs",
-        stock,
+        category: category || "",
+        unit: "pcs",
+        stock: normalizeStock(stock),
         avgCost,
         totalValue,
-        status: deriveProductStatus(stock),
+        status: deriveProductStatus(normalizeStock(stock)),
       });
     }
 
-    if (!parsed.length) throw new Error("No product rows found. Use Export WIS template or check SKU column.");
+    if (!parsed.length) throw new Error("No product rows found. Make sure Excel has SKU and ITEM columns with data.");
+
+    // Check for duplicate SKUs with existing products
+    const existingSkus = new Set(existingProducts.map(p => (p.sku || "").toUpperCase()));
+    const duplicateSkus = parsed.filter(p => existingSkus.has(p.sku.toUpperCase()));
+    
+    if (duplicateSkus.length > 0) {
+      return { duplicates: duplicateSkus, newProducts: parsed };
+    }
+
     onDone(dedupeProductsBySku(parsed));
   } catch (err) {
     onError(err.message || "Import failed.");
   }
 }
 
-/* ─── ADD ITEM MODAL ─────────────────────────────────────── */
+/* ─── DUPLICATE CONFIRMATION MODAL ─────────────────────────── */
+function DuplicateConfirmModal({ duplicates, onConfirm, onCancel }) {
+  return (
+    <div style={modalOverlayStyle} onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div style={{ ...modalPanelStyle, width: "min(96vw, 640px)" }}>
+        <div style={modalHeaderStyle}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={modalTitleStyle}>Duplicate SKU Codes Found</h2>
+            <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>
+              {duplicates.length} SKU{duplicates.length > 1 ? "s" : ""} already exist in the system. 
+              Proceeding will overwrite the existing products.
+            </p>
+          </div>
+          <button type="button" onClick={onCancel} style={modalCloseBtnStyle} aria-label="Close"
+            onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"}
+            onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
+            <IconX size={18} />
+          </button>
+        </div>
+        
+        <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, maxHeight: "400px" }}>
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: "#374151", fontWeight: 600, margin: "0 0 8px" }}>
+              Duplicate SKUs to be overwritten:
+            </p>
+          </div>
+          
+          <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+            <div style={{ background: "#f8fafc", padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 12, fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>
+                <span>SKU Code</span>
+                <span>Product Description</span>
+              </div>
+            </div>
+            <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+              {duplicates.map((product, idx) => (
+                <div key={idx} style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "120px 1fr", 
+                  gap: 12, 
+                  padding: "10px 12px", 
+                  borderBottom: idx < duplicates.length - 1 ? "1px solid #f3f4f6" : "none",
+                  background: idx % 2 === 0 ? "#fff" : "#fafafa"
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#e87c27" }}>{product.sku}</span>
+                  <span style={{ fontSize: 12, color: "#374151" }}>{product.description}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        <div style={modalFooterStyle}>
+          <button type="button" onClick={onCancel} style={modalBtnSecondary}>
+            Cancel Import
+          </button>
+          <button type="button" onClick={onConfirm} style={{
+            ...modalBtnPrimary,
+            background: "#dc2626",
+          }}>
+            <IconWarning size={15} /> 
+            Overwrite {duplicates.length} Product{duplicates.length > 1 ? "s" : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SUCCESS MODAL ─────────────────────────────────────── */
+function ImportSuccessModal({ overwrittenProducts, newProductsCount, onClose }) {
+  const hasOverwrites = overwrittenProducts && overwrittenProducts.length > 0;
+  
+  return (
+    <div style={modalOverlayStyle} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ ...modalPanelStyle, width: "min(96vw, 540px)" }}>
+        <div style={modalHeaderStyle}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={modalTitleStyle}>Import Complete</h2>
+            <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>
+              Successfully imported {newProductsCount} product{newProductsCount > 1 ? "s" : ""}.
+              {hasOverwrites && ` ${overwrittenProducts.length} existing product${overwrittenProducts.length > 1 ? "s were" : " was"} overwritten.`}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close"
+            onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"}
+            onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
+            <IconX size={18} />
+          </button>
+        </div>
+        
+        {hasOverwrites && (
+          <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, maxHeight: "400px" }}>
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 13, color: "#374151", fontWeight: 600, margin: "0 0 8px" }}>
+                Overwritten products:
+              </p>
+            </div>
+            
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ background: "#f8fafc", padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 12, fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" }}>
+                  <span>SKU Code</span>
+                  <span>Product Description</span>
+                </div>
+              </div>
+              <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                {overwrittenProducts.map((product, idx) => (
+                  <div key={idx} style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "120px 1fr", 
+                    gap: 12, 
+                    padding: "10px 12px", 
+                    borderBottom: idx < overwrittenProducts.length - 1 ? "1px solid #f3f4f6" : "none",
+                    background: idx % 2 === 0 ? "#fff" : "#fafafa"
+                  }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#e87c27" }}>{product.sku}</span>
+                    <span style={{ fontSize: 12, color: "#374151" }}>{product.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div style={modalFooterStyle}>
+          <button type="button" onClick={onClose} style={modalBtnPrimary}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const EMPTY_ITEM = { sku: "", description: "", category: "", unit: "pcs", stock: "", avgCost: "" };
 
 function AddItemModal({ categories, onClose, onSave }) {
@@ -283,7 +427,7 @@ function ProductInlineEditRow({ product, onSave, onCancel }) {
       <td style={{ padding: "6px 16px", textAlign: "right" }}>
         <input type="number" min={0} step="0.01" value={draft.avgCost ?? ""} onChange={e => set("avgCost", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 90, textAlign: "right" })} />
       </td>
-      <td style={{ padding: "16px 20px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>₱{draft.totalValue.toFixed(2)}</td>
+      <td style={{ padding: "16px 20px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>₱{(parseFloat(draft.totalValue) || 0).toFixed(2)}</td>
       <td style={{ padding: "16px 20px", textAlign: "center" }}>
         <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: draft.stock > 10 ? "#d1fae5" : "#fef3c7", color: draft.stock > 10 ? "#065f46" : "#d97706" }}>
           {draft.stock > 10 ? "Active" : "Low Stock"}
@@ -310,7 +454,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const xlsxReady = useSheetJS();
 
   // If no props passed (standalone use), manage local state
-  const [localProducts, setLocalProducts] = useState(() => syncProductsStatus(sampleProducts));
+  const [localProducts, setLocalProducts] = useState([]);
   const products    = propProducts    ?? localProducts;
   const setProducts = propSetProducts ?? setLocalProducts;
 
@@ -321,6 +465,10 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const [importing, setImporting]         = useState(false);
   const [toast, setToast]                 = useState(null);
   const [showAddModal, setShowAddModal]   = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [pendingImport, setPendingImport] = useState(null);
+  const [importResult, setImportResult] = useState(null);
   const fileInputRef = useRef(null);
   const itemsPerPage = 8;
   const { sortBy, setSortBy, applySort } = useSort("description", "description");
@@ -335,14 +483,14 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
   const [editingId, setEditingId] = useState(null);
   const handleSaveEdit = (updated) => {
-    setProducts(d => d.map(r => r.id === updated.id ? { ...updated } : r));
+    setProducts(d => (d || []).map(r => r.id === updated.id ? { ...updated } : r));
     setEditingId(null);
     showToast("Product updated successfully.");
   };
 
-  const filtered = products.filter(p => {
+  const filtered = (products || []).filter(p => {
     const q = searchQuery.toLowerCase();
-    const matchSearch = !q || p.sku.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
+    const matchSearch = !q || (p.sku || "").toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
     const matchCat    = categoryFilter === "All Categories" || p.category === categoryFilter;
     const matchSt     = statusFilter === "All Status"
       || (statusFilter === "Low Stock" ? isLowStock(p) : statusFilter === "Active" ? !isLowStock(p) : p.status === statusFilter);
@@ -353,24 +501,85 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   const totalPages    = Math.max(1, Math.ceil(sorted.length / itemsPerPage));
   const startIdx      = (currentPage - 1) * itemsPerPage;
   const paginatedItems = sorted.slice(startIdx, startIdx + itemsPerPage);
-  const categories    = ["All Categories", ...new Set(products.map(p => p.category))];
+  const categories    = ["All Categories", ...new Set((products || []).map(p => p.category || "Uncategorized"))];
 
   // Count low-stock items for the banner
-  const lowStockCount = getLowStockProducts(products).length;
-  const duplicateSkuCount = products.length - new Set(products.map((p) => (p.sku || "").trim().toUpperCase()).filter(Boolean)).size;
+  const lowStockCount = getLowStockProducts(products || []).length;
+  const duplicateSkuCount = (products || []).length - new Set((products || []).map((p) => (p.sku || "").trim().toUpperCase()).filter(Boolean)).size;
 
   const handleImport = (e) => {
-    const file = e.target.files[0]; if (!file) return;
+    const file = e.target.files[0]; 
+    if (!file) return;
+    
     setImporting(true);
-    importProducts(file, (parsed) => {
-      setImporting(false); setProducts(parsed); setCurrentPage(1);
-      showToast(`✓ Imported ${parsed.length} SKUs successfully.`);
-      e.target.value = "";
-    }, (err) => {
-      setImporting(false);
-      showToast(`❌ Import failed: ${err}`, "error");
-      e.target.value = "";
+    importProducts(file, 
+      // Success callback - no duplicates found
+      (parsed) => {
+        setImporting(false); 
+        setProducts(parsed); 
+        setCurrentPage(1);
+        setImportResult({ overwrittenProducts: [], newProductsCount: parsed.length });
+        setShowSuccessModal(true);
+        e.target.value = "";
+      }, 
+      // Error callback
+      (err) => {
+        setImporting(false);
+        showToast(`❌ Import failed: ${err}`, "error");
+        e.target.value = "";
+      },
+      // Pass existing products to check for duplicates
+      products || []
+    ).then((result) => {
+      // Handle duplicate detection
+      if (result && result.duplicates) {
+        setImporting(false);
+        setPendingImport({ file, result });
+        setShowDuplicateModal(true);
+        e.target.value = "";
+      }
     });
+  };
+
+  const handleConfirmOverwrite = () => {
+    if (!pendingImport) return;
+    
+    setShowDuplicateModal(false);
+    setImporting(true);
+    
+    const { result } = pendingImport;
+    const newProducts = result.newProducts;
+    
+    // Merge with existing, overwriting duplicates
+    const existingSkus = new Set((products || []).map(p => p.sku.toUpperCase()));
+    const overwrittenProducts = newProducts.filter(p => existingSkus.has(p.sku.toUpperCase()));
+    const mergedProducts = [...(products || [])];
+    
+    // Remove old versions of duplicates and add new ones
+    newProducts.forEach(newProd => {
+      const existingIndex = mergedProducts.findIndex(p => p.sku.toUpperCase() === newProd.sku.toUpperCase());
+      if (existingIndex >= 0) {
+        mergedProducts[existingIndex] = { ...newProd, id: mergedProducts[existingIndex].id };
+      } else {
+        mergedProducts.push({ ...newProd, id: Math.max(0, ...mergedProducts.map(p => p.id || 0)) + 1 });
+      }
+    });
+    
+    setProducts(mergedProducts);
+    setCurrentPage(1);
+    setImporting(false);
+    
+    setImportResult({ 
+      overwrittenProducts, 
+      newProductsCount: newProducts.length 
+    });
+    setShowSuccessModal(true);
+    setPendingImport(null);
+  };
+
+  const handleCancelImport = () => {
+    setShowDuplicateModal(false);
+    setPendingImport(null);
   };
 
   return (
@@ -534,17 +743,17 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                   </td>
                   <td style={{ padding: "14px 20px", color: "#374151", textAlign: "center" }}>{product.unit}</td>
                  <td style={{
-  padding: "14px 20px", textAlign: "center",
+  padding: "14px 20px", textAlign: "right",
   color: low ? "#d97706" : "#374151",
   fontWeight: low ? 700 : 400,
 }}>
-  {product.stock.toLocaleString()}
+  {(product.stock || 0).toLocaleString()}
   {low && (
     <span style={{ marginLeft: 6, color: "#d97706" }}><IconWarning size={12} /></span>
   )}
 </td>
-                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>₱{product.avgCost.toFixed(2)}</td>
-<td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>₱{product.totalValue.toFixed(2)}</td>
+                  <td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>₱{(parseFloat(product.avgCost) || 0).toFixed(2)}</td>
+<td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>₱{(parseFloat(product.totalValue) || 0).toFixed(2)}</td>
                   <td style={{ padding: "14px 20px", textAlign: "center" }}>
                     <span style={{
                       display: "inline-flex",
@@ -568,7 +777,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                       </button>
                     </td>
                 </tr>
-              );})}
+              )})}
             </tbody>
           </table>
         </div>
@@ -616,13 +825,29 @@ export default function ProductPage({ products: propProducts, setProducts: propS
         </div>
       </div>
 
+      {showDuplicateModal && pendingImport && (
+        <DuplicateConfirmModal
+          duplicates={pendingImport.result.duplicates}
+          onConfirm={handleConfirmOverwrite}
+          onCancel={handleCancelImport}
+        />
+      )}
+
+      {showSuccessModal && importResult && (
+        <ImportSuccessModal
+          overwrittenProducts={importResult.overwrittenProducts}
+          newProductsCount={importResult.newProductsCount}
+          onClose={() => setShowSuccessModal(false)}
+        />
+      )}
+
       {showAddModal && (
         <AddItemModal
           categories={categories}
           onClose={() => setShowAddModal(false)}
           onSave={(newItem) => {
-            const newId = Math.max(0, ...products.map(p => p.id || 0)) + 1;
-            setProducts(prev => [...prev, { id: newId, ...newItem }]);
+            const newId = Math.max(0, ...(products || []).map(p => p.id || 0)) + 1;
+            setProducts(prev => [...(prev || []), { id: newId, ...newItem }]);
             setShowAddModal(false);
             showToast(`✓ "${newItem.sku}" added successfully.`);
           }}

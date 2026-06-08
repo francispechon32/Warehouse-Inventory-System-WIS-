@@ -90,8 +90,8 @@ export function isInvalidProductRow(sku, description = "") {
   const s = cellStr(sku).toUpperCase();
   const d = cellStr(description).toUpperCase();
   if (!s) return true;
-  if (s === "SKU CODE" || s === "NO." || s === "NO") return true;
-  if (d === "PRODUCT DESCRIPTION" || s === "PRODUCT DESCRIPTION") return true;
+  if (s === "SKU" || s === "NO." || s === "NO") return true;
+  if (d === "ITEM" || s === "ITEM") return true;
   if (d === "CATEGORY" || s === "CATEGORY" || s === "UNIT" || s === "STATUS") return true;
   if (s.includes("WAREHOUSE") || s.includes("TDT WAREHOUSE") || s.includes("LIST OF SKU")) return true;
   if (s.includes("LOCATION") || s.startsWith("AS OF") || d.includes("LOCATION")) return true;

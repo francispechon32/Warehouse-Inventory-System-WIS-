@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
-import { SEED_STOCK_IN, SEED_STOCK_OUT } from "./stockTransactionSeeds";
 import {
   modalOverlayStyle,
   modalPanelStyle,
@@ -604,86 +603,283 @@ function importStockSheets(file, onInDone, onOutDone, onError) {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true, cellText: false, dateNF: "yyyy-mm-dd" });
       const toNum = (v) => { if (!v && v !== 0) return 0; const n = parseFloat(String(v).replace(/[₱,]/g, "")); return isNaN(n) ? 0 : n; };
       const toStr = (v) => { if (v == null) return ""; if (v instanceof Date) return v.toISOString().slice(0, 10); return String(v).trim(); };
-      const inSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("IN")) || wb.SheetNames[0];
-      const outSheetName = wb.SheetNames.find(n => n.toUpperCase().includes("OUT")) || wb.SheetNames[1] || wb.SheetNames[0];
+      
+      const allInRows = [];
+      const allOutRows = [];
+      const allSummaryRecords = [];
+      const allBalanceRecords = [];
+      const additionalInsertColumns = [];
 
-      // New flat IN format: cols match STOCK_IN_COLS exactly (0-16)
-      const inCols = [
-        ["transNo",0,false],["date",1,false],["tdtPo",2,false],["tdtPoDate",3,false],
-        ["vendorNo",4,false],["vendorName",5,false],["customerDr",6,false],
-        ["tdtWo",7,false],["acceptDate",8,false],
-        ["qty",9,true],["costKilo",10,true],["costUnit",11,true],["totalPurchase",12,true],
-        ["runningQty",13,true],["avgUnitCost",14,true],["totalValue",15,true],["remark",16,false],
-      ];
-      // Detect series column count from OUT sheet headers
-      let outSeriesCount = DEFAULT_SERIES_COUNT;
-      const outWs = wb.Sheets[outSheetName];
-      if (outWs) {
-        const outRaw = XLSX.utils.sheet_to_json(outWs, { header: 1, defval: null, raw: false });
-        for (let i = 0; i < Math.min(outRaw.length, 15); i++) {
-          if (outRaw[i] && outRaw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) {
-            const hdrRow = outRaw[i];
-            // count SERIES columns starting after col 10 (after TOTAL PRICE)
-            let cnt = 0;
-            for (let c = 11; c < hdrRow.length; c++) {
-              const h = String(hdrRow[c] || "").toUpperCase();
-              if (h.startsWith("SERIES") || h.includes("VDR") || (h.includes("QTY") && !["QTY OUT","RUNNING QTY"].includes(h))) cnt++;
-              else break;
+      // Process each sheet (each SKU)
+      wb.SheetNames.forEach(sheetName => {
+        if (sheetName === "Sheet1") return; // Skip generic sheet name
+        
+        const ws = wb.Sheets[sheetName];
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+        
+        // Extract SKU from sheet name or find it in the sheet
+        let currentSku = sheetName.trim().toUpperCase();
+        
+        // Find SKU in the sheet if not in name
+        for (let i = 0; i < Math.min(raw.length, 10); i++) {
+          if (raw[i]) {
+            for (let j = 0; j < raw[i].length; j++) {
+              const cell = toStr(raw[i][j]).toUpperCase();
+              if (cell.includes("SKU NUMBER") && raw[i][j + 2]) {
+                currentSku = toStr(raw[i][j + 2]).trim().toUpperCase();
+                break;
+              }
             }
-            if (cnt > 0) outSeriesCount = cnt;
-            break;
           }
         }
-      }
 
-      // New flat OUT format: base cols (0-10) + dynamic series (11..11+seriesCount-1) + tail
-      const outCols = [
-        ["transNo",0,false],["dispatchDate",1,false],["tdtWo",2,false],["customer",3,false],
-        ["tdtDr",4,false],["branch",5,false],["bdrSummary",6,false],["tdtSi",7,false],
-        ["qtyOut",8,true],["unitCost",9,true],["totalPrice",10,true],
-      ];
-      // parse series and tail dynamically
-      const parseSheet = (ws, fieldMap, extraParser) => {
-        if (!ws) return [];
-        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
-        let hdrIdx = -1;
-        for (let i = 0; i < Math.min(raw.length, 15); i++) {
-          if (raw[i] && raw[i].some(v => typeof v === "string" && v.toUpperCase().includes("TRANS"))) { hdrIdx = i; break; }
-        }
-        const dataStart = hdrIdx >= 0 ? hdrIdx + 1 : 6;
-        const result = [];
-        for (let i = dataStart; i < raw.length; i++) {
-          const r = raw[i];
-          if (!r || r.every(v => !v || String(v).trim() === "")) continue;
-          const row = { id: result.length + 1 };
-          fieldMap.forEach(([field, idx, numeric]) => {
-            row[field] = numeric ? toNum(r[idx]) : toStr(r[idx]);
-          });
-          if (extraParser) extraParser(row, r, result.length);
-          result.push(row);
-        }
-        return result;
-      };
+        // Find section headers and data ranges
+        let receivedPurchasesStart = -1;
+        let deliveredGoodsStart = -1;
+        let summaryOfStart = -1;
+        let balanceStart = -1;
+        let insertColumnsStart = -1;
 
-      const outRows = parseSheet(wb.Sheets[outSheetName], outCols, (row, r) => {
-        // series columns
-        row.series = Array.from({ length: outSeriesCount }, (_, si) => toStr(r[11 + si]));
-        // legacy s1/s2/s3 for backward compat
-        row.s1 = row.series[0] || "";
-        row.s2 = row.series[1] || "";
-        row.s3 = row.series[2] || "";
-        // tail: runningQty, runningValue, remarks
-        const tailStart = 11 + outSeriesCount;
-        row.runningQty = toNum(r[tailStart]);
-        row.runningValue = toNum(r[tailStart + 1]);
-        row.remarks = toStr(r[tailStart + 2]);
+        for (let i = 0; i < raw.length; i++) {
+          if (!raw[i]) continue;
+          
+          for (let j = 0; j < raw[i].length; j++) {
+            const cell = toStr(raw[i][j]).toUpperCase();
+            
+            if (cell.includes("RECEIVED PURCHASES")) {
+              receivedPurchasesStart = i;
+            } else if (cell.includes("DELIVERED GOODS")) {
+              deliveredGoodsStart = i;
+            } else if (cell.includes("SUMMARY OF")) {
+              summaryOfStart = i;
+            } else if (cell.includes("BALANCE")) {
+              balanceStart = i;
+            } else if (cell === "INSERT" && j > 20) { // Additional INSERT columns on the right
+              insertColumnsStart = j;
+            }
+          }
+        }
+
+        // Process RECEIVED PURCHASES section (Stock IN)
+        if (receivedPurchasesStart >= 0) {
+          const headerRow = receivedPurchasesStart + 1;
+          const dataStartRow = receivedPurchasesStart + 2;
+          
+          for (let i = dataStartRow; i < raw.length; i++) {
+            const r = raw[i];
+            if (!r || r.every(v => !v || toStr(v).trim() === "")) continue;
+            if (deliveredGoodsStart >= 0 && i >= deliveredGoodsStart) break; // Stop at next section
+            
+            // Map columns based on the Excel structure shown
+            const transNo = toStr(r[0]);
+            const dateFormat = toStr(r[1]);
+            const tdtPo = toStr(r[2]);
+            const tdtPoDate = toStr(r[3]);
+            const vendorNum = toStr(r[4]);
+            const vendorName = toStr(r[5]);
+            const customerName = toStr(r[6]);
+            const tdtWo = toStr(r[7]);
+            const acceptanceDate = toStr(r[8]);
+            const qty = toNum(r[9]);
+            const costKilo = toNum(r[10]);
+            const costUnit = toNum(r[11]);
+            const totalPurchase = toNum(r[12]);
+            const runningQty = toNum(r[13]);
+            const avgUnitCost = toNum(r[14]);
+            const totalValue = toNum(r[15]);
+            const remarks = toStr(r[16]);
+
+            // Skip rows without essential data
+            if (!transNo && !qty && !vendorName) continue;
+
+            allInRows.push({
+              id: allInRows.length + 1,
+              sku: currentSku,
+              transNo: transNo || String(allInRows.length + 1).padStart(3, "0"),
+              date: dateFormat || "",
+              tdtPo: tdtPo || "",
+              tdtPoDate: tdtPoDate || "",
+              vendorNo: vendorNum || "",
+              vendorName: vendorName || "",
+              customerDr: customerName || "",
+              tdtWo: tdtWo || "",
+              acceptDate: acceptanceDate || "",
+              qty: qty || 0,
+              costKilo: costKilo || 0,
+              costUnit: costUnit || 0,
+              totalPurchase: totalPurchase || (qty * costUnit),
+              runningQty: runningQty || qty,
+              avgUnitCost: avgUnitCost || costUnit,
+              totalValue: totalValue || totalPurchase,
+              remark: remarks || "",
+            });
+          }
+        }
+
+        // Process DELIVERED GOODS section (Stock OUT)
+        if (deliveredGoodsStart >= 0) {
+          const headerRow = deliveredGoodsStart + 1;
+          const dataStartRow = deliveredGoodsStart + 2;
+          
+          for (let i = dataStartRow; i < raw.length; i++) {
+            const r = raw[i];
+            if (!r || r.every(v => !v || toStr(v).trim() === "")) continue;
+            if (summaryOfStart >= 0 && i >= summaryOfStart) break; // Stop at next section
+            
+            // Map columns for delivered goods
+            const transNo = toStr(r[0]);
+            const dispatchDate = toStr(r[1]);
+            const tdtWo = toStr(r[2]);
+            const customerName = toStr(r[3]);
+            const tdtDr = toStr(r[4]);
+            const branch = toStr(r[5]);
+            const bdrSummary = toStr(r[6]);
+            const tdtSi = toStr(r[7]);
+            const qtyOut = toNum(r[8]);
+            const unitCost = toNum(r[9]);
+            const totalPrice = toNum(r[10]);
+            
+            // Series columns (variable count)
+            const series = [];
+            let seriesCol = 11;
+            while (seriesCol < r.length && seriesCol < 20) { // Limit series columns
+              const seriesVal = toStr(r[seriesCol]);
+              if (seriesVal) series.push(seriesVal);
+              seriesCol++;
+            }
+
+            // Skip rows without essential data
+            if (!transNo && !qtyOut && !customerName) continue;
+
+            allOutRows.push({
+              id: allOutRows.length + 1,
+              sku: currentSku,
+              transNo: transNo || String(allOutRows.length + 1).padStart(3, "0"),
+              dispatchDate: dispatchDate || "",
+              tdtWo: tdtWo || "",
+              customer: customerName || "",
+              tdtDr: tdtDr || "",
+              branch: branch || "",
+              bdrSummary: bdrSummary || "",
+              tdtSi: tdtSi || "",
+              qtyOut: qtyOut || 0,
+              unitCost: unitCost || 0,
+              totalPrice: totalPrice || (qtyOut * unitCost),
+              series: series,
+              s1: series[0] || "",
+              s2: series[1] || "",
+              s3: series[2] || "",
+              runningQty: qtyOut, // Will be calculated later
+              runningValue: totalPrice,
+              remarks: "",
+            });
+          }
+        }
+
+        // Process SUMMARY OF section
+        if (summaryOfStart >= 0) {
+          const dataStartRow = summaryOfStart + 2;
+          
+          for (let i = dataStartRow; i < raw.length; i++) {
+            const r = raw[i];
+            if (!r || r.every(v => !v || toStr(v).trim() === "")) continue;
+            if (balanceStart >= 0 && i >= balanceStart) break; // Stop at next section
+            
+            const branch = toStr(r[0]);
+            const tdtBdrNum = toStr(r[1]);
+            const tdtSi = toStr(r[2]);
+            const unitCost = toNum(r[3]);
+            const price = toNum(r[4]);
+            
+            if (branch || tdtBdrNum) {
+              allSummaryRecords.push({
+                id: allSummaryRecords.length + 1,
+                sku: currentSku,
+                branch: branch,
+                tdtBdrNum: tdtBdrNum,
+                tdtSi: tdtSi,
+                unitCost: unitCost,
+                price: price,
+              });
+            }
+          }
+        }
+
+        // Process BALANCE section
+        if (balanceStart >= 0) {
+          const dataStartRow = balanceStart + 2;
+          
+          for (let i = dataStartRow; i < raw.length; i++) {
+            const r = raw[i];
+            if (!r || r.every(v => !v || toStr(v).trim() === "")) continue;
+            
+            const unitCost = toNum(r[0]);
+            const price = toNum(r[1]);
+            
+            if (unitCost || price) {
+              allBalanceRecords.push({
+                id: allBalanceRecords.length + 1,
+                sku: currentSku,
+                unitCost: unitCost,
+                price: price,
+              });
+            }
+          }
+        }
+
+        // Process additional INSERT columns
+        if (insertColumnsStart >= 0) {
+          const headerRow = 5; // Assuming headers are at row 5
+          
+          for (let col = insertColumnsStart; col < raw[0]?.length; col++) {
+            const headerCell = raw[headerRow] ? toStr(raw[headerRow][col]) : "";
+            
+            if (headerCell.toUpperCase().includes("INSERT")) {
+              const columnData = [];
+              
+              for (let row = headerRow + 1; row < raw.length; row++) {
+                const cellValue = raw[row] ? toStr(raw[row][col]) : "";
+                if (cellValue) {
+                  columnData.push({
+                    row: row,
+                    value: cellValue
+                  });
+                }
+              }
+              
+              if (columnData.length > 0) {
+                additionalInsertColumns.push({
+                  id: additionalInsertColumns.length + 1,
+                  sku: currentSku,
+                  columnIndex: col,
+                  headerName: headerCell,
+                  data: columnData
+                });
+              }
+            }
+          }
+        }
       });
 
-      const inRows = parseSheet(wb.Sheets[inSheetName], inCols);
-      if (!inRows.length && !outRows.length) throw new Error("No data rows found. Ensure you are importing a Stock Sheet exported from this system.");
-      onInDone(inRows);
-      onOutDone(outRows);
-    } catch(err) { onError(err.message); }
+      if (!allInRows.length && !allOutRows.length) {
+        throw new Error("No stock data found. Make sure Excel has RECEIVED PURCHASES and DELIVERED GOODS sections with data.");
+      }
+      
+      // Return all parsed data
+      const result = {
+        inRows: allInRows,
+        outRows: allOutRows,
+        summaryRecords: allSummaryRecords,
+        balanceRecords: allBalanceRecords,
+        additionalColumns: additionalInsertColumns
+      };
+      
+      onInDone(result.inRows);
+      onOutDone(result.outRows);
+      
+    } catch(err) { 
+      onError(err.message || "Import failed."); 
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -699,8 +895,8 @@ export default function StockSheetsPage({
   const [activeTab, setActiveTab] = useState("all");
   const [inPage, setInPage] = useState(1);
   const [outPage, setOutPage] = useState(1);
-  const [localStockIn, setLocalStockIn] = useState(SEED_STOCK_IN);
-  const [localStockOut, setLocalStockOut] = useState(SEED_STOCK_OUT);
+  const [localStockIn, setLocalStockIn] = useState([]);
+  const [localStockOut, setLocalStockOut] = useState([]);
   const stockInData = propStockIn ?? localStockIn;
   const setStockInData = setPropStockIn ?? setLocalStockIn;
   const stockOutData = propStockOut ?? localStockOut;

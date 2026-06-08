@@ -57,208 +57,6 @@ function getSummaryFields(row) {
     estQtyEnding: estDefault,
   };
 }
-/** Each reservation includes everything the detail panel needs */
-const SEED_RESERVATIONS = [
-  {
-    id: 1,
-    transNo: "011",
-    resDate: "2026-05-01",
-    soWo: "SO-88421",
-    tdtDr: "DR1589415",
-    customer: "Michael Santiago",
-    place: "Manila",
-    reservedQty: 127,
-    currentStock: 500,
-    estEnding: 373,
-    approvedBy: "A. Reyes",
-    status: "Active",
-    drNo: "DR26030",
-    remarks: "Delivered",
-    summarySku: "DRB007",
-    summaryItem: "Deformed Round Bar, 10mm x 6M g33",
-    summaryEstOverride: "—",
-    lineItems: [
-      { code: "HB100XAWD14DSAD", desc: "H-BEAM", qty: 40, lineValue: 240 },
-      { code: "HB100XAWD14DSAD", desc: "H-BEAM", qty: 40, lineValue: 240 },
-      { code: "HB100XAWD14DSAD", desc: "H-BEAM", qty: 47, lineValue: 240 },
-    ],
-  },
-  {
-    id: 2,
-    transNo: "012",
-    resDate: "2026-05-02",
-    soWo: "WO-1203",
-    tdtDr: "DR1589600",
-    customer: "RCM Builders",
-    place: "Manila",
-    reservedQty: 24,
-    currentStock: 500,
-    estEnding: 476,
-    approvedBy: "M. Cruz",
-    status: "Active",
-    drNo: "DR26031",
-    remarks: "Hold for pickup May 8",
-    lineItems: [
-      { code: "DRB007", desc: "Deformed Round Bar, 10mm x 6M g33", qty: 24, lineValue: 346.73 },
-    ],
-  },
-  {
-    id: 3,
-    transNo: "013",
-    resDate: "2026-05-03",
-    soWo: "SO-88488",
-    tdtDr: "DR1589722",
-    customer: "Prime Builders Corp.",
-    place: "Cebu",
-    reservedQty: 18,
-    currentStock: 200,
-    estEnding: 182,
-    approvedBy: "A. Reyes",
-    status: "Pending",
-    drNo: "DR26032",
-    remarks: "Awaiting approval",
-    lineItems: [
-      { code: "WF10833", desc: "Wide Flange, 10 x 8 x 33# x 6M", qty: 10, lineValue: 12300 },
-      { code: "MSP010", desc: "MS Plate, 6mm x 4' x 8'", qty: 8, lineValue: 554.79 },
-    ],
-  },
-  {
-    id: 4,
-    transNo: "014",
-    resDate: "2026-05-04",
-    soWo: "—",
-    tdtDr: "DR1589801",
-    customer: "EGB Construction",
-    place: "Manila",
-    reservedQty: 60,
-    currentStock: 500,
-    estEnding: 440,
-    approvedBy: "L. Santos",
-    status: "Active",
-    drNo: "DR26033",
-    remarks: "",
-    lineItems: [
-      { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g40", qty: 60, lineValue: 346.73 },
-    ],
-  },
-  {
-    id: 5,
-    transNo: "015",
-    resDate: "2026-05-05",
-    soWo: "SO-88510",
-    tdtDr: "DR1589900",
-    customer: "Sunway Construction Inc.",
-    place: "Manila",
-    reservedQty: 33,
-    currentStock: 500,
-    estEnding: 467,
-    approvedBy: "A. Reyes",
-    status: "Active",
-    drNo: "DR26034",
-    remarks: "Partial — balance next week",
-    lineItems: [
-      { code: "SHPT2", desc: "Sheet Pile T2, 400mm x 100mm", qty: 15, lineValue: 22529 },
-      { code: "SHPT2", desc: "Sheet Pile T2, 400mm x 100mm", qty: 18, lineValue: 22529 },
-    ],
-  },
-  {
-    id: 6,
-    transNo: "016",
-    resDate: "2026-05-06",
-    soWo: "WO-1210",
-    tdtDr: "DR1590001",
-    customer: "Aguila Simbulan Partners",
-    place: "Manila",
-    reservedQty: 12,
-    currentStock: 500,
-    estEnding: 488,
-    approvedBy: "M. Cruz",
-    status: "Closed",
-    drNo: "DR26035",
-    remarks: "Released in full",
-    lineItems: [
-      { code: "51181", desc: "Wide Flange, 10 x 8 x 33# x 6M", qty: 12, lineValue: 12300 },
-    ],
-  },
-  {
-    id: 7,
-    transNo: "017",
-    resDate: "2026-05-07",
-    soWo: "SO-88544",
-    tdtDr: "DR1590105",
-    customer: "Talde Construction Inc.",
-    place: "Cebu",
-    reservedQty: 55,
-    currentStock: 200,
-    estEnding: 145,
-    approvedBy: "L. Santos",
-    status: "Active",
-    drNo: "DR26036",
-    remarks: "Cebu wharf delivery",
-    lineItems: [
-      { code: "DRB032", desc: "Deformed Round Bar, 32mm x 6M g60", qty: 30, lineValue: 1479 },
-      { code: "DRB032", desc: "Deformed Round Bar, 32mm x 6M g60", qty: 25, lineValue: 1479 },
-    ],
-  },
-  {
-    id: 8,
-    transNo: "018",
-    resDate: "2026-05-08",
-    soWo: "SO-88550",
-    tdtDr: "DR1590220",
-    customer: "Brencon Developers Phils.",
-    place: "Manila",
-    reservedQty: 28,
-    currentStock: 500,
-    estEnding: 472,
-    approvedBy: "A. Reyes",
-    status: "Pending",
-    drNo: "DR26037",
-    remarks: "Docs pending",
-    lineItems: [
-      { code: "GP3302", desc: 'GI pipe 1"', qty: 28, lineValue: 1380 },
-    ],
-  },
-  {
-    id: 9,
-    transNo: "019",
-    resDate: "2026-05-09",
-    soWo: "—",
-    tdtDr: "DR1590300",
-    customer: "EC Structural Composite Inc.",
-    place: "Manila",
-    reservedQty: 15,
-    currentStock: 500,
-    estEnding: 485,
-    approvedBy: "M. Cruz",
-    status: "Active",
-    drNo: "DR26038",
-    remarks: "",
-    lineItems: [
-      { code: "DRB020", desc: "Deformed Round Bar, 20mm x 6M g60", qty: 15, lineValue: 539.31 },
-    ],
-  },
-  {
-    id: 10,
-    transNo: "020",
-    resDate: "2026-05-10",
-    soWo: "SO-88590",
-    tdtDr: "DR1590402",
-    customer: "Aremar Construction Corp.",
-    place: "Davao",
-    reservedQty: 40,
-    currentStock: 120,
-    estEnding: 80,
-    approvedBy: "L. Santos",
-    status: "Active",
-    drNo: "DR26039",
-    remarks: "Davao transfer",
-    lineItems: [
-      { code: "RECT24", desc: "GI Rectangular Tube, 2 x 4 x 2mm x 6M", qty: 20, lineValue: 1380 },
-      { code: "SQ22", desc: "GI Square Tube, 2 x 2 x 2mm x 6M", qty: 20, lineValue: 880 },
-    ],
-  },
-];
 
 function fmtPHP(n) {
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -436,45 +234,115 @@ function exportToWis(rows) {
 async function importReservations(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["ADVANCE"]);
-    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
-    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 4;
-    const headers = headerIdx >= 0 ? raw[headerIdx] : null;
-    const parsed = [];
-
-    for (let i = dataStart; i < raw.length; i++) {
-      const r = raw[i];
-      if (!rowHasData(r)) continue;
-
-      const transNo = cellStr(pickCol(r, headers, ["TRANS NO.", "TRANS #", "TRANS"], 0));
-      const customer = cellStr(pickCol(r, headers, ["CUSTOMER'S NAME", "CUSTOMER"], 4));
-      const tdtDr = cellStr(pickCol(r, headers, ["TDT DR#", "TDT DR", "DR"], 3));
-      if (!transNo && !customer && !tdtDr) continue;
-
-      const estRaw = pickCol(r, headers, ["EST ENDING BALANCE", "EST ENDING", "EST"], 8);
-      const estStr = cellStr(estRaw);
-
-      parsed.push({
-        id: parsed.length + 1,
-        transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
-        resDate: formatExcelDate(pickCol(r, headers, ["RESERVATION DATE", "DATE"], 1)),
-        soWo: cellStr(pickCol(r, headers, ["SO#/WO#", "SO", "WO"], 2)) || "—",
-        tdtDr,
-        customer,
-        place: cellStr(pickCol(r, headers, ["PLACE OF DELIVERY", "PLACE"], 5)) || "Manila",
-        reservedQty: cellNum(pickCol(r, headers, ["RESERVED QTY", "RESERVED"], 6)),
-        currentStock: cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 7)),
-        estEnding: estStr && estStr !== "—" ? cellNum(estRaw) : null,
-        approvedBy: cellStr(pickCol(r, headers, ["APPROVED BY", "APPROVED"], 9)),
-        status: cellStr(pickCol(r, headers, ["STATUS"], 10)) || "Pending",
-        drNo: tdtDr,
-        remarks: "",
-        lineItems: [],
-        summarySku: "",
-        summaryItem: "",
-      });
+    
+    // Find cards in the Excel sheet - look for SKU headers which indicate card starts
+    const cards = [];
+    let currentCard = null;
+    let cardRow = 0;
+    
+    for (let i = 0; i < raw.length; i++) {
+      const row = raw[i];
+      if (!row) continue;
+      
+      // Look for card headers - check for "SKU" in any column to identify card starts
+      let cardFound = false;
+      for (let j = 0; j < row.length; j++) {
+        const cellValue = cellStr(row[j]).toUpperCase();
+        if (cellValue === "SKU") {
+          // Found a new card header
+          const skuValue = cellStr(row[j + 1]); // SKU value is usually next to "SKU" label
+          const itemCell = cellStr(row[j + 2]); // Item description
+          const estQtyEndingCell = cellStr(row[j + 3]); // Est Qty Ending
+          
+          if (skuValue) {
+            currentCard = {
+              id: cards.length + 1,
+              sku: skuValue,
+              item: itemCell || "",
+              estQtyEnding: estQtyEndingCell || "",
+              cardColumn: j, // Track which column this card starts in
+              cardStartRow: i,
+              lineItems: []
+            };
+            cards.push(currentCard);
+            cardFound = true;
+          }
+        }
+      }
+      
+      // If we found a card header, look for the line items table below it
+      if (cardFound && currentCard) {
+        // Look for "TRANS" header to find the start of line items table
+        for (let k = i + 1; k < Math.min(i + 20, raw.length); k++) {
+          const tableRow = raw[k];
+          if (!tableRow) continue;
+          
+          const startCol = currentCard.cardColumn;
+          const transCell = cellStr(tableRow[startCol]).toUpperCase();
+          
+          if (transCell === "TRANS") {
+            // Found line items table header, now read the data rows
+            for (let m = k + 1; m < Math.min(k + 20, raw.length); m++) {
+              const dataRow = raw[m];
+              if (!dataRow) break;
+              
+              const trans = cellStr(dataRow[startCol]);
+              const insertDate = formatExcelDate(dataRow[startCol + 1]);
+              const insertLot = cellStr(dataRow[startCol + 2]);
+              const insert = cellStr(dataRow[startCol + 3]);
+              const insertPlace = cellStr(dataRow[startCol + 4]);
+              const estEnding = cellStr(dataRow[startCol + 5]);
+              const insertCustomer = cellStr(dataRow[startCol + 6]);
+              const insertBalance = cellStr(dataRow[startCol + 7]);
+              
+              // Skip empty rows or header-like rows
+              if (!trans || trans.toUpperCase().includes("ACTUAL") || !insertDate) continue;
+              
+              // Create reservation record from this line item
+              const reservation = {
+                id: cards.length * 100 + currentCard.lineItems.length + 1,
+                transNo: trans || `T${cards.length}-${currentCard.lineItems.length + 1}`,
+                resDate: insertDate,
+                soWo: insertLot || "—",
+                tdtDr: insert || "",
+                customer: insertCustomer || "",
+                place: insertPlace || "Manila",
+                reservedQty: cellNum(insert) || 0,
+                currentStock: cellNum(insertBalance) || 0,
+                estEnding: cellNum(estEnding) || null,
+                approvedBy: "",
+                status: "Pending",
+                drNo: insert || "",
+                remarks: "",
+                lineItems: [],
+                summarySku: currentCard.sku,
+                summaryItem: currentCard.item,
+              };
+              
+              currentCard.lineItems.push(reservation);
+            }
+            break;
+          }
+        }
+      }
     }
+    
+    // Flatten all line items from all cards into a single array
+    const parsed = [];
+    cards.forEach(card => {
+      card.lineItems.forEach((lineItem, index) => {
+        parsed.push({
+          ...lineItem,
+          id: parsed.length + 1,
+          // If this is the first line item for this card, use the card's SKU/item info
+          summarySku: card.sku,
+          summaryItem: card.item,
+          summaryEstOverride: index === 0 ? card.estQtyEnding : null
+        });
+      });
+    });
 
-    if (!parsed.length) throw new Error("No data rows found. Fill TRANS NO., CUSTOMER, or TDT DR# columns.");
+    if (!parsed.length) throw new Error("No reservation data found. Make sure Excel has properly formatted cards with SKU and line item tables.");
     onDone(parsed);
   } catch (err) {
     onError(err.message || "Import failed.");
@@ -548,9 +416,51 @@ function AcpoInlineEditRow({ row, onSave, onCancel }) {
     </tr>
   );
 }
-export default function AdvanceCustomerPOPage() {
+export default function AdvanceCustomerPOPage({ currentUser }) {
   const [searchSku, setSearchSku] = useState("");
-  const [reservations, setReservations] = useState(SEED_RESERVATIONS);
+  const [reservations, setReservations] = useState([]);
+
+  const normalizeApiReservation = (item) => ({
+    id: item.id,
+    transNo: item.customer_po || `T${item.id}`,
+    resDate: item.po_date,
+    soWo: item.customer_po || "—",
+    tdtDr: (item.remarks && item.remarks.includes('TDT DR:'))
+      ? item.remarks.split('TDT DR:')[1]?.split('|')[0]?.trim() || "—"
+      : "—",
+    customer: item.customer_name,
+    place: (item.remarks && item.remarks.includes('Place:'))
+      ? item.remarks.split('Place:')[1]?.trim() || "Manila"
+      : "Manila",
+    reservedQty: (item.remarks && item.remarks.includes('Qty:'))
+      ? parseInt(item.remarks.split('Qty:')[1]?.split('|')[0]?.trim()) || 0
+      : 0,
+    currentStock: 0, // Not stored in new schema, default to 0
+    estEnding: 0, // Calculated field, default to 0
+    approvedBy: item.approved_by_name || "",
+    status: item.status === 'Pending Approval' ? 'Pending' : item.status,
+    drNo: item.customer_po || "—",
+    remarks: item.remarks || "",
+    lineItems: [] // Not implemented yet in new schema
+  });
+
+  useEffect(() => {
+    // Load reservations from API on component mount
+    const loadReservations = async () => {
+      try {
+        const response = await fetch('/api/advance-customer-po');
+        if (response.ok) {
+          const data = await response.json();
+          // Transform API data to match the expected format
+          setReservations(data.map(normalizeApiReservation));
+        }
+      } catch (error) {
+        console.error('Error loading reservations:', error);
+      }
+    };
+
+    loadReservations();
+  }, []);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -568,6 +478,14 @@ export default function AdvanceCustomerPOPage() {
   const { sortBy, setSortBy, applySort } = useSort("resDate", "customer");
   const [sortOpen, setSortOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const isEmployee = currentUser?.role === 'Employee';
+  useEffect(() => {
+    if (isEmployee) {
+      setShowCreate(false);
+      setEditingId(null);
+    }
+  }, [isEmployee]);
+
   const handleSaveEdit = (updated) => {
     setReservations(d => d.map(r => r.id === updated.id ? { ...updated } : r));
     setEditingId(null);
@@ -640,10 +558,16 @@ export default function AdvanceCustomerPOPage() {
         filters={[
           { key: "place", value: place, onChange: (v) => { setPlace(v); setCurrentPage(1); }, options: PLACES, minWidth: 170 },
         ]}
-        primaryAction={{ label: "Create New Reservation", onClick: () => setShowCreate(true) }}
+        primaryAction={{
+          label: isEmployee ? "Create Reservation Request" : "Create New Reservation",
+          onClick: () => setShowCreate(true),
+        }}
         dateRange={dateRange}
         onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
-        importExport={{
+        importExport={isEmployee ? {
+          showImport: false,
+          onExport: () => exportToWis(reservations),
+        } : {
           fileInputRef: importRef,
           onFileChange: (e) => {
             const file = e.target.files?.[0];
@@ -733,7 +657,7 @@ export default function AdvanceCustomerPOPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-                {["TRANS NO.", "RESERVATION DATE", "SO#/WO#", "TDT DR#", "CUSTOMER'S NAME", "PLACE OF DELIVERY", "RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE", "APPROVED BY", "STATUS", "ACTION"].map((h) => (
+                {["TRANS NO.", "RESERVATION DATE", "SO#/WO#", "TDT DR#", "CUSTOMER'S NAME", "PLACE OF DELIVERY", "RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE", "APPROVED BY", "STATUS"].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -749,14 +673,28 @@ export default function AdvanceCustomerPOPage() {
                     {h}
                   </th>
                 ))}
+                {!isEmployee && (
+                  <th
+                    style={{
+                      padding: "14px 10px",
+                      textAlign: "center",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: 10,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    ACTION
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {paged.length === 0 && (
                 <tr>
-                  <td colSpan={12} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af", fontSize: 14 }}>
+                  <td colSpan={isEmployee ? 11 : 12} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af", fontSize: 14 }}>
                     <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
-                    No results found for <strong style={{ color: "#374151" }}>"{searchSku || "your filters"}"</strong>
+                    No results found for <strong style={{ color: "#374151" }}>"{searchSku || 'your filters'}"</strong>
                     <div style={{ fontSize: 12, marginTop: 4 }}>Try a different search term or clear your filters.</div>
                   </td>
                 </tr>
@@ -800,11 +738,13 @@ export default function AdvanceCustomerPOPage() {
                         {row.status}
                       </span>
                     </td>
-                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        <IconEdit size={12} /> Edit
-                      </button>
-                    </td>
+                    {!isEmployee && (
+                      <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                        <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                          <IconEdit size={12} /> Edit
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -962,8 +902,15 @@ export default function AdvanceCustomerPOPage() {
           <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#fff", borderRadius: 16, width: "min(560px,95vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>Create New Reservation</h2>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>Fill in the advance customer PO details below</p>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
+                  {currentUser?.role === 'Employee' ? "Create Reservation Request" : "Create New Reservation"}
+                </h2>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>
+                  {currentUser?.role === 'Employee' 
+                    ? "Submit a reservation request for admin approval" 
+                    : "Fill in the advance customer PO details below"
+                  }
+                </p>
               </div>
               <button type="button" onClick={() => setShowCreate(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#4b5563", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
@@ -988,39 +935,82 @@ export default function AdvanceCustomerPOPage() {
                 </div>
               ))}
             </div>
+            {currentUser?.role === 'Employee' && (
+              <div style={{
+                margin: "0 24px",
+                background: "#fffbeb",
+                border: "1px solid #fde68a",
+                borderRadius: "8px",
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <div style={{ fontSize: "13px", color: "#92400e" }}>
+                  <strong>Note:</strong> As an Employee, your reservation will be submitted as a request and require approval from an Admin or Manager before it becomes active.
+                </div>
+              </div>
+            )}
             <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
               <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
-              <button type="button" onClick={() => {
+              <button type="button" onClick={async () => {
                 if (!createForm.resDate || !createForm.customer || !createForm.sku) {
                   setToast({ msg: "Please fill in Date, Customer, and SKU.", type: "error" });
                   setTimeout(() => setToast(null), 3000);
                   return;
                 }
-                const qty = Number(createForm.reservedQty) || 0;
-                const stock = Number(createForm.currentStock) || 0;
-                const newRes = {
-                  id: reservations.length + 1,
-                  transNo: String(reservations.length + 1).padStart(3, "0"),
-                  resDate: createForm.resDate,
-                  soWo: createForm.soWo,
-                  tdtDr: createForm.tdtDr,
-                  customer: createForm.customer,
-                  place: createForm.place,
-                  sku: createForm.sku.toUpperCase(),
-                  reservedQty: qty,
-                  currentStock: stock,
-                  estEnding: stock - qty,
-                  approvedBy: createForm.approvedBy,
-                  status: "Pending",
-                  lineItems: [{ sku: createForm.sku.toUpperCase(), desc: "", qty, unitCost: 0, totalCost: 0 }],
-                };
-                setReservations(prev => [newRes, ...prev]);
-                setShowCreate(false);
-                setCreateForm({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
-                setToast({ msg: "Reservation created successfully.", type: "success" });
-                setTimeout(() => setToast(null), 3000);
+                
+                try {
+                  const qty = Number(createForm.reservedQty) || 0;
+                  
+                  // Create reservation request through API (with approval workflow)
+                  const response = await fetch('/api/advance-customer-po', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      customer_po: createForm.soWo || `CPO-${Date.now()}`,
+                      customer_name: createForm.customer,
+                      po_date: createForm.resDate,
+                      delivery_date: createForm.resDate, // Use same date for now
+                      total_amount: qty * 100, // Placeholder calculation
+                      remarks: `SKU: ${createForm.sku} | TDT DR: ${createForm.tdtDr} | Qty: ${qty} | Place: ${createForm.place}`,
+                      created_by: currentUser?.id || 1 // Use current user ID
+                    })
+                  });
+
+                  if (!response.ok) {
+                    throw new Error('Failed to create reservation');
+                  }
+
+                  const result = await response.json();
+                  
+                  // Refresh the reservations list
+                  const updatedReservations = await fetch('/api/advance-customer-po')
+                    .then(res => res.json())
+                    .then((data) => data.map(normalizeApiReservation));
+                  setReservations(updatedReservations);
+                  
+                  setShowCreate(false);
+                  setCreateForm({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
+                  
+                  // Show appropriate success message based on user role
+                  const message = result.status === 'Pending Approval' 
+                    ? "Reservation request created and sent for approval."
+                    : "Reservation created and automatically approved.";
+                  setToast({ msg: message, type: "success" });
+                  setTimeout(() => setToast(null), 4000);
+                } catch (error) {
+                  console.error('Error creating reservation:', error);
+                  setToast({ msg: "Failed to create reservation request.", type: "error" });
+                  setTimeout(() => setToast(null), 3000);
+                }
               }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                Create Reservation
+                {currentUser?.role === 'Employee' ? 'Submit Request' : 'Create Reservation'}
               </button>
             </div>
           </div>

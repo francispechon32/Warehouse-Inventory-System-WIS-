@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect, Fragment } from "react";
+import { useState, useRef, useMemo, Fragment, useEffect } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
@@ -29,22 +29,7 @@ import {
 import { formatCompactPHP } from "./inventoryUtils";
 import MetricCard from "./MetricCard";
 import { IconBox, IconTruck, IconBarChart, IconBag } from "./metricIcons";
-
-/* ─── SEED DATA from Excel BACKLOAD INVENTORY sheet ── */
-const SEED_BACKLOAD = [
-  { id: 1, date: "2025-03-15", drNo: "", sku: "", item: "Sheet Pile Z type 4 meters", qty: 40, unitCost: 0, customerName: "RCM", totalQtyOut: 0, remarks: "TRANSFER FROM POLYLAND WAREHOUSE" },
-  { id: 2, date: "2025-07-26", drNo: "DR23361", sku: "", item: "Deformed Round Bar, 20mm x 10.5M g40 (25.89kgs)", qty: 44, unitCost: 903.15, customerName: "BRENCON DEVELOPERS PHILS. INC", totalQtyOut: 0, remarks: "FOR ADD TO STOCK" },
-  { id: 3, date: "2025-09-16", drNo: "CEBDR4680", sku: "", item: "Deformed Round Bar, 32mm x 6M g60 (37.88kgs)", qty: 50, unitCost: 1479, customerName: "TALDE CONSTRUCTION INC.", totalQtyOut: 0, remarks: "" },
-  { id: 4, date: "2025-09-30", drNo: "DR25026", sku: "", item: "Deformed Round Bar, 20mm x 6M g60 (14.80kgs)", qty: 123, unitCost: 539.31, customerName: "EC STRUCTURAL COMPOSITE INC.", totalQtyOut: 0, remarks: "DELIVERED/may hindi naisama pero sinign as complete yung DR" },
-  { id: 5, date: "2025-10-11", drNo: "49754", sku: "49754", item: "GI Rectangular Tube, 2 x 4 x 2mm x 6M", qty: 3, unitCost: 1380, customerName: "for marilao WH use", totalQtyOut: 0, remarks: "" },
-  { id: 6, date: "2025-10-11", drNo: "49754", sku: "49754", item: "GI Square Tube, 2 x 2 x 2mm x 6M", qty: 3, unitCost: 880, customerName: "for marilao WH use", totalQtyOut: 0, remarks: "" },
-  { id: 7, date: "2025-11-28", drNo: "DR25225", sku: "51181", item: "Wide Flange, 10 x 8 x 33# x 6M", qty: 4, unitCost: 12300, customerName: "AGUILA SIMBULAN PLUS PARTNERS", totalQtyOut: 0, remarks: "" },
-  { id: 8, date: "2025-12-05", drNo: "DR25310", sku: "", item: "Deformed Round Bar, 25mm x 6M g40", qty: 30, unitCost: 820, customerName: "PRIME BUILDERS CORP.", totalQtyOut: 10, remarks: "" },
-  { id: 9, date: "2026-01-14", drNo: "DR25400", sku: "", item: "Sheet Pile T3, 400mm x 125mm x 13mm x 60kg/m x 12M", qty: 20, unitCost: 28271, customerName: "SUNWAY CONSTRUCTION INC.", totalQtyOut: 0, remarks: "Awaiting pickup" },
-  { id: 10, date: "2026-02-10", drNo: "DR25600", sku: "SHPT2", item: "Sheet Pile T2, 400mm x 100mm x 10.5mm x 12M", qty: 15, unitCost: 22529, customerName: "AREMAR CONSTRUCTION CORP.", totalQtyOut: 5, remarks: "Partial delivery" },
-  { id: 11, date: "2026-03-01", drNo: "DR25800", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g40", qty: 200, unitCost: 346.73, customerName: "EGB/SANRAY CONSTRUCTION", totalQtyOut: 200, remarks: "Fully released" },
-  { id: 12, date: "2026-03-15", drNo: "DR26001", sku: "MSP010", item: "MS Plate, 6mm x 4' x 8'", qty: 50, unitCost: 554.79, customerName: "ADVANCE INNOVATION CONSTRUCTION", totalQtyOut: 0, remarks: "" },
-];
+import { getBackload } from "./apiClient";
 
 const PAGE_SIZE = 8;
 
@@ -67,33 +52,12 @@ function fmtPHP(n) {
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/* ─── QTY-OUT HISTORY SEED DATA ── */
-const SEED_QTY_OUT = [
-  { id: 1, itemId: 8,  qty: 10, date: "2025-12-10" },
-  { id: 2, itemId: 10, qty: 5,  date: "2026-02-15" },
-  { id: 3, itemId: 11, qty: 80, date: "2026-03-05" },
-  { id: 4, itemId: 11, qty: 120, date: "2026-03-12" },
-  { id: 5, itemId: 9,  qty: 3,  date: "2026-01-20" },
-];
-
 /* ─── ICONS ── */
-function IconSearch({ size = 16 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>;
-}
-function IconChevronDown({ size = 14 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 9l-7 7-7-7" /></svg>;
-}
 function IconChevronLeft({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15 19l-7-7 7-7" /></svg>;
 }
 function IconChevronRight({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 5l7 7-7 7" /></svg>;
-}
-function IconPlus({ size = 16 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
-}
-function IconDownload({ size = 16 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
 }
 function IconEdit({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
@@ -159,7 +123,7 @@ function AddEntryModal({ onClose, onSave }) {
 }
 
 /* ─── INLINE EDIT ROW ── */
-function EditableRow({ row, onSave, onCancel, idx }) {
+function EditableRow({ row, onSave, onCancel }) {
   const [draft, setDraft] = useState({ ...row });
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
   return (
@@ -189,6 +153,16 @@ function EditableRow({ row, onSave, onCancel, idx }) {
 
 function useSheetJS() {
   return true; // XLSX is imported as a module, always available
+}
+
+function IconSave({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  );
 }
 
 const BL_MAIN_COLS = 13;
@@ -471,7 +445,7 @@ function exportBackload(rows, qtyOutRecords = [], slotCount = 5) {
 async function importBackload(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["BACKLOAD"]);
-    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS", "INSERT DATE"], 20);
     const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
     const parsed = [];
@@ -491,26 +465,42 @@ async function importBackload(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
+      // Use exact column mapping from Excel structure
       const transOrId = cellStr(pickCol(r, headers, ["TRANS"], 0));
+      const insertDate = formatExcelDate(pickCol(r, headers, ["INSERT DATE"], 1));
+      const insertDr = cellStr(pickCol(r, headers, ["INSERT DR #"], 2));
+      const sku = cellStr(pickCol(r, headers, ["SKU"], 3));
       const item = cellStr(pickCol(r, headers, ["ITEM"], 4));
-      const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 8));
-      if (!transOrId && !item && !customer) continue;
+      const insertQty = cellNum(pickCol(r, headers, ["INSERT QTY"], 5));
+      const insertUnitCost = cellNum(pickCol(r, headers, ["INSERT UNIT COST"], 6));
+      const totalCost = cellNum(pickCol(r, headers, ["TOTAL COST"], 7));
+      const customerName = cellStr(pickCol(r, headers, ["CUSTOMER'S NAME"], 8));
+      const totalQtyOut = cellNum(pickCol(r, headers, ["TOTAL QTY OUT"], 9));
+      const qtyBalance = cellNum(pickCol(r, headers, ["QTY BALANCE"], 10));
+      const amountBalance = cellNum(pickCol(r, headers, ["AMOUNT BALANCE"], 11));
+      const remarks = cellStr(pickCol(r, headers, ["REMARKS"], 12));
+
+      // Skip rows that don't have essential data
+      if (!item || (!insertQty && insertQty !== 0) || !customerName) continue;
 
       const parsedId = parseRowId(transOrId, parsed.length + 1);
       parsed.push({
         id: parsedId,
-        date: formatExcelDate(pickCol(r, headers, ["INSERT DATE", "DATE"], 1)),
-        drNo: cellStr(pickCol(r, headers, ["INSERT DR", "DR"], 2)),
-        sku: cellStr(pickCol(r, headers, ["SKU"], 3)),
-        item,
-        qty: cellNum(pickCol(r, headers, ["INSERT QTY", "QTY"], 5)),
-        unitCost: cellNum(pickCol(r, headers, ["INSERT UNIT COST", "UNIT COST"], 6)),
-        customerName: customer,
-        totalQtyOut: cellNum(pickCol(r, headers, ["TOTAL QTY OUT"], 9)),
-        remarks: cellStr(pickCol(r, headers, ["REMARKS"], 12)),
+        date: insertDate,
+        drNo: insertDr,
+        sku: sku,
+        item: item,
+        qty: insertQty,
+        unitCost: insertUnitCost,
+        totalCost: totalCost || (insertQty * insertUnitCost),
+        customerName: customerName,
+        totalQtyOut: totalQtyOut || 0,
+        qtyBalance: qtyBalance || (insertQty - (totalQtyOut || 0)),
+        amountBalance: amountBalance || ((insertQty - (totalQtyOut || 0)) * insertUnitCost),
+        remarks: remarks,
       });
 
-      // read QTY-OUT/DATE pairs
+      // read QTY-OUT/DATE pairs starting from column 13
       for (let p = 0; p < qoPairs; p++) {
         const qtyCol = 13 + p * 2;
         const dateCol = qtyCol + 1;
@@ -527,7 +517,7 @@ async function importBackload(file, onDone, onError) {
       }
     }
 
-    if (!parsed.length) throw new Error("No data rows found. Check that TRANS NO / ITEM columns are filled.");
+    if (!parsed.length) throw new Error("No data rows found. Make sure Excel has ITEM, INSERT QTY, and CUSTOMER'S NAME columns with data.");
     onDone({ items: parsed, qtyOutRecords });
   } catch (err) {
     onError(err.message || "Import failed.");
@@ -537,7 +527,8 @@ async function importBackload(file, onDone, onError) {
 /* ─── MAIN PAGE ── */
 export default function BackloadInventoryPage() {
   const xlsxReady = useSheetJS();
-  const [data, setData] = useState(SEED_BACKLOAD);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
@@ -548,13 +539,53 @@ export default function BackloadInventoryPage() {
   const { sortBy, setSortBy, applySort } = useSort("date", "item");
   const [sortOpen, setSortOpen] = useState(false);
   const [backloadTab, setBackloadTab] = useState("summary");
-  const [qtyOutRecords, setQtyOutRecords] = useState(SEED_QTY_OUT);
+  const [qtyOutRecords, setQtyOutRecords] = useState([]);
   const [qtyOutSlotCount, setQtyOutSlotCount] = useState(5);
   const [editingQtyOutItem, setEditingQtyOutItem] = useState(null);
   const [qtyOutDraft, setQtyOutDraft] = useState({});
-  const nextId = useRef(SEED_BACKLOAD.length + 1);
-  const nextQtyOutId = useRef(SEED_QTY_OUT.length + 1);
+  const nextId = useRef(1);
+  const nextQtyOutId = useRef(1);
   const importFileRef = useRef(null);
+
+  // Fetch backload data from API
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const backloadData = await getBackload();
+        console.log('Fetched backload data:', backloadData);
+        
+        // Convert database format to component format
+        const formattedData = backloadData.map(item => ({
+          id: item.id,
+          transNo: `BL-${item.id}`,
+          date: item.backload_date || item.backloadDate,
+          sku: item.sku,
+          item: `Backload - ${item.sku}`,
+          qty: item.qty_returned || item.qtyReturned || 0,
+          unitCost: item.unit_cost || item.unitCost || 0,
+          totalCost: (item.qty_returned || item.qtyReturned || 0) * (item.unit_cost || item.unitCost || 0),
+          customerName: item.customer || 'Unknown',
+          remarks: item.remarks || '',
+          reason: item.reason || 'No reason specified',
+          originalDr: item.original_dr || item.originalDr,
+          conditionStatus: item.condition_status || item.conditionStatus || 'Good'
+        }));
+        
+        setData(formattedData);
+        if (formattedData.length > 0) {
+          nextId.current = Math.max(...formattedData.map(r => r.id), 0) + 1;
+        }
+      } catch (error) {
+        console.error('Error fetching backload data:', error);
+        showToast('Failed to load backload data', 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchData();
+  }, []);
 
   const handleImport = (e) => {
     const file = e.target.files[0];
@@ -603,7 +634,7 @@ export default function BackloadInventoryPage() {
     return rows;
   }, [data, searchQuery, dateRange]);
 
-  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy, applySort]);
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paged = sorted.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
 
@@ -743,12 +774,15 @@ const COLS = [
               </tr>
             </thead>
             <tbody>
-              {paged.length === 0 && (
+              {loading && (
+                <tr><td colSpan={COLS.length} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>Loading backload data...</td></tr>
+              )}
+              {!loading && paged.length === 0 && (
                 <tr><td colSpan={COLS.length} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No backload entries found.</td></tr>
               )}
-              {paged.map((row, idx) => {
+              {!loading && paged.map((row, idx) => {
                 if (editingId === row.id) {
-                  return <EditableRow key={row.id} row={row} idx={idx} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
+                  return <EditableRow key={row.id} row={row} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
                 }
                 const totalCost = row.qty * row.unitCost;
                 const rowTotalQtyOut = qtyOutTotals[row.id] || 0;

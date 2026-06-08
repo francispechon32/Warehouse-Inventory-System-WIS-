@@ -42,14 +42,6 @@ function Highlight({ text, query }) {
 
 const PAGE_SIZE = 5;
 
-const RTN_QTY_OUT_SEED = [
-  { id: 1, returnId: 1, qty: 20, date: "2026-05-10" },
-  { id: 2, returnId: 3, qty: 1,  date: "2026-05-12" },
-  { id: 3, returnId: 6, qty: 10, date: "2026-05-15" },
-  { id: 4, returnId: 8, qty: 5,  date: "2026-05-18" },
-  { id: 5, returnId: 11, qty: 2, date: "2026-05-20" },
-];
-
 const REASON_OPTS = ["All Reasons", "Damaged During Delivery", "Wrong item", "Customer cancel", "Quality hold"];
 
 function fmtPHP(n) {
@@ -60,65 +52,6 @@ function formatDate(iso) {
   const d = new Date(iso + "T12:00:00");
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
-
-const SEED_RETURNS = [
-  { id: 1, transNo: "011", returnDate: "2026-05-06", drNo: "DR26030", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g4", qtyReturned: 110, unitCost: 520, totalCost: 57200, customer: "Michael Santiago", reason: "Damaged During Delivery", totalQtyOut: 20, qtyBalance: 90, amountBalance: 46800, disposition: "Restock", status: "Received", returnNo: "RTN25031", warehouse: "Meycauayan", lineItems: [
-    { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 40, unit: 520, val: 20800 },
-    { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 35, unit: 520, val: 18200 },
-    { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g4", qty: 35, unit: 520, val: 18200 },
-  ]},
-  { id: 2, transNo: "012", returnDate: "2026-05-07", drNo: "DR25888", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g40", qtyReturned: 24, unitCost: 346.73, totalCost: 8321.52, customer: "RCM Builders", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 24, amountBalance: 8321.52, disposition: "Credit memo", status: "Approved", returnNo: "RTN25032", warehouse: "Meycauayan", lineItems: [
-    { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g40", qty: 24, unit: 346.73, val: 8321.52 },
-  ]},
-  { id: 3, transNo: "013", returnDate: "2026-05-08", drNo: "DR25900", sku: "SHPT2", item: "Sheet Pile T2, 400mm x 100mm", qtyReturned: 3, unitCost: 22529.66, totalCost: 67588.98, customer: "Prime Builders Corp.", reason: "Quality hold", totalQtyOut: 1, qtyBalance: 2, amountBalance: 45059.32, disposition: "Scrap", status: "Pending", returnNo: "RTN25033", warehouse: "Pampanga", lineItems: [
-    { code: "SHPT2", desc: "Sheet Pile T2, 400mm x 100mm", qty: 3, unit: 22529.66, val: 67588.98 },
-  ]},
-  { id: 4, transNo: "014", returnDate: "2026-05-09", drNo: "DR25912", sku: "MSP010", item: "MS Plate, 6mm x 4' x 8'", qtyReturned: 8, unitCost: 554.79, totalCost: 4438.32, customer: "EGB Construction", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 8, amountBalance: 4438.32, disposition: "Restock", status: "Received", returnNo: "RTN25034", warehouse: "Meycauayan", lineItems: [
-    { code: "MSP010", desc: "MS Plate, 6mm x 4' x 8'", qty: 8, unit: 554.79, val: 4438.32 },
-  ]},
-  { id: 5, transNo: "015", returnDate: "2026-05-10", drNo: "DR25920", sku: "WF10833", item: "Wide Flange, 10 x 8 x 33# x 6M", qtyReturned: 2, unitCost: 12300, totalCost: 24600, customer: "Sunway Construction Inc.", reason: "Customer cancel", totalQtyOut: 0, qtyBalance: 2, amountBalance: 24600, disposition: "Credit memo", status: "Approved", returnNo: "RTN26031", warehouse: "Meycauayan", lineItems: [
-    { code: "WF10833", desc: "Wide Flange, 10 x 8 x 33# x 6M", qty: 2, unit: 12300, val: 24600 },
-  ]},
-  { id: 6, transNo: "016", returnDate: "2026-05-11", drNo: "DR25931", sku: "DRB007", item: "Deformed Round Bar, 10mm x 6M g33", qtyReturned: 50, unitCost: 138.6, totalCost: 6930, customer: "Talde Construction Inc.", reason: "Damaged During Delivery", totalQtyOut: 10, qtyBalance: 40, amountBalance: 5544, disposition: "Restock", status: "Pending", returnNo: "RTN26032", warehouse: "Pampanga", lineItems: [
-    { code: "DRB007", desc: "Deformed Round Bar, 10mm x 6M g33", qty: 50, unit: 138.6, val: 6930 },
-  ]},
-  { id: 7, transNo: "017", returnDate: "2026-05-12", drNo: "DR25940", sku: "GP3302", item: 'GI pipe 1"', qtyReturned: 12, unitCost: 1380, totalCost: 16560, customer: "Brencon Developers Phils.", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 12, amountBalance: 16560, disposition: "Scrap", status: "Received", returnNo: "RTN26033", warehouse: "Meycauayan", lineItems: [
-    { code: "GP3302", desc: 'GI pipe 1"', qty: 12, unit: 1380, val: 16560 },
-  ]},
-  { id: 8, transNo: "018", returnDate: "2026-05-13", drNo: "DR25955", sku: "DRB020", item: "Deformed Round Bar, 20mm x 6M g60", qtyReturned: 15, unitCost: 539.31, totalCost: 8089.65, customer: "EC Structural Composite Inc.", reason: "Quality hold", totalQtyOut: 5, qtyBalance: 10, amountBalance: 5393.1, disposition: "Restock", status: "Approved", returnNo: "RTN26034", warehouse: "Meycauayan", lineItems: [
-    { code: "DRB020", desc: "Deformed Round Bar, 20mm x 6M g60", qty: 15, unit: 539.31, val: 8089.65 },
-  ]},
-  { id: 9, transNo: "019", returnDate: "2026-05-14", drNo: "DR25960", sku: "RECT24", item: "GI Rectangular Tube, 2 x 4 x 2mm x 6M", qtyReturned: 6, unitCost: 1380, totalCost: 8280, customer: "Aremar Construction Corp.", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 6, amountBalance: 8280, disposition: "Credit memo", status: "Pending", returnNo: "RTN26035", warehouse: "Marilao", lineItems: [
-    { code: "RECT24", desc: "GI Rectangular Tube, 2 x 4 x 2mm x 6M", qty: 6, unit: 1380, val: 8280 },
-  ]},
-  { id: 10, transNo: "020", returnDate: "2026-05-15", drNo: "DR25970", sku: "51181", item: "Wide Flange, 10 x 8 x 33# x 6M", qtyReturned: 4, unitCost: 12300, totalCost: 49200, customer: "Aguila Simbulan Partners", reason: "Customer cancel", totalQtyOut: 0, qtyBalance: 4, amountBalance: 49200, disposition: "Restock", status: "Received", returnNo: "RTN26036", warehouse: "Meycauayan", lineItems: [
-    { code: "51181", desc: "Wide Flange, 10 x 8 x 33# x 6M", qty: 4, unit: 12300, val: 49200 },
-  ]},
-  { id: 11, transNo: "021", returnDate: "2026-05-16", drNo: "DR25980", sku: "DRB032", item: "Deformed Round Bar, 32mm x 6M g60", qtyReturned: 22, unitCost: 1479, totalCost: 32538, customer: "SUNWAY CONSTRUCTION INC.", reason: "Wrong item", totalQtyOut: 2, qtyBalance: 20, amountBalance: 29580, disposition: "Scrap", status: "Approved", returnNo: "RTN26037", warehouse: "Meycauayan", lineItems: [
-    { code: "DRB032", desc: "Deformed Round Bar, 32mm x 6M g60", qty: 22, unit: 1479, val: 32538 },
-  ]},
-  { id: 12, transNo: "022", returnDate: "2026-05-17", drNo: "DR25990", sku: "SQ22", item: "GI Square Tube, 2 x 2 x 2mm x 6M", qtyReturned: 10, unitCost: 880, totalCost: 8800, customer: "PRIME BUILDERS CORP.", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 10, amountBalance: 8800, disposition: "Restock", status: "Pending", returnNo: "RTN26038", warehouse: "Pampanga", lineItems: [
-    { code: "SQ22", desc: "GI Square Tube, 2 x 2 x 2mm x 6M", qty: 10, unit: 880, val: 8800 },
-  ]},
-  { id: 13, transNo: "023", returnDate: "2026-05-18", drNo: "DR26001", sku: "SHPT3", item: "Sheet Pile T3, 400mm x 125mm", qtyReturned: 1, unitCost: 28271.06, totalCost: 28271.06, customer: "EC STRUCTURAL COMPOSITE INC.", reason: "Quality hold", totalQtyOut: 0, qtyBalance: 1, amountBalance: 28271.06, disposition: "Scrap", status: "Received", returnNo: "RTN26039", warehouse: "Meycauayan", lineItems: [
-    { code: "SHPT3", desc: "Sheet Pile T3, 400mm x 125mm", qty: 1, unit: 28271.06, val: 28271.06 },
-  ]},
-  { id: 14, transNo: "024", returnDate: "2026-05-19", drNo: "DR26010", sku: "DRB052", item: "Deformed Round Bar, 16mm x 6M g40", qtyReturned: 100, unitCost: 346.73, totalCost: 34673, customer: "BRENCON DEVELOPERS PHILS.", reason: "Customer cancel", totalQtyOut: 40, qtyBalance: 60, amountBalance: 20803.8, disposition: "Credit memo", status: "Approved", returnNo: "RTN26040", warehouse: "Meycauayan", lineItems: [
-    { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g40", qty: 100, unit: 346.73, val: 34673 },
-  ]},
-  { id: 15, transNo: "025", returnDate: "2026-05-20", drNo: "DR26015", sku: "MSP018", item: "MS Plate, 12mm x 4' x 8'", qtyReturned: 4, unitCost: 1200, totalCost: 4800, customer: "RCM BUILDERS", reason: "Damaged During Delivery", totalQtyOut: 0, qtyBalance: 4, amountBalance: 4800, disposition: "Restock", status: "Pending", returnNo: "RTN26041", warehouse: "Meycauayan", lineItems: [
-    { code: "MSP018", desc: "MS Plate, 12mm x 4' x 8'", qty: 4, unit: 1200, val: 4800 },
-  ]},
-  { id: 16, transNo: "026", returnDate: "2026-05-21", drNo: "DR26022", sku: "JINXI", item: "Sheet Pile Z - Pile 770mm", qtyReturned: 2, unitCost: 41838.53, totalCost: 83677.06, customer: "TALDE CONSTRUCTION INC.", reason: "Wrong item", totalQtyOut: 0, qtyBalance: 2, amountBalance: 83677.06, disposition: "Credit memo", status: "Received", returnNo: "RTN26042", warehouse: "Meycauayan", lineItems: [
-    { code: "JINXI", desc: "Sheet Pile Z - Pile 770mm", qty: 2, unit: 41838.53, val: 83677.06 },
-  ]},
-  { id: 17, transNo: "027", returnDate: "2026-05-22", drNo: "DR26028", sku: "DRB050", item: "Deformed Round Bar, 10mm x 6M g40", qtyReturned: 30, unitCost: 136.6, totalCost: 4098, customer: "AREMAR CONSTRUCTION CORP.", reason: "Quality hold", totalQtyOut: 0, qtyBalance: 30, amountBalance: 4098, disposition: "Restock", status: "Approved", returnNo: "RTN26043", warehouse: "Marilao", lineItems: [
-    { code: "DRB050", desc: "Deformed Round Bar, 10mm x 6M g40", qty: 30, unit: 136.6, val: 4098 },
-  ]},
-  { id: 18, transNo: "028", returnDate: "2026-05-23", drNo: "DR26035", sku: "WF016", item: "Wide Flange, 8 x 4 x 10# x 6M", qtyReturned: 6, unitCost: 9800, totalCost: 58800, customer: "SUNWAY CONSTRUCTION INC.", reason: "Damaged During Delivery", totalQtyOut: 1, qtyBalance: 5, amountBalance: 49000, disposition: "Scrap", status: "Pending", returnNo: "RTN26044", warehouse: "Meycauayan", lineItems: [
-    { code: "WF016", desc: "Wide Flange, 8 x 4 x 10# x 6M", qty: 6, unit: 9800, val: 58800 },
-  ]},
-];
 
 function IconChevronLeft({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15 19l-7-7 7-7" /></svg>;
@@ -422,13 +355,13 @@ function exportReturns(rows, qtyOutRecords, allReturns, slotPairs = 5) {
 async function importReturns(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["RETURN"]);
-    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS", "INSERT DATE"], 20);
     const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
     const parsed = [];
     const qtyOutRecords = [];
 
-    // detect QTY-OUT/DATE pair count from headers
+    // detect QTY-OUT/DATE pair count from headers (usually starts at column 12)
     let qoPairs = 0;
     if (headers) {
       for (let c = 12; c < headers.length; c += 2) {
@@ -442,52 +375,46 @@ async function importReturns(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
-      const rowLabel = cellStr(r[9] ?? r[0]).toUpperCase();
-      if (rowLabel.includes("GRAND TOTAL")) continue;
-
-      let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 0));
-      let returnDate = formatExcelDate(pickCol(r, headers, ["INSERT DATE", "INSERT DATE", "DATE"], 1));
-      const col0 = cellStr(r[0]);
-      const col1 = r[1];
-      if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
-        transNo = col0;
-        returnDate = formatExcelDate(col1);
-      }
-
-      const item = cellStr(pickCol(r, headers, ["ITEM"], 4));
-      const customer = cellStr(pickCol(r, headers, ["CUSTOMER NAME", "CUSTOMER"], 8));
+      // Use exact column mapping based on Excel structure
+      const trans = cellStr(pickCol(r, headers, ["TRANS"], 0));
+      const insertDate = formatExcelDate(pickCol(r, headers, ["INSERT DATE"], 1));
+      const insertDr = cellStr(pickCol(r, headers, ["INSERT DR#"], 2));
       const sku = cellStr(pickCol(r, headers, ["SKU"], 3));
-      if (!transNo && !item && !customer && !sku) continue;
+      const item = cellStr(pickCol(r, headers, ["ITEM"], 4));
+      const insertQty = cellNum(pickCol(r, headers, ["INSERT QTY"], 5));
+      const insertUnitCost = cellNum(pickCol(r, headers, ["INSERT UNIT COST"], 6));
+      const totalCost = cellNum(pickCol(r, headers, ["TOTAL COST"], 7));
+      const customerName = cellStr(pickCol(r, headers, ["CUSTOMER'S NAME"], 8));
+      const totalQtyOut = cellNum(pickCol(r, headers, ["TOTAL QTY OUT"], 9));
+      const qtyBalance = cellNum(pickCol(r, headers, ["QTY BALANCE"], 10));
+      const remarks = cellStr(pickCol(r, headers, ["REMARKS"], 11));
 
-      const qtyReturned = cellNum(pickCol(r, headers, ["INSERT QTY", "INSERT QTY", "QTY"], 5));
-      const unitCost = cellNum(pickCol(r, headers, ["INSERT UNIT COST", "INSERT INSERT UNIT COST"], 6));
-      const totalCost = cellNum(pickCol(r, headers, ["TOTAL COST"], 7)) || qtyReturned * unitCost;
-      const reason = cellStr(pickCol(r, headers, ["REASON"], 9));
-      const totalQtyOut = cellNum(pickCol(r, headers, ["TOTAL QTY OUT"], 10)) || 0;
-      const qtyBalance = cellNum(pickCol(r, headers, ["QTY BALANCE"], 11)) || qtyReturned - totalQtyOut;
+      // Skip rows without essential data
+      if (!item || (!insertQty && insertQty !== 0) || !customerName) continue;
 
       const returnId = parsed.length + 1;
       parsed.push({
         id: returnId,
-        transNo: transNo || String(returnId).padStart(3, "0"),
-        returnDate,
-        drNo: cellStr(pickCol(r, headers, ["INSERT DR#", "DR", "INSERT DR"], 2)),
-        sku,
-        item,
-        qtyReturned,
-        unitCost,
-        totalCost,
-        customer,
-        reason,
-        totalQtyOut,
-        qtyBalance,
-        amountBalance: totalCost,
-        returnNo: "",
-        warehouse: "Meycauayan",
+        transNo: trans || String(returnId).padStart(3, "0"),
+        returnDate: insertDate || "",
+        drNo: insertDr || "",
+        sku: sku || "",
+        item: item,
+        qtyReturned: insertQty,
+        unitCost: insertUnitCost || 0,
+        totalCost: totalCost || (insertQty * (insertUnitCost || 0)),
+        customer: customerName,
+        reason: "", // Default empty, can be filled manually
+        totalQtyOut: totalQtyOut || 0,
+        qtyBalance: qtyBalance || (insertQty - (totalQtyOut || 0)),
+        amountBalance: (insertQty - (totalQtyOut || 0)) * (insertUnitCost || 0),
+        returnNo: trans || "",
+        warehouse: "Marilao", // Default warehouse
+        remarks: remarks || "",
         lineItems: [],
       });
 
-      // read QTY-OUT/DATE pairs
+      // read QTY-OUT/DATE pairs starting from column 12
       for (let p = 0; p < qoPairs; p++) {
         const qtyCol = 12 + p * 2;
         const dateCol = qtyCol + 1;
@@ -496,7 +423,7 @@ async function importReturns(file, onDone, onError) {
         if (qty > 0 || date) {
           qtyOutRecords.push({
             id: Date.now() + qtyOutRecords.length,
-            returnId,
+            itemId: returnId,
             qty: qty || 0,
             date: date || "",
           });
@@ -504,8 +431,8 @@ async function importReturns(file, onDone, onError) {
       }
     }
 
-    if (!parsed.length) throw new Error("No data rows found. Fill TRANS #, ITEM, or CUSTOMER columns.");
-    onDone({ items: parsed, qtyOutRecords });
+    if (!parsed.length) throw new Error("No return data found. Make sure Excel has ITEM, INSERT QTY, and CUSTOMER'S NAME columns with data.");
+    onDone({ returns: parsed, qtyOutRecords });
   } catch (err) {
     onError(err.message || "Import failed.");
   }
@@ -568,7 +495,7 @@ function ReturnInlineEditRow({ row, onSave, onCancel }) {
 
 export default function ReturnPage() {
   const xlsxReady = useSheetJS();
-  const [returns, setReturns] = useState(SEED_RETURNS);
+  const [returns, setReturns] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [reasonFilter, setReasonFilter] = useState("All Reasons");
   const [warehouseFilter] = useState("All Warehouses");
@@ -585,7 +512,7 @@ export default function ReturnPage() {
   const [sortOpen, setSortOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [returnTab, setReturnTab] = useState("summary");
-  const [rtnQtyOutRecords, setRtnQtyOutRecords] = useState(RTN_QTY_OUT_SEED);
+  const [rtnQtyOutRecords, setRtnQtyOutRecords] = useState([]);
   const [rtnQtyOutSlotCount, setRtnQtyOutSlotCount] = useState(5);
   const [editingRtnQtyOutItem, setEditingRtnQtyOutItem] = useState(null);
   const [rtnQtyOutDraft, setRtnQtyOutDraft] = useState({});
@@ -602,7 +529,7 @@ export default function ReturnPage() {
     setImporting(true);
     importReturns(file, (result) => {
       setImporting(false);
-      const parsed = result.items || result;
+      const parsed = result.returns || result;
       const qo = result.qtyOutRecords || [];
       setReturns(parsed);
       if (qo.length) setRtnQtyOutRecords(qo);
@@ -678,7 +605,7 @@ export default function ReturnPage() {
           importDisabled: !xlsxReady,
             onExport: () => {
               try {
-                exportReturns(filtered, rtnQtyOutRecords, RTN_QTY_OUT_SEED, rtnQtyOutSlotCount);
+                exportReturns(filtered, rtnQtyOutRecords, rtnQtyOutRecords, rtnQtyOutSlotCount);
                 showToast(`Exported ${filtered.length} return entries.`);
             } catch (err) {
               console.error("Return export failed:", err);

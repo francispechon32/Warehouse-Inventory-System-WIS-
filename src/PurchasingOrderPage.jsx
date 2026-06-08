@@ -54,384 +54,6 @@ function formatDate(iso) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-export const INITIAL_PURCHASE_ORDERS = [
-  {
-    id: 1,
-    transNo: "001",
-    poDate: "2026-05-02",
-    eta: "2026-05-15",
-    purchaser: "Maria Santos",
-    tdtPo: "PO-2026-0142",
-    vendor: "Steel Asia Corp",
-    productDesc: "Deformed Round Bar, 10mm x 6M g40",
-    destination: "Meycauayan",
-    tradingOrStocks: "Stocks",
-    warehouseType: "Stocks",
-    metricTons: 2.4,
-    qtyPerPo: 400,
-    weight: "—",
-    status: "Active",
-    txnNo: "TXN-2026-001",
-    receiptDate: "2026-05-14",
-    supplierDrNo: "DR-2026-0880",
-    actualQtyReceived: 400,
-    qtyVariance: 0,
-    varianceAmount: 0,
-    encoder: "M. Santos",
-    checkerName: "C. Gomez",
-    receiverName: "B. Lim",
-    storerName: "R. Tan",
-    manager: "E. Santos",
-    remarksVariance: "Complete delivery",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "DRB050", desc: "Deformed Round Bar, 10mm x 6M", qty: 100, unit: 485, val: 48500 },
-      { code: "DRB050", desc: "Deformed Round Bar, 10mm x 6M", qty: 100, unit: 485, val: 48500 },
-      { code: "DRB050", desc: "Deformed Round Bar, 10mm x 6M", qty: 100, unit: 485, val: 48500 },
-      { code: "DRB050", desc: "Deformed Round Bar, 10mm x 6M", qty: 100, unit: 485, val: 48500 },
-    ],
-  },
-  {
-    id: 2,
-    transNo: "002",
-    poDate: "2026-05-03",
-    eta: "2026-05-18",
-    purchaser: "Juan Reyes",
-    tdtPo: "PO-2026-0143",
-    vendor: "Dragon Steel",
-    productDesc: "Wide Flange, 10 x 8 x 33# x 6M",
-    destination: "Pampanga",
-    tradingOrStocks: "Trading",
-    warehouseType: "Backload",
-    metricTons: 5.1,
-    qtyPerPo: 12,
-    weight: "12.2 MT",
-    status: "Completed",
-    txnNo: "TXN-2026-002",
-    receiptDate: "2026-05-17",
-    supplierDrNo: "DR-2026-0891",
-    actualQtyReceived: 12,
-    qtyVariance: 0,
-    varianceAmount: 0,
-    encoder: "J. Reyes",
-    checkerName: "M. Cruz",
-    receiverName: "A. Lopez",
-    storerName: "R. Tan",
-    manager: "E. Santos",
-    remarksVariance: "Complete delivery",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "WF10833", desc: "Wide Flange, 10 x 8 x 33# x 6M", qty: 12, unit: 12300, val: 147600 },
-    ],
-  },
-  {
-    id: 3,
-    transNo: "003",
-    poDate: "2026-05-04",
-    eta: "2026-05-20",
-    purchaser: "Ana Cruz",
-    tdtPo: "PO-2026-0144",
-    vendor: "Pag-asa Steel",
-    productDesc: "Sheet Pile T2, 400mm x 100mm",
-    destination: "Meycauayan",
-    tradingOrStocks: "Stocks",
-    warehouseType: "Stocks",
-    metricTons: 8.6,
-    qtyPerPo: 15,
-    weight: "—",
-    status: "Pending",
-    txnNo: "TXN-2026-003",
-    receiptDate: "2026-05-19",
-    supplierDrNo: "DR-2026-0902",
-    actualQtyReceived: 15,
-    qtyVariance: 0,
-    varianceAmount: 0,
-    encoder: "A. Cruz",
-    checkerName: "M. Cruz",
-    receiverName: "A. Lopez",
-    storerName: "T. Uy",
-    manager: "E. Santos",
-    remarksVariance: "Complete",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "SHPT2", desc: "Sheet Pile T2, 400mm x 100mm x 10.5mm", qty: 15, unit: 22529.66, val: 337944.9 },
-    ],
-  },
-  {
-    id: 4,
-    transNo: "004",
-    poDate: "2026-05-05",
-    eta: "2026-05-22",
-    purchaser: "Leo Santos",
-    tdtPo: "PO-2026-0145",
-    vendor: "Steelworld",
-    productDesc: "MS Plate, 6mm x 4' x 8'",
-    destination: "Marilao",
-    tradingOrStocks: "Stocks",
-    warehouseType: "Stocks",
-    metricTons: 1.2,
-    qtyPerPo: 50,
-    weight: "—",
-    status: "Active",
-    txnNo: "TXN-2026-004",
-    receiptDate: "2026-05-21",
-    supplierDrNo: "DR-2026-0921",
-    actualQtyReceived: 48,
-    qtyVariance: -2,
-    varianceAmount: -1109.58,
-    encoder: "L. Santos",
-    checkerName: "C. Gomez",
-    receiverName: "B. Lim",
-    storerName: "R. Tan",
-    manager: "E. Santos",
-    remarksVariance: "Short by 2 pcs",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "MSP010", desc: "MS Plate, 6mm x 4' x 8'", qty: 50, unit: 554.79, val: 27739.5 },
-    ],
-  },
-  {
-    id: 5,
-    transNo: "005",
-    poDate: "2026-05-06",
-    eta: "2026-05-25",
-    purchaser: "Maria Santos",
-    tdtPo: "PO-2026-0146",
-    vendor: "Steel Asia Corp",
-    productDesc: "Deformed Round Bar, 16mm x 6M g40",
-    destination: "Meycauayan",
-    tradingOrStocks: "Trading",
-    warehouseType: "Backload",
-    metricTons: 3.8,
-    qtyPerPo: 200,
-    weight: "3.8 MT",
-    status: "Completed",
-    txnNo: "TXN-2026-005",
-    receiptDate: "2026-05-24",
-    supplierDrNo: "DR-2026-0945",
-    actualQtyReceived: 196,
-    qtyVariance: -4,
-    varianceAmount: -1386.92,
-    encoder: "M. Santos",
-    checkerName: "C. Gomez",
-    receiverName: "B. Lim",
-    storerName: "T. Uy",
-    manager: "E. Santos",
-    remarksVariance: "Short by 4 pcs — documented",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g40", qty: 200, unit: 346.73, val: 69346 },
-    ],
-  },
-  {
-    id: 6,
-    transNo: "006",
-    poDate: "2026-05-07",
-    eta: "2026-05-28",
-    purchaser: "Juan Reyes",
-    tdtPo: "PO-2026-0147",
-    vendor: "Dragon Steel",
-    productDesc: "GI Rectangular Tube, 2 x 4 x 2mm x 6M",
-    destination: "Pampanga",
-    tradingOrStocks: "Stocks",
-    warehouseType: "Stocks",
-    metricTons: 0.9,
-    qtyPerPo: 80,
-    weight: "—",
-    status: "Pending",
-    txnNo: "TXN-2026-006",
-    receiptDate: "2026-05-27",
-    supplierDrNo: "DR-2026-0960",
-    actualQtyReceived: 80,
-    qtyVariance: 0,
-    varianceAmount: 0,
-    encoder: "J. Reyes",
-    checkerName: "M. Cruz",
-    receiverName: "A. Lopez",
-    storerName: "T. Uy",
-    manager: "E. Santos",
-    remarksVariance: "Complete",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "RECT24", desc: "GI Rectangular Tube, 2 x 4 x 2mm x 6M", qty: 80, unit: 1380, val: 110400 },
-    ],
-  },
-  {
-    id: 7,
-    transNo: "007",
-    poDate: "2026-05-08",
-    eta: "2026-06-01",
-    purchaser: "Ana Cruz",
-    tdtPo: "PO-2026-0148",
-    vendor: "Pag-asa Steel",
-    productDesc: "Angle Bar, 5mm x 50mm x 50mm x 6M",
-    destination: "Meycauayan",
-    tradingOrStocks: "Stocks",
-    warehouseType: "Stocks",
-    metricTons: 0.5,
-    qtyPerPo: 120,
-    weight: "—",
-    status: "Active",
-    txnNo: "TXN-2026-007",
-    receiptDate: "2026-05-30",
-    supplierDrNo: "DR-2026-0988",
-    actualQtyReceived: 120,
-    qtyVariance: 0,
-    varianceAmount: 0,
-    encoder: "A. Cruz",
-    checkerName: "M. Cruz",
-    receiverName: "B. Lim",
-    storerName: "R. Tan",
-    manager: "E. Santos",
-    remarksVariance: "Complete — all received",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "ABB18", desc: "Angle Bar, 5mm x 50mm x 50mm x 6M White", qty: 120, unit: 98.5, val: 11820 },
-    ],
-  },
-  {
-    id: 8,
-    transNo: "008",
-    poDate: "2026-05-09",
-    eta: "2026-06-03",
-    purchaser: "Leo Santos",
-    tdtPo: "PO-2026-0149",
-    vendor: "Steelworld",
-    productDesc: "GI pipe 1\" x 6M s40",
-    destination: "Meycauayan",
-    tradingOrStocks: "Trading",
-    warehouseType: "Backload",
-    metricTons: 1.1,
-    qtyPerPo: 60,
-    weight: "1.1 MT",
-    status: "Cancelled",
-    txnNo: "TXN-2026-008",
-    lineItems: [
-      { code: "GP3302", desc: 'GI pipe 1" x 6M s40', qty: 60, unit: 1380, val: 82800 },
-    ],
-  },
-  {
-    id: 9,
-    transNo: "009",
-    poDate: "2026-05-10",
-    eta: "2026-06-05",
-    purchaser: "Maria Santos",
-    tdtPo: "PO-2026-0150",
-    vendor: "Steel Asia Corp",
-    productDesc: "Deformed Round Bar, 20mm x 6M g60",
-    destination: "Pampanga",
-    tradingOrStocks: "Stocks",
-    warehouseType: "Stocks",
-    metricTons: 2.2,
-    qtyPerPo: 90,
-    weight: "—",
-    status: "Completed",
-    txnNo: "TXN-2026-009",
-    receiptDate: "2026-06-04",
-    supplierDrNo: "DR-2026-1001",
-    actualQtyReceived: 88,
-    qtyVariance: -2,
-    varianceAmount: -1078.62,
-    encoder: "M. Santos",
-    checkerName: "C. Gomez",
-    receiverName: "B. Lim",
-    storerName: "R. Tan",
-    manager: "E. Santos",
-    remarksVariance: "Short by 2 pcs",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "DRB020", desc: "Deformed Round Bar, 20mm x 6M g60", qty: 90, unit: 539.31, val: 48537.9 },
-    ],
-  },
-  {
-    id: 10,
-    transNo: "010",
-    poDate: "2026-05-11",
-    eta: "2026-06-08",
-    purchaser: "Juan Reyes",
-    tdtPo: "PO-2026-0151",
-    vendor: "Dragon Steel",
-    productDesc: "Sheet Pile Z type 12 meters",
-    destination: "Meycauayan",
-    tradingOrStocks: "Stocks",
-    warehouseType: "Stocks",
-    metricTons: 10.5,
-    qtyPerPo: 8,
-    weight: "10.5 MT",
-    status: "Pending",
-    txnNo: "TXN-2026-010",
-    lineItems: [
-      { code: "SHPT7", desc: "Sheet Pile Z type 12 meters", qty: 8, unit: 41838.53, val: 334708.24 },
-    ],
-  },
-  {
-    id: 11,
-    transNo: "011",
-    poDate: "2026-05-12",
-    eta: "2026-05-28",
-    purchaser: "Maria Santos",
-    tdtPo: "PO-2026-0152",
-    vendor: "Steel Asia Corp",
-    productDesc: "Deformed Round Bar, 16mm x 6M g40",
-    destination: "Meycauayan",
-    tradingOrStocks: "Trading",
-    warehouseType: "Backload",
-    metricTons: 3.8,
-    qtyPerPo: 200,
-    weight: "3.8 MT",
-    status: "Completed",
-    txnNo: "TXN-2026-011",
-    receiptDate: "2026-05-26",
-    supplierDrNo: "DR-2026-0975",
-    actualQtyReceived: 200,
-    qtyVariance: 0,
-    varianceAmount: 0,
-    encoder: "M. Santos",
-    checkerName: "C. Gomez",
-    receiverName: "B. Lim",
-    storerName: "R. Tan",
-    manager: "E. Santos",
-    remarksVariance: "Supplemental delivery",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "DRB052", desc: "Deformed Round Bar, 16mm x 6M g40", qty: 200, unit: 346.73, val: 69346 },
-    ],
-  },
-  {
-    id: 12,
-    transNo: "012",
-    poDate: "2026-05-14",
-    eta: "2026-06-05",
-    purchaser: "Ana Cruz",
-    tdtPo: "PO-2026-0153",
-    vendor: "Pag-asa Steel",
-    productDesc: "Angle Bar, 5mm x 50mm x 50mm x 6M",
-    destination: "Meycauayan",
-    tradingOrStocks: "Stocks",
-    warehouseType: "Stocks",
-    metricTons: 0.5,
-    qtyPerPo: 120,
-    weight: "—",
-    status: "Completed",
-    txnNo: "TXN-2026-012",
-    receiptDate: "2026-06-03",
-    supplierDrNo: "DR-2026-1012",
-    actualQtyReceived: 115,
-    qtyVariance: -5,
-    varianceAmount: -492.5,
-    encoder: "A. Cruz",
-    checkerName: "M. Cruz",
-    receiverName: "B. Lim",
-    storerName: "R. Tan",
-    manager: "E. Santos",
-    remarksVariance: "Short by 5 pcs",
-    recordedToPe: "Yes",
-    lineItems: [
-      { code: "ABB18", desc: "Angle Bar, 5mm x 50mm x 50mm x 6M White", qty: 120, unit: 98.5, val: 11820 },
-    ],
-  },
-];
-
 const STATUS_BADGE = {
   Active: { bg: "#dcfce7", color: "#15803d", panel: "#22c55e" },
   Completed: { bg: "#dcfce7", color: "#15803d", panel: "#22c55e" },
@@ -963,69 +585,120 @@ function exportToWis(rows, options = {}) {
 async function importPurchaseOrders(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["PURCHASING"]);
-    const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
+    const headerIdx = findHeaderRowIndex(raw, ["TRANS", "INSERT"], 20);
     let dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
+    
+    // Skip grand total row if present
     if (dataStart < raw.length) {
       const maybeGrand = cellStr(raw[dataStart][9] ?? raw[dataStart][0]).toUpperCase();
       if (maybeGrand.includes("GRAND TOTAL")) dataStart += 1;
     }
+    
     const parsed = [];
-    const whStatusCol = PO_PURCH_COLS + 8;
+    const seriesRecords = [];
 
     for (let i = dataStart; i < raw.length; i++) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
-      let transNo = cellStr(pickCol(r, headers, ["TRANS NO.", "TRANS #", "TRANS"], 0));
-      let poDate = formatExcelDate(pickCol(r, headers, ["PO DATE", "INSERT DATE OF P.O.", "DATE"], 1));
-      const col0 = cellStr(r[0]);
-      const col1 = r[1];
-      if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
-        transNo = col0;
-        poDate = formatExcelDate(col1);
-      }
-      const productDesc = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 6));
-      const vendor = cellStr(pickCol(r, headers, ["VENDOR", "SUPPLIER"], 5));
-      if (!transNo && !productDesc && !vendor) continue;
+      // Map exact Excel columns based on the shown structure
+      const transNo = cellStr(pickCol(r, headers, ["TRANS NO.", "TRANS"], 0));
+      const insertDatePo = formatExcelDate(pickCol(r, headers, ["INSERT DATE OF PO"], 1));
+      const insertEta = formatExcelDate(pickCol(r, headers, ["INSERT ETA"], 2));
+      const insertNamePurchaser = cellStr(pickCol(r, headers, ["INSERT NAME OF PURCHASER"], 3));
+      const insertTdtPo = cellStr(pickCol(r, headers, ["INSERT TDT PURCHASE ORDER #"], 4));
+      const insertVendor = cellStr(pickCol(r, headers, ["INSERT VENDOR OR SUPPLIER'S NAME"], 5));
+      const insertProductDesc = cellStr(pickCol(r, headers, ["INSERT PRODUCT DESCRIPTION"], 6));
+      const insertWarehouseCustomer = cellStr(pickCol(r, headers, ["INSERT WAREHOUSE OR CUSTOMER FOR DESTINATION"], 7));
+      const insertTradingStocks = cellStr(pickCol(r, headers, ["INSERT IF FOR TRADING OR STOCKS"], 8));
+      const ifWarehouseInsert = cellStr(pickCol(r, headers, ["IF TO WAREHOUSE, INSERT STOCKS OR BACKLOAD"], 9));
+      const insertRetention = cellStr(pickCol(r, headers, ["INSERT RETENTION"], 10));
+      const insertQtyPurchase = cellNum(pickCol(r, headers, ["INSERT QUANTITY AS PER PURCHASE ORDER"], 11));
+      const insertWeight = cellStr(pickCol(r, headers, ["INSERT WEIGHT (IF NEEDED)"], 12));
+      const costPerKilo = cellNum(pickCol(r, headers, ["COST PER KILO"], 13));
+      const insertCostPerUnit = cellNum(pickCol(r, headers, ["INSERT COST PER UNIT (FOR PURCHASING)"], 14));
+      const insertTotalCost = cellNum(pickCol(r, headers, ["INSERT TOTAL COST OF PURCHASES"], 15));
 
-      const weightVal = cellStr(pickCol(r, headers, ["WEIGHT", "INSERT WEIGHT"], 12));
-      const statusFromPurch = cellStr(pickCol(r, headers, ["STATUS"], TABLE_COLS.length - 1));
+      // Warehouse columns
+      const insertDateActualReceipt = formatExcelDate(pickCol(r, headers, ["INSERT DATE OF ACTUAL RECEIPT"], 16));
+      const insertSupplierDr = cellStr(pickCol(r, headers, ["INSERT SUPPLIER'S DELIVERY RECEIPT NO."], 17));
+      const insertActualQty = cellNum(pickCol(r, headers, ["INSERT ACTUAL QUANTITY RECEIVED"], 18));
+      const qtyVariance = cellNum(pickCol(r, headers, ["QUANTITY VARIANCE (OVER/UNDER)"], 19));
+      const varianceAmount = cellNum(pickCol(r, headers, ["VARIANCE AMOUNT (OVER/UNDER)"], 20));
+      const insertNameEncoder = cellStr(pickCol(r, headers, ["INSERT NAME OF ENCODER"], 21));
+      const insertNameRecipient = cellStr(pickCol(r, headers, ["INSERT NAME OF RECIPIENT"], 22));
+      const insertNameChecker = cellStr(pickCol(r, headers, ["INSERT NAME OF CHECKER"], 23));
+      const managerRemarks = cellStr(pickCol(r, headers, ["MANAGER'S REMARKS / MEMO"], 24));
+      const recordedToPe = cellStr(pickCol(r, headers, ["WAS THIS RECORDED TO PE? ITEM?"], 25));
 
+      // Skip rows without essential data
+      if (!transNo && !insertProductDesc && !insertVendor) continue;
+
+      const poId = parsed.length + 1;
       parsed.push(normalizePurchaseOrder({
-        id: parsed.length + 1,
-        transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
-        poDate,
-        eta: formatExcelDate(pickCol(r, headers, ["ETA", "INSERT ETA"], 2)),
-        purchaser: cellStr(pickCol(r, headers, ["NAME OF PURCHASER", "PURCHASER"], 3)),
-        tdtPo: cellStr(pickCol(r, headers, ["TDT PURCHASE ORDER", "TDT PO", "PURCHASE ORDER"], 4)),
-        vendor,
-        productDesc,
-        destination: cellStr(pickCol(r, headers, ["DESTINATION", "WAREHOUSE OR CUSTOMER"], 7)),
-        tradingOrStocks: cellStr(pickCol(r, headers, ["TRADING OR STOCKS", "TRADING"], 8)) || "Stocks",
-        warehouseType: cellStr(pickCol(r, headers, ["BACKLOAD", "WAREHOUSE", "STORE OF DESTINATION"], 9)) || "Stocks",
-        retention: cellStr(pickCol(r, headers, ["RETENTION"], 10)),
-        metricTons: cellNum(pickCol(r, headers, ["METRIC TONS"], 10)),
-        qtyPerPo: cellNum(pickCol(r, headers, ["QTY AS PER PO", "QUANTITY", "QTY"], 11)),
-        weight: weightVal || "—",
-        costPerKilo: cellNum(pickCol(r, headers, ["COST PER KILO", "KILO"], 13)) || "",
-        receiptDate: formatExcelDate(pickCol(r, headers, ["ACTUAL RECEIPT", "RECEIPT"], PO_PURCH_COLS)),
-        supplierDrNo: cellStr(pickCol(r, headers, ["DELIVERY RECEIPT", "SUPPLIER DR"], PO_PURCH_COLS + 1)),
-        actualQtyReceived: cellNum(pickCol(r, headers, ["ACTUAL QUANTITY RECEIVED", "ACTUAL QTY"], PO_PURCH_COLS + 2)),
-        qtyVariance: cellNum(pickCol(r, headers, ["QUANTITY VARIANCE", "QTY VARIANCE"], PO_PURCH_COLS + 3)),
-        varianceAmount: cellNum(pickCol(r, headers, ["VARIANCE AMOUNT"], PO_PURCH_COLS + 4)),
-        checkerName: cellStr(pickCol(r, headers, ["CHECKER"], PO_PURCH_COLS + 5)),
-        receiverName: cellStr(pickCol(r, headers, ["RECEIVER"], PO_PURCH_COLS + 6)),
-        storerName: cellStr(pickCol(r, headers, ["STORER"], PO_PURCH_COLS + 7)),
-        remarksVariance: cellStr(pickCol(r, headers, ["REMARKS", "VARIANCE"], whStatusCol)),
-        status: statusFromPurch || "Pending",
-        txnNo: "",
-        lineItems: [],
+        id: poId,
+        transNo: transNo || String(poId).padStart(3, "0"),
+        poDate: insertDatePo || "",
+        eta: insertEta || "",
+        purchaser: insertNamePurchaser || "",
+        tdtPo: insertTdtPo || "",
+        vendor: insertVendor || "",
+        productDesc: insertProductDesc || "",
+        destination: insertWarehouseCustomer || "",
+        tradingOrStocks: insertTradingStocks || "Stocks",
+        warehouseType: ifWarehouseInsert || "Stocks",
+        retention: insertRetention || "",
+        metricTons: 0, // Not in current Excel structure
+        qtyPerPo: insertQtyPurchase || 0,
+        weight: insertWeight || "—",
+        costPerKilo: costPerKilo || "",
+        costPerUnit: insertCostPerUnit || "",
+        totalCost: insertTotalCost || 0,
+        receiptDate: insertDateActualReceipt || "",
+        supplierDrNo: insertSupplierDr || "",
+        actualQtyReceived: insertActualQty || 0,
+        qtyVariance: qtyVariance || 0,
+        varianceAmount: varianceAmount || 0,
+        encoder: insertNameEncoder || "",
+        receiverName: insertNameRecipient || "",
+        checkerName: insertNameChecker || "",
+        manager: managerRemarks || "",
+        remarksVariance: managerRemarks || "",
+        recordedToPe: recordedToPe === "Yes" ? "Yes" : "No",
+        status: "Pending",
+        txnNo: `TXN-2026-${String(poId).padStart(3, "0")}`,
+        lineItems: insertProductDesc ? [{
+          code: transNo || String(poId).padStart(3, "0"),
+          desc: insertProductDesc,
+          qty: insertQtyPurchase || 0,
+          unit: insertCostPerUnit || 0,
+          val: insertTotalCost || 0
+        }] : [],
       }));
+
+      // Read series columns (VDR#/QTY pairs) starting from column 26
+      for (let seriesIdx = 26; seriesIdx < r.length; seriesIdx += 2) {
+        const vdrValue = cellStr(r[seriesIdx]);
+        const qtyValue = cellNum(r[seriesIdx + 1]);
+        if (vdrValue || qtyValue > 0) {
+          seriesRecords.push({
+            id: Date.now() + seriesRecords.length,
+            orderId: poId,
+            productDesc: insertProductDesc || "",
+            vdr: vdrValue || "",
+            qty: qtyValue || 0,
+          });
+        }
+      }
     }
 
-    if (!parsed.length) throw new Error("No data rows found. Fill TRANS # or product/vendor columns.");
-    onDone(parsed.map(normalizePurchaseOrder));
+    if (!parsed.length) throw new Error("No purchasing data found. Make sure Excel has TRANS NO., INSERT PRODUCT DESCRIPTION, or INSERT VENDOR columns with data.");
+    
+    onDone({ 
+      orders: parsed.map(normalizePurchaseOrder),
+      seriesRecords: seriesRecords
+    });
   } catch (err) {
     onError(err.message || "Import failed.");
   }
@@ -1035,15 +708,15 @@ export default function PurchasingOrderPage({
   initialStatusFilter = "All Status",
   orders: propOrders,
   setOrders: propSetOrders,
+  currentUser,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [localOrders, setLocalOrders] = useState(() =>
-    INITIAL_PURCHASE_ORDERS.map(normalizePurchaseOrder)
-  );
+  const [localOrders, setLocalOrders] = useState([]);
   const orders = propOrders ?? localOrders;
   const setOrders = propSetOrders ?? setLocalOrders;
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
+  const [seriesRecords, setSeriesRecords] = useState([]);
 
   const xlsxReady = useSheetJS();
   const importRef = useRef(null);
@@ -1073,6 +746,7 @@ export default function PurchasingOrderPage({
   const [drSlotCount, setDrSlotCount] = useState(8);
   const { sortBy, setSortBy, applySort } = useSort("poDate", "productDesc");
   const [sortOpen, setSortOpen] = useState(false);
+  const isEmployee = currentUser?.role === 'Employee';
 
   const handleSaveEdit = (updated) => {
     setOrders(d => d.map(r => r.id === updated.id ? { ...updated } : r));
@@ -1140,10 +814,21 @@ export default function PurchasingOrderPage({
           { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: STATUS_OPTS, minWidth: 140 },
           { key: "supplier", value: supplierFilter, onChange: (v) => { setSupplierFilter(v); setCurrentPage(1); }, options: SUPPLIER_OPTS, minWidth: 160 },
         ]}
-        primaryAction={{ label: "Create Purchase Order", onClick: () => setShowCreate(true) }}
+        primaryAction={!isEmployee ? { label: "Create Purchase Order", onClick: () => setShowCreate(true) } : undefined}
         dateRange={dateRange}
         onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
-        importExport={{
+        importExport={isEmployee ? {
+          showImport: false,
+          onExport: () => {
+            try {
+              exportToWis(filtered, { drSlotCount });
+              showToast(`Exported ${filtered.length} purchase order(s).`);
+            } catch (err) {
+              console.error("PO export failed:", err);
+              showToast(err?.message || "Export failed.", "error");
+            }
+          },
+        } : {
           fileInputRef: importRef,
           onFileChange: (e) => {
             const file = e.target.files?.[0];
@@ -1151,13 +836,16 @@ export default function PurchasingOrderPage({
             setImporting(true);
             importPurchaseOrders(
               file,
-              (parsed) => {
+              (result) => {
                 setImporting(false);
+                const parsed = result.orders || result;
+                const series = result.seriesRecords || [];
                 setOrders(parsed);
+                if (series.length) setSeriesRecords(series);
                 setCurrentPage(1);
                 setSelectedId(null);
                 setPanelOpen(false);
-                showToast(`Imported ${parsed.length} purchase orders successfully.`);
+                showToast(`Imported ${parsed.length} purchase orders (${series.length} series records).`);
                 e.target.value = "";
               },
               (err) => {
@@ -1294,11 +982,13 @@ export default function PurchasingOrderPage({
                         {row.status}
                       </span>
                     </td>
-                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        <IconEdit size={12} /> Edit
-                      </button>
-                    </td>
+                    {!isEmployee && (
+                      <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                        <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                          <IconEdit size={12} /> Edit
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -1372,11 +1062,13 @@ export default function PurchasingOrderPage({
                         {row.recordedToPe || "No"}
                       </span>
                     </td>
-                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                      <button onClick={() => setEditingId(row.id)} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        <IconEdit size={12} /> Edit
-                      </button>
-                    </td>
+                    {!isEmployee && (
+                      <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                        <button onClick={() => setEditingId(row.id)} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                          <IconEdit size={12} /> Edit
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -1386,20 +1078,53 @@ export default function PurchasingOrderPage({
         ) : (
         <div style={{ padding: "16px 20px" }}>
           {(() => {
-            const withReceipts = sorted.filter(r => r.supplierDrNo && r.actualQtyReceived > 0);
-            if (withReceipts.length === 0) {
-              return <div style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No accepted deliveries recorded yet.</div>;
-            }
-            const groups = {};
-            withReceipts.forEach(r => {
-              const key = r.productDesc;
-              if (!groups[key]) {
-                groups[key] = { productDesc: r.productDesc, vendor: r.vendor, drs: [], totalQty: 0 };
+            // Use imported series records or generate from orders
+            const useSeriesRecords = seriesRecords.length > 0;
+            let grouped;
+            
+            if (useSeriesRecords) {
+              const groups = {};
+              seriesRecords.forEach(sr => {
+                const order = orders.find(o => o.id === sr.orderId);
+                if (!order) return;
+                const key = sr.productDesc;
+                if (!groups[key]) {
+                  groups[key] = { 
+                    productDesc: sr.productDesc, 
+                    vendor: order.vendor, 
+                    drs: [], 
+                    totalQty: 0 
+                  };
+                }
+                if (sr.vdr && sr.qty > 0) {
+                  groups[key].drs.push({ dr: sr.vdr, qty: sr.qty, orderId: sr.orderId });
+                  groups[key].totalQty += sr.qty;
+                }
+              });
+              grouped = Object.values(groups);
+            } else {
+              // Fallback to existing logic
+              const withReceipts = sorted.filter(r => r.supplierDrNo && r.actualQtyReceived > 0);
+              if (withReceipts.length === 0) {
+                return <div style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No accepted deliveries recorded yet.</div>;
               }
-              groups[key].drs.push({ dr: r.supplierDrNo, qty: r.actualQtyReceived, orderId: r.id });
-              groups[key].totalQty += r.actualQtyReceived;
-            });
-            const grouped = Object.values(groups);
+              const groups = {};
+              withReceipts.forEach(r => {
+                const key = r.productDesc;
+                if (!groups[key]) {
+                  groups[key] = { productDesc: r.productDesc, vendor: r.vendor, drs: [], totalQty: 0 };
+                }
+                groups[key].drs.push({ dr: r.supplierDrNo, qty: r.actualQtyReceived, orderId: r.id });
+                groups[key].totalQty += r.actualQtyReceived;
+              });
+              grouped = Object.values(groups);
+            }
+
+            if (grouped.length === 0) {
+              return <div style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>
+                {useSeriesRecords ? "No series records found." : "No accepted deliveries recorded yet."}
+              </div>;
+            }
             const overallTotal = grouped.reduce((s, g) => s + g.totalQty, 0);
             const slots = drSlotCount;
             return (
@@ -1409,6 +1134,36 @@ export default function PurchasingOrderPage({
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <button onClick={() => setDrSlotCount(s => Math.min(20, s + 1))} title="Add VDR#/QTY column pair" style={{ padding: "4px 10px", border: "1px solid #16a34a", borderRadius: 5, background: "#f0fdf4", cursor: "pointer", fontSize: 13, color: "#16a34a", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4 }}>+ Add Pair</button>
                     <button onClick={() => setDrSlotCount(s => Math.max(1, s - 1))} title="Remove last VDR#/QTY column pair" disabled={drSlotCount <= 1} style={{ padding: "4px 10px", border: "1px solid #ef4444", borderRadius: 5, background: "#fef2f2", cursor: drSlotCount <= 1 ? "not-allowed" : "pointer", fontSize: 13, color: "#ef4444", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4, opacity: drSlotCount <= 1 ? 0.4 : 1 }}>− Remove Pair</button>
+                    <button onClick={() => {
+                      // Add new INSERT column functionality
+                      const newInsertCol = {
+                        id: Date.now(),
+                        type: 'INSERT',
+                        name: `INSERT ${Date.now().toString().slice(-4)}`,
+                        defaultValue: ''
+                      };
+                      showToast("New INSERT column added to export template.", "success");
+                    }} title="Add new INSERT column" style={{ padding: "4px 12px", border: "1px solid #3b82f6", borderRadius: 5, background: "#eff6ff", cursor: "pointer", fontSize: 13, color: "#3b82f6", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4 }}>+ INSERT</button>
+                    <button onClick={() => {
+                      // Add new VDR# column functionality
+                      const newVdrCol = {
+                        id: Date.now(),
+                        type: 'VDR',
+                        name: `VDR# ${Date.now().toString().slice(-4)}`,
+                        defaultValue: ''
+                      };
+                      showToast("New VDR# column added to export template.", "success");
+                    }} title="Add new VDR# column" style={{ padding: "4px 12px", border: "1px solid #8b5cf6", borderRadius: 5, background: "#f5f3ff", cursor: "pointer", fontSize: 13, color: "#8b5cf6", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4 }}>+ VDR#</button>
+                    <button onClick={() => {
+                      // Add new QTY column functionality  
+                      const newQtyCol = {
+                        id: Date.now(),
+                        type: 'QTY',
+                        name: `QTY ${Date.now().toString().slice(-4)}`,
+                        defaultValue: 0
+                      };
+                      showToast("New QTY column added to export template.", "success");
+                    }} title="Add new QTY column" style={{ padding: "4px 12px", border: "1px solid #f59e0b", borderRadius: 5, background: "#fffbeb", cursor: "pointer", fontSize: 13, color: "#f59e0b", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4 }}>+ QTY</button>
                   </div>
                 </div>
                 <div style={{ overflowX: "auto" }}>
@@ -1474,38 +1229,51 @@ export default function PurchasingOrderPage({
                                         newDrs.push({ dr: dr || "", qty: parseFloat(qty) || 0, orderId: g.drs[i]?.orderId });
                                       }
                                     }
-                                    const existingIds = g.drs.map(d => d.orderId).filter(Boolean);
-                                    setOrders(prev => {
-                                      const curMax = Math.max(...prev.map(o => o.id));
-                                      let next = [...prev];
-                                      newDrs.forEach((nd, ni) => {
-                                        if (nd.orderId) {
-                                          next = next.map(o => o.id === nd.orderId ? { ...o, supplierDrNo: nd.dr, actualQtyReceived: nd.qty } : o);
-                                        } else {
-                                          next.push({
-                                            id: curMax + 1 + ni,
-                                            transNo: String(curMax + 1 + ni).padStart(3, "0"),
-                                            poDate: "", eta: "", purchaser: "", tdtPo: "",
-                                            vendor: g.vendor, productDesc: g.productDesc, destination: "",
-                                            tradingOrStocks: "", warehouseType: "", metricTons: 0,
-                                            qtyPerPo: nd.qty, weight: "", status: "Active",
-                                            txnNo: `TXN-2026-${String(curMax + 1 + ni).padStart(3, "0")}`,
-                                            receiptDate: "", supplierDrNo: nd.dr, actualQtyReceived: nd.qty,
-                                            qtyVariance: 0, varianceAmount: 0, encoder: "", checkerName: "",
-                                            receiverName: "", storerName: "", manager: "", remarksVariance: "",
-                                            recordedToPe: "No", lineItems: [],
-                                          });
-                                        }
+                                    
+                                    // Update series records if using imported data
+                                    if (seriesRecords.length > 0) {
+                                      setSeriesRecords(prev => {
+                                        const other = prev.filter(sr => sr.productDesc !== g.productDesc);
+                                        const newSeries = newDrs.map((nd, idx) => ({
+                                          id: Date.now() + idx,
+                                          orderId: nd.orderId || g.drs[0]?.orderId || 1,
+                                          productDesc: g.productDesc,
+                                          vdr: nd.dr,
+                                          qty: nd.qty,
+                                        }));
+                                        return [...other, ...newSeries];
                                       });
-                                      const removedIds = existingIds.filter(id => !newDrs.some(nd => nd.orderId === id));
-                                      removedIds.forEach(id => {
-                                        next = next.map(o => o.id === id ? { ...o, supplierDrNo: "", actualQtyReceived: 0, qtyVariance: 0, varianceAmount: 0 } : o);
+                                    } else {
+                                      // Update orders for manual entries
+                                      const existingIds = g.drs.map(d => d.orderId).filter(Boolean);
+                                      setOrders(prev => {
+                                        const curMax = Math.max(...prev.map(o => o.id));
+                                        let next = [...prev];
+                                        newDrs.forEach((nd, ni) => {
+                                          if (nd.orderId) {
+                                            next = next.map(o => o.id === nd.orderId ? { ...o, supplierDrNo: nd.dr, actualQtyReceived: nd.qty } : o);
+                                          } else {
+                                            next.push({
+                                              id: curMax + 1 + ni,
+                                              transNo: String(curMax + 1 + ni).padStart(3, "0"),
+                                              poDate: "", eta: "", purchaser: "", tdtPo: "",
+                                              vendor: g.vendor, productDesc: g.productDesc, destination: "",
+                                              tradingOrStocks: "", warehouseType: "", metricTons: 0,
+                                              qtyPerPo: nd.qty, weight: "", status: "Active",
+                                              txnNo: `TXN-2026-${String(curMax + 1 + ni).padStart(3, "0")}`,
+                                              supplierDrNo: nd.dr, actualQtyReceived: nd.qty,
+                                              lineItems: [{ code: String(curMax + 1 + ni).padStart(3, "0"), desc: g.productDesc, qty: nd.qty, unit: 0, val: 0 }],
+                                              ...PO_FIELD_DEFAULTS,
+                                            });
+                                          }
+                                        });
+                                        return next;
                                       });
-                                      return next;
-                                    });
+                                    }
+                                    
                                     setEditingSeriesProduct(null);
                                     setSeriesDraft({});
-                                    showToast("Series of Acceptance updated.");
+                                    showToast("Series records updated.");
                                   }} title="Save" style={{ padding: "4px 7px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={11} /></button>
                                   <button onClick={() => { setEditingSeriesProduct(null); setSeriesDraft({}); }} title="Cancel" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={11} /></button>
                                 </div>

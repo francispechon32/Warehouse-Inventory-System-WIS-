@@ -12,7 +12,6 @@ import {
   readWorkbookSheet,
 } from "./excelImportUtils";
 import {
-  buildInitialEndingInventory,
   sumEndingInventoryValue,
   formatCompactPHP,
 } from "./inventoryUtils";
@@ -50,39 +49,6 @@ function useSheetJS() {
   return true; // XLSX is imported as a module, always available
 }
 
-export const INITIAL_ENDING_INVENTORY = [
-  { no:1,  productDescription:"Deformed Round Bar, 10mm x 6M g33",                                               sku:"DRB007", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:2,  productDescription:"Deformed Round Bar, 12mm x 6M g33",                                               sku:"DRB008", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:3,  productDescription:"Deformed Round Bar, 16mm x 6M g33",                                               sku:"DRB009", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:4,  productDescription:"Deformed Round Bar, 10mm x 6M g40",                                               sku:"DRB050", lastAcceptanceDate:"2026-02-21", qtyAsPerWis:1557, totalUnitCost:212686.20,   avgUnitCost:136.60,  qtyAsPerCounting:1557,varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:5,  productDescription:"Deformed Round Bar, 12mm x 6M g40",                                               sku:"DRB051", lastAcceptanceDate:"2025-05-31", qtyAsPerWis:1,    totalUnitCost:186.38,      avgUnitCost:186.38,  qtyAsPerCounting:1,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:6,  productDescription:"Deformed Round Bar, 16mm x 6M g40",                                               sku:"DRB052", lastAcceptanceDate:"2026-02-21", qtyAsPerWis:1225, totalUnitCost:424750.18,   avgUnitCost:346.73,  qtyAsPerCounting:1225,varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:7,  productDescription:"Sheet Pile, T2, 400mm x 100mm x 10.5mm x 48kg/m x 12M (576 kilos)",              sku:"SHPT2",  lastAcceptanceDate:"2026-03-24", qtyAsPerWis:560,  totalUnitCost:12616608.49, avgUnitCost:22529.66,qtyAsPerCounting:560, varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:8,  productDescription:"MS Plate, 6mm x 4' x 8'",                                                         sku:"MSP010", lastAcceptanceDate:"2026-02-21", qtyAsPerWis:322,  totalUnitCost:178642.38,   avgUnitCost:554.79,  qtyAsPerCounting:322, varianceQty:0, varianceAmount:0, remarks:"DRB 20mm x 6M g40" },
-  { no:9,  productDescription:"MS Plate, 12mm x 4' x 8'",                                                        sku:"MSP018", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:10, productDescription:"MS Plate, 10mm X 4' x 8'",                                                        sku:"SKU10",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:11, productDescription:"Sheet Pile, T2, 400mm x 100mm x 10.5mm x 48kg/m x 6M (288 kilos)",               sku:"SHPT2A", lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:12, productDescription:"Sheet Pile Z type 12 meters",                                                      sku:"SHPT7",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:13, productDescription:"Sheet Pile, Z - Pile 770mm W x 354mm H x 8.5mm x 73.2kg/M x 12M (878.40 kilos)", sku:"JINXI",  lastAcceptanceDate:"2025-03-12", qtyAsPerWis:15,   totalUnitCost:627577.90,   avgUnitCost:41838.53,qtyAsPerCounting:15,  varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:14, productDescription:"Wide Flange, 8 x 4 x 10# x 6M (approx: Web 4.32mm/Flange 5.21mm)",               sku:"WF016",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:15, productDescription:"Wide Flange, 6 x 4 x 9# x 6M (approx: Web 4.32mm/Flange 5.46mm)",               sku:"WF009",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:16, productDescription:"Sheet Pile, T3, 400mm x 125mm x 13mm x 60kg/m x 12M(720kgs)",                    sku:"SHPT3",  lastAcceptanceDate:"2025-11-29", qtyAsPerWis:481,  totalUnitCost:13598380.80, avgUnitCost:28271.06,qtyAsPerCounting:481, varianceQty:0, varianceAmount:0, remarks:"1 PC DAMAGED" },
-  { no:17, productDescription:"Angle Bar, 3mm x 38mm x 38mm x 6M Yellow",                                        sku:"SKU17",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:18, productDescription:"Angle Bar, 4mm x 38mm x 38mm x 6M Orange",                                        sku:"SKU18",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:19, productDescription:"Angle Bar, 5mm x 38mm x 38mm x 6M White",                                         sku:"SKU19",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:20, productDescription:"Angle Bar, 3mm x 50mm x 50mm x 6M Yellow",                                        sku:"SKU20",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:21, productDescription:"Angle Bar, 4mm x 50mm x 50mm x 6M Orange",                                        sku:"SKU21",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:22, productDescription:"Angle Bar, 4.5mm x 50mm x 50mm x 6M Violet",                                      sku:"SKU22",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:23, productDescription:"Angle Bar, 5mm x 50mm x 50mm x 6M White",                                         sku:"SKU23",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:24, productDescription:"Angle Bar, 6mm x 50mm x 50mm x 6M Brown",                                         sku:"SKU24",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:25, productDescription:"Angle Bar, 6mm x 63.5mm x 63.5mm x 6M Brown",                                     sku:"SKU25",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:26, productDescription:"Angle Bar, 5mm x 75mm x 75mm x 6M White",                                         sku:"SKU26",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:27, productDescription:"Angle Bar, 6mm x 75mm x 75mm x 6M Brown",                                         sku:"SKU27",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:28, productDescription:"BI Pipe, 1-1/2\" x 6M s20",                                                       sku:"SKU28",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:29, productDescription:"BI Pipe, 1-1/2\" x 6M s40",                                                       sku:"SKU29",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-  { no:30, productDescription:"GI Pipe, 1\" x 6M s40",                                                            sku:"SKU30",  lastAcceptanceDate:"",           qtyAsPerWis:0,    totalUnitCost:0,           avgUnitCost:0,       qtyAsPerCounting:0,   varianceQty:0, varianceAmount:0, remarks:"" },
-];
-
 const PAGE_SIZE = 8;
 
 function fmtPHP(n) {
@@ -93,55 +59,74 @@ function fmtPHP(n) {
 async function importEndingInventory(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["ENDING"]);
-    const headerIdx = findHeaderRowIndex(raw, ["PRODUCT"], 20);
+    const headerIdx = findHeaderRowIndex(raw, ["PRODUCT DESCRIPTION"], 20);
     const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
-    const parsed = [];
+    const endingInventoryItems = [];
+    const cogsItems = [];
 
     for (let i = dataStart; i < raw.length; i++) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
-      // Column order matches exportToWis (wisHdrs) exactly:
-      // 0=NO., 1=PRODUCT DESCRIPTION, 2=SKU NUMBER, 3=LAST ACCEPTANCE DATE,
-      // 4=QUANTITY AS PER WIS, 5=TOTAL UNIT COST, 6=AVERAGE UNIT COST,
-      // 7=QUANTITY AS PER COUNTING, 8=VARIANCE (QUANTITY), 9=VARIANCE (AMOUNT), 10=REMARKS
-      const productDescription = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 1));
-      const sku = cellStr(pickCol(r, headers, ["SKU NUMBER", "SKU"], 2));
-      const noRaw = cellStr(pickCol(r, headers, ["NO."], 0));
-      let no = cellNum(noRaw);
-      if (!no && noRaw) {
-        const n = parseInt(noRaw, 10);
-        if (!Number.isNaN(n)) no = n;
-      }
+      // LEFT SIDE - Ending Inventory as per WIS (columns A-L)
+      const productDescription = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION"], 0));
+      const skuNumber = cellStr(pickCol(r, headers, ["SKU NUMBER"], 1));
+      const lastAcceptanceDate = formatExcelDate(pickCol(r, headers, ["LAST ACCEPTANCE"], 2));
+      const quantityAsPerWis = cellNum(pickCol(r, headers, ["QUANTITY AS PER WIS"], 3));
+      const totalUnitCost = cellNum(pickCol(r, headers, ["TOTAL UNIT COST"], 4));
+      const averageUnitCost = cellNum(pickCol(r, headers, ["AVERAGE UNIT COST"], 5));
+      const quantityAsPerCounting = cellNum(pickCol(r, headers, ["QUANTITY AS PER COUNTING"], 6));
+      const varianceQuantity = cellNum(pickCol(r, headers, ["VARIANCE (QUANTITY)"], 7));
+      const varianceAmount = cellNum(pickCol(r, headers, ["VARIANCE (AMOUNT)"], 8));
+      const remarks = cellStr(pickCol(r, headers, ["REMARKS"], 9));
 
-      if (!sku && !productDescription) continue;
+      // Skip if no essential data for ending inventory
+      if (!productDescription && !skuNumber) continue;
 
-      const qtyAsPerWis = cellNum(pickCol(r, headers, ["QUANTITY AS PER WIS", "QUANTITY\nAS PER WIS"], 4));
-      const totalUnitCost = cellNum(pickCol(r, headers, ["TOTAL\nUNIT COST", "TOTAL UNIT COST"], 5));
-      const avgUnitCost = cellNum(pickCol(r, headers, ["AVERAGE\nUNIT COST", "AVERAGE UNIT COST"], 6));
-      const qtyAsPerCounting = cellNum(pickCol(r, headers, ["QUANTITY AS\nPER COUNTING", "QUANTITY AS PER COUNTING"], 7));
-
-      parsed.push({
-        id: no || parsed.length + 1,
-        no: no || parsed.length + 1,
-        productDescription,
-        sku: sku || `SKU-${no || parsed.length + 1}`,
-        lastAcceptanceDate: formatExcelDate(pickCol(r, headers, ["LAST ACCEPTANCE\nDATE", "LAST ACCEPTANCE DATE", "LAST ACCEPTANCE"], 3)),
-        qtyAsPerWis,
-        totalUnitCost: totalUnitCost || qtyAsPerWis * avgUnitCost,
-        avgUnitCost,
-        qtyAsPerCounting,
-        varianceQty: cellNum(pickCol(r, headers, ["VARIANCE\n(QUANTITY)", "VARIANCE (QUANTITY)"], 8)),
-        varianceAmount: cellNum(pickCol(r, headers, ["VARIANCE\n(AMOUNT)", "VARIANCE (AMOUNT)"], 9)),
-        remarks: cellStr(pickCol(r, headers, ["REMARKS"], 10)),
-        cogsQty: cellNum(pickCol(r, headers, ["QUANTITY SOLD\nAS PER WIS", "QUANTITY SOLD AS PER WIS"], 15)),
-        cogsAvgUnitCost: cellNum(pickCol(r, headers, ["AVERAGE UNIT COST\nOF GOODS SOLD", "AVERAGE UNIT COST OF GOODS SOLD"], 16)),
+      endingInventoryItems.push({
+        id: endingInventoryItems.length + 1,
+        productDescription: productDescription || "",
+        sku: skuNumber || "",
+        lastAcceptanceDate: lastAcceptanceDate || "",
+        qtyAsPerWis: quantityAsPerWis || 0,
+        totalUnitCost: totalUnitCost || 0,
+        avgUnitCost: averageUnitCost || 0,
+        qtyAsPerCounting: quantityAsPerCounting || 0,
+        varianceQty: varianceQuantity || 0,
+        varianceAmount: varianceAmount || 0,
+        remarks: remarks || "",
       });
+
+      // RIGHT SIDE - Cost of Goods Sold as per WIS (columns M-R)
+      // Check if there's COGS data in the right columns
+      const cogsProductDescription = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION"], 10)); // Column M
+      const cogsSku = cellStr(pickCol(r, headers, ["SKU NUMBER"], 11)); // Column N  
+      const cogsQtySold = cellNum(pickCol(r, headers, ["QUANTITY SOLD AS PER WIS"], 12)); // Column O
+      const cogsAvgUnitCost = cellNum(pickCol(r, headers, ["AVERAGE UNIT COST OF GOODS SOLD"], 13)); // Column P
+      const cogsTotalCost = cellNum(pickCol(r, headers, ["TOTAL COST OF GOODS SOLD"], 14)); // Column Q
+
+      // Add COGS item if there's data
+      if ((cogsProductDescription || cogsSku) && (cogsQtySold > 0 || cogsAvgUnitCost > 0)) {
+        cogsItems.push({
+          id: cogsItems.length + 1,
+          productDescription: cogsProductDescription || cogsProductDescription || "",
+          sku: cogsSku || skuNumber || "",
+          qtySoldAsPerWis: cogsQtySold || 0,
+          avgUnitCostOfGoodsSold: cogsAvgUnitCost || 0,
+          totalCostOfGoodsSold: cogsTotalCost || (cogsQtySold * cogsAvgUnitCost),
+        });
+      }
     }
 
-    if (!parsed.length) throw new Error("No data rows found. Fill NO., SKU, or PRODUCT DESCRIPTION.");
-    onDone(parsed);
+    if (!endingInventoryItems.length && !cogsItems.length) {
+      throw new Error("No data found. Make sure Excel has PRODUCT DESCRIPTION column with data.");
+    }
+
+    onDone({ 
+      endingInventory: endingInventoryItems, 
+      cogs: cogsItems 
+    });
   } catch (err) {
     onError(err.message || "Import failed.");
   }
@@ -500,7 +485,7 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
         <input type="date" value={draft.lastAcceptanceDate||""} onChange={e => set("lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
       </td>
       <td style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, color: "#374151", fontSize: 11 }}>
-        {(parseFloat(draft.qtyAsPerWis) || 0).toLocaleString()}
+        {((parseFloat(draft.qtyAsPerWis) || 0)).toLocaleString()}
       </td>
       <td style={{ padding: "8px 16px", textAlign: "right", color: "#374151", fontSize: 11 }}>{fmtPHP(draft.totalUnitCost)}</td>
       <td style={{ padding: "6px 10px", textAlign: "right" }}>
@@ -566,9 +551,7 @@ export default function EndingInventoryPage({
   setInventoryData: propSetInventoryData,
 }) {
   const xlsxReady = useSheetJS();
-  const [localInventoryData, setLocalInventoryData] = useState(() =>
-    buildInitialEndingInventory(INITIAL_ENDING_INVENTORY),
-  );
+  const [localInventoryData, setLocalInventoryData] = useState([]);
   const inventoryData = propInventoryData ?? localInventoryData;
   const setInventoryData = propSetInventoryData ?? setLocalInventoryData;
   const [searchQuery, setSearchQuery] = useState("");
@@ -616,12 +599,27 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
     const file = e.target.files[0];
     if (!file) return;
     setImporting(true);
-    importEndingInventory(file, (parsed) => {
+    importEndingInventory(file, (result) => {
       setImporting(false);
-      setInventoryData(parsed.map((p) => ({ ...p, totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost })));
+      
+      // Handle the result which now contains both ending inventory and COGS data
+      const endingInventoryItems = result.endingInventory || [];
+      const cogsItems = result.cogs || [];
+      
+      // Set the main inventory data for "Ending Inventory as per WIS" tab
+      setInventoryData(endingInventoryItems.map((p) => ({ 
+        ...p, 
+        totalUnitCost: p.totalUnitCost || (p.qtyAsPerWis * p.avgUnitCost) 
+      })));
+      
+      // TODO: Handle COGS data for "Cost of Goods Sold" tab
+      // This would need additional state management for the second tab
+      
       setCurrentPage(1);
       setEditingNo(null);
-      showToast(`Imported ${parsed.length} SKUs successfully.`);
+      
+      const totalImported = endingInventoryItems.length + cogsItems.length;
+      showToast(`✓ Imported ${endingInventoryItems.length} ending inventory items${cogsItems.length > 0 ? ` and ${cogsItems.length} COGS items` : ""}.`);
       e.target.value = "";
     }, (err) => {
       setImporting(false);
@@ -754,10 +752,10 @@ else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || ""
                         <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280, textAlign: "left" }}><Highlight text={item.productDescription} query={searchQuery} /></td>
                         <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={item.sku} query={searchQuery} /></td>
                         <td style={{ padding: "12px 16px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{item.lastAcceptanceDate || "—"}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{(item.qtyAsPerWis || 0).toLocaleString()}</td>
                         <td style={{ padding: "12px 16px", textAlign: "center" }}>{fmtPHP(item.totalUnitCost)}</td>
                         <td style={{ padding: "12px 16px", textAlign: "center" }}>{fmtPHP(item.avgUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerCounting.toLocaleString()}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{(item.qtyAsPerCounting || 0).toLocaleString()}</td>
                         <td style={{ padding: "12px 16px", textAlign: "center" }}>
                           <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceQty===0?"#d1fae5":"#fee2e2", color: item.varianceQty===0?"#065f46":"#991b1b" }}>{item.varianceQty}</span>
                         </td>
