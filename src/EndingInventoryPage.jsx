@@ -407,6 +407,29 @@ function exportToWis(rows) {
 /* ─── ICONS ── */
 function IconSearch({ size=16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>; }
 function IconChevronDown({ size=14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 9l-7 7-7-7"/></svg>; }
+function IconGear({ size=14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>; }
+
+const EI_WIS_COLDEFS = [
+  { key: "no",               label: "#",                   sticky: true, alwaysVisible: true },
+  { key: "productDescription", label: "PRODUCT DESC",      alwaysVisible: true },
+  { key: "sku",              label: "SKU",                 alwaysVisible: true },
+  { key: "lastAcceptanceDate", label: "LAST ACCEPT. DATE", hideable: true },
+  { key: "qtyAsPerWis",     label: "QTY (WIS)",           alwaysVisible: true },
+  { key: "totalUnitCost",   label: "TOTAL COST",          hideable: true },
+  { key: "avgUnitCost",     label: "AVG UNIT COST",       hideable: true },
+  { key: "qtyAsPerCounting", label: "QTY (COUNTING)",     hideable: true },
+  { key: "varianceQty",     label: "VAR (QTY)",           hideable: true },
+  { key: "varianceAmount",  label: "VAR (AMT)",           hideable: true },
+  { key: "remarks",         label: "REMARKS",             hideable: true },
+];
+const EI_COGS_COLDEFS = [
+  { key: "no",               label: "#",                   sticky: true, alwaysVisible: true },
+  { key: "productDescription", label: "PRODUCT DESC",      alwaysVisible: true },
+  { key: "sku",              label: "SKU",                 alwaysVisible: true },
+  { key: "cogsQty",         label: "QTY SOLD (WIS)",      alwaysVisible: true },
+  { key: "cogsAvgUnitCost", label: "AVG UNIT COST",       hideable: true },
+  { key: "cogsTotal",       label: "TOTAL COGS",          alwaysVisible: true },
+];
 function IconDownload({ size=16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>; }
 function IconUpload({ size=16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
 function IconPlus({ size=16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>; }
@@ -606,6 +629,31 @@ const [statusFilter, setStatusFilter] = useState("All Remarks");
   const [toast, setToast] = useState(null);
   const [editingNo, setEditingNo] = useState(null);
   const [editingCogsNo, setEditingCogsNo] = useState(null);
+
+  /* ── column visibility ── */
+  const [hiddenCols, setHiddenCols] = useState(new Set());
+  const [colVisOpen, setColVisOpen] = useState(false);
+  const colVisRef = useRef(null);
+  useEffect(() => {
+    if (!colVisOpen) return;
+    const handler = (e) => { if (colVisRef.current && !colVisRef.current.contains(e.target)) setColVisOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [colVisOpen]);
+  const toggleCol = (key) => setHiddenCols(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+
+  /* ── edit drawer ── */
+  const [editDrawerRow, setEditDrawerRow] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  const openEditDrawer = (row) => { setEditDrawerRow(row); setEditDraft({ ...row }); };
+  const closeEditDrawer = () => { setEditDrawerRow(null); setEditDraft(null); };
+  const handleSaveDrawer = async () => {
+    if (!editDraft) return;
+    await handleSaveEdit(editDraft, true);
+    await handleSaveCogsEdit(editDraft, true);
+    closeEditDrawer();
+    showToast("Row saved successfully.");
+  };
   const [showAddModal, setShowAddModal] = useState(false);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [lastAddedId, setLastAddedId] = useState(null);
@@ -671,29 +719,29 @@ const [statusFilter, setStatusFilter] = useState("All Remarks");
     });
   };
 
-  const handleSaveEdit = async (updated) => {
+  const handleSaveEdit = async (updated, silent = false) => {
     try {
       const next = items.map(r => r.no === updated.no ? { ...updated } : r);
       setItems(next);
       syncUp(next);
       if (!propSetInventoryData) await api.update(updated.id ?? updated.no, updated);
       setEditingNo(null);
-      showToast("Row updated successfully.");
+      if (!silent) showToast("Row updated successfully.");
     } catch {
-      showToast("Failed to save changes.", "error");
+      if (!silent) showToast("Failed to save changes.", "error");
     }
   };
 
-  const handleSaveCogsEdit = async (updated) => {
+  const handleSaveCogsEdit = async (updated, silent = false) => {
     try {
       const next = items.map(r => r.no === updated.no ? { ...r, cogsQty: updated.cogsQty, cogsAvgUnitCost: updated.cogsAvgUnitCost } : r);
       setItems(next);
       syncUp(next);
       if (!propSetInventoryData) await api.update(updated.id ?? updated.no, updated);
       setEditingCogsNo(null);
-      showToast("COGS row updated successfully.");
+      if (!silent) showToast("COGS row updated successfully.");
     } catch {
-      showToast("Failed to save changes.", "error");
+      if (!silent) showToast("Failed to save changes.", "error");
     }
   };
 
@@ -781,77 +829,112 @@ const [statusFilter, setStatusFilter] = useState("All Remarks");
 
 </div>
       {/* Table */}
-<div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginTop: 0 }}>        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {(activeTab === "wis"
-                  ? ["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS",""]
-                  : ["#","PRODUCT DESCRIPTION","SKU","QTY SOLD AS PER WIS","AVG UNIT COST OF GOODS SOLD","TOTAL COST OF GOODS SOLD",""]
-                ).map((h,i) => (
-                  <th key={h+i} style={{ padding: "14px 16px", textAlign: h === "PRODUCT DESCRIPTION" ? "left" : "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 && <tr><td colSpan={12} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No items found.</td></tr>}
-              {paged.map((item, idx) => {
-                if (activeTab === "wis" && editingNo === item.no) {
-                  return <InlineEditRow key={item.id} item={item} idx={idx} onSave={handleSaveEdit} onCancel={() => setEditingNo(null)} />;
-                }
-                if (activeTab === "cogs" && editingCogsNo === item.no) {
-                  return <CogsInlineEditRow key={item.id} item={item} idx={idx} onSave={handleSaveCogsEdit} onCancel={() => setEditingCogsNo(null)} />;
-                }
-                const cogsTotal = (item.cogsQty ?? 0) * (item.cogsAvgUnitCost ?? 0);
-                return (
-                  <tr key={item.id ?? item.sku}
-                    style={{ borderBottom: "1px solid #f3f4f6", background: idx%2===0?"#fff":"#fafafa" }}
-                    onMouseEnter={e => e.currentTarget.style.background="#fef6f2"}
-                    onMouseLeave={e => e.currentTarget.style.background=idx%2===0?"#fff":"#fafafa"}
-                  >
-                    {activeTab === "wis" ? (
-                      <>
-                        <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{item.no}</td>
-                        <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280, textAlign: "left" }}><Highlight text={item.productDescription} query={searchQuery} /></td>
-                        <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={item.sku} query={searchQuery} /></td>
-                        <td style={{ padding: "12px 16px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{item.lastAcceptanceDate || "—"}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{fmtPHP(item.totalUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{fmtPHP(item.avgUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerCounting.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                          <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceQty===0?"#d1fae5":"#fee2e2", color: item.varianceQty===0?"#065f46":"#991b1b" }}>{item.varianceQty}</span>
-                        </td>
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                          <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceAmount===0?"#d1fae5":"#fee2e2", color: item.varianceAmount===0?"#065f46":"#991b1b" }}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
-                        </td>
-                        <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150, textAlign: "center" }}>{item.remarks || "—"}</td>
-                        <td style={{ padding: "8px 10px", textAlign: "center" }}>
-                          <button onClick={() => setEditingNo(item.no)} style={{ padding: "5px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
-                            <IconEdit size={12} /> Edit
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{item.no}</td>
-                        <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280, textAlign: "left" }}><Highlight text={item.productDescription} query={searchQuery} /></td>
-                        <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={item.sku} query={searchQuery} /></td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{(item.cogsQty ?? 0).toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{item.cogsAvgUnitCost > 0 ? fmtPHP(item.cogsAvgUnitCost) : "—"}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700, color: cogsTotal > 0 ? "#065f46" : "#9ca3af" }}>{cogsTotal > 0 ? fmtPHP(cogsTotal) : "—"}</td>
-                        <td style={{ padding: "8px 10px", textAlign: "center" }}>
-                          <button onClick={() => setEditingCogsNo(item.no)} style={{ padding: "5px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600 }}>
-                            <IconEdit size={12} /> Edit
-                          </button>
-                        </td>
-                      </>
-                    )}
+      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", marginTop: 0 }}>
+        {/* Column visibility button */}
+        <div ref={colVisRef} style={{ position: "absolute", top: 10, right: 16, zIndex: 10 }}>
+          <button onClick={() => setColVisOpen(o => !o)} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: colVisOpen ? "#f3f4f6" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+            <IconGear size={13} /> Columns
+          </button>
+          {colVisOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: 180, padding: "6px 0" }}>
+              {(activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.hideable).map(c => (
+                <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, color: "#374151", fontFamily: "inherit" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => toggleCol(c.key)} style={{ cursor: "pointer" }} />
+                  {c.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          {(() => {
+            const coldefs = (activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
+            return (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: "#1c2235" }}>
+                    {coldefs.map(c => (
+                      <th key={c.key} style={{
+                        padding: "12px 10px", whiteSpace: "nowrap",
+                        textAlign: c.key === "productDescription" ? "left" : ["totalUnitCost","avgUnitCost","varianceAmount","cogsAvgUnitCost","cogsTotal"].includes(c.key) ? "right" : "center",
+                        color: "#fff", fontWeight: 700, fontSize: 10, letterSpacing: "0.04em",
+                        ...(c.sticky ? { position: "sticky", left: 0, zIndex: 3, background: "#1c2235", boxShadow: "3px 0 5px rgba(0,0,0,0.07)" } : {}),
+                      }}>{c.label}</th>
+                    ))}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {paged.length === 0 && <tr><td colSpan={coldefs.length} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No items found.</td></tr>}
+                  {paged.map((item, idx) => {
+                    const cogsTotal = (item.cogsQty ?? 0) * (item.cogsAvgUnitCost ?? 0);
+                    const rowBg = idx % 2 === 0 ? "#fff" : "#fafafa";
+                    return (
+                      <tr key={item.id ?? item.sku}
+                        style={{ borderBottom: "1px solid #f5f5f6", background: rowBg, cursor: "pointer" }}
+                        onClick={() => openEditDrawer(item)}
+                        onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                        onMouseLeave={e => e.currentTarget.style.background = rowBg}
+                      >
+                        {coldefs.map(c => {
+                          const base = { padding: "14px 10px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+                          if (c.key === "no") return (
+                            <td key="no" style={{ ...base, color: "#9ca3af", textAlign: "center", position: "sticky", left: 0, zIndex: 1, background: rowBg, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>{item.no}</td>
+                          );
+                          if (c.key === "productDescription") return (
+                            <td key="productDescription" title={item.productDescription} style={{ ...base, color: "#374151", textAlign: "left", maxWidth: 240 }}><Highlight text={item.productDescription} query={searchQuery} /></td>
+                          );
+                          if (c.key === "sku") return (
+                            <td key="sku" style={{ ...base, color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={item.sku} query={searchQuery} /></td>
+                          );
+                          if (c.key === "lastAcceptanceDate") return (
+                            <td key="lastAcceptanceDate" style={{ ...base, color: "#6b7280", textAlign: "center" }}>{item.lastAcceptanceDate || "—"}</td>
+                          );
+                          if (c.key === "qtyAsPerWis") return (
+                            <td key="qtyAsPerWis" style={{ ...base, textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
+                          );
+                          if (c.key === "totalUnitCost") return (
+                            <td key="totalUnitCost" style={{ ...base, textAlign: "right" }}>{fmtPHP(item.totalUnitCost)}</td>
+                          );
+                          if (c.key === "avgUnitCost") return (
+                            <td key="avgUnitCost" style={{ ...base, textAlign: "right" }}>{fmtPHP(item.avgUnitCost)}</td>
+                          );
+                          if (c.key === "qtyAsPerCounting") return (
+                            <td key="qtyAsPerCounting" style={{ ...base, textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerCounting.toLocaleString()}</td>
+                          );
+                          if (c.key === "varianceQty") return (
+                            <td key="varianceQty" style={{ ...base, textAlign: "center" }}>
+                              <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceQty===0?"#d1fae5":"#fee2e2", color: item.varianceQty===0?"#065f46":"#991b1b" }}>{item.varianceQty}</span>
+                            </td>
+                          );
+                          if (c.key === "varianceAmount") return (
+                            <td key="varianceAmount" style={{ ...base, textAlign: "right" }}>
+                              <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceAmount===0?"#d1fae5":"#fee2e2", color: item.varianceAmount===0?"#065f46":"#991b1b" }}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
+                            </td>
+                          );
+                          if (c.key === "remarks") return (
+                            <td key="remarks" title={item.remarks || ""} style={{ ...base, color: "#6b7280", textAlign: "center", maxWidth: 140 }}>{item.remarks || "—"}</td>
+                          );
+                          if (c.key === "cogsQty") return (
+                            <td key="cogsQty" style={{ ...base, textAlign: "center", fontWeight: 700 }}>{(item.cogsQty ?? 0).toLocaleString()}</td>
+                          );
+                          if (c.key === "cogsAvgUnitCost") return (
+                            <td key="cogsAvgUnitCost" style={{ ...base, textAlign: "right" }}>{item.cogsAvgUnitCost > 0 ? fmtPHP(item.cogsAvgUnitCost) : "—"}</td>
+                          );
+                          if (c.key === "cogsTotal") return (
+                            <td key="cogsTotal" style={{ ...base, textAlign: "right", fontWeight: 700, color: cogsTotal > 0 ? "#065f46" : "#9ca3af" }}>{cogsTotal > 0 ? fmtPHP(cogsTotal) : "—"}</td>
+                          );
+                          return null;
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            );
+          })()}
         </div>
 
         {/* Footer */}
@@ -878,6 +961,76 @@ const [statusFilter, setStatusFilter] = useState("All Remarks");
           </div>
         </div>
       </div>
+
+      {/* ── Edit Drawer ── */}
+      {editDrawerRow && editDraft && (
+        <>
+          <button type="button" onClick={closeEditDrawer} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1040, border: "none", cursor: "pointer" }} />
+          <aside style={{ position: "fixed", top: 0, right: 0, width: "min(480px, 100vw)", height: "100vh", background: "#fff", zIndex: 1050, boxShadow: "-8px 0 40px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ padding: "18px 22px 14px", background: "#1c2235", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#fff" }}>Edit Inventory Item</h2>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9ca3af" }}>SKU: {editDraft.sku} · #{editDraft.no}</p>
+              </div>
+              <button onClick={closeEditDrawer} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
+                <IconX size={16} />
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px 24px" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.08em", margin: "0 0 10px" }}>PRODUCT</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "0 0 18px", lineHeight: 1.4 }}>{editDraft.productDescription}</p>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.08em", margin: "0 0 10px" }}>WIS FIELDS</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }}>
+                {[
+                  { label: "Last Acceptance Date", key: "lastAcceptanceDate", type: "date" },
+                  { label: "Qty as per WIS", key: "qtyAsPerWis", type: "number" },
+                  { label: "Avg Unit Cost (₱)", key: "avgUnitCost", type: "number" },
+                  { label: "Qty as per Counting", key: "qtyAsPerCounting", type: "number" },
+                ].map(f => (
+                  <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
+                    <input type={f.type || "text"} value={editDraft[f.key] ?? ""} onChange={e => setEditDraft(d => {
+                      const next = { ...d, [f.key]: f.type === "number" ? parseFloat(e.target.value)||0 : e.target.value };
+                      next.varianceQty = (parseFloat(next.qtyAsPerCounting)||0) - (parseFloat(next.qtyAsPerWis)||0);
+                      next.varianceAmount = next.varianceQty * (parseFloat(next.avgUnitCost)||0);
+                      next.totalUnitCost = (parseFloat(next.qtyAsPerWis)||0) * (parseFloat(next.avgUnitCost)||0);
+                      return next;
+                    })} min={0} step="0.01"
+                    style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                    onFocus={e => e.target.style.borderColor="#e87c27"} onBlur={e => e.target.style.borderColor="#e5e7eb"} />
+                  </div>
+                ))}
+                <div style={{ gridColumn: "1/-1", display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>Remarks</label>
+                  <input value={editDraft.remarks || ""} onChange={e => setEditDraft(d => ({ ...d, remarks: e.target.value }))}
+                    style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                    onFocus={e => e.target.style.borderColor="#e87c27"} onBlur={e => e.target.style.borderColor="#e5e7eb"} />
+                </div>
+              </div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.08em", margin: "0 0 10px" }}>COGS FIELDS</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {[
+                  { label: "COGS Qty Sold", key: "cogsQty", type: "number" },
+                  { label: "COGS Avg Unit Cost (₱)", key: "cogsAvgUnitCost", type: "number" },
+                ].map(f => (
+                  <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
+                    <input type="number" value={editDraft[f.key] ?? ""} onChange={e => setEditDraft(d => ({ ...d, [f.key]: parseFloat(e.target.value)||0 }))} min={0} step="0.01"
+                    style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                    onFocus={e => e.target.style.borderColor="#e87c27"} onBlur={e => e.target.style.borderColor="#e5e7eb"} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding: "14px 22px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa", flexShrink: 0 }}>
+              <button onClick={closeEditDrawer} style={{ padding: "9px 18px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151", fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={handleSaveDrawer} style={{ padding: "9px 18px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}>
+                <IconSave size={14} /> Save Changes
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
 
       {showAddModal && (
         <AddEndingInventoryModal

@@ -87,7 +87,7 @@ function StatusBadge({ status }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+      padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
       background: s.bg, color: s.color, whiteSpace: "nowrap",
     }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
@@ -514,10 +514,10 @@ export default function ApprovalPage({ items = [], onApprove, onReject }) {
                   <tr style={{ background: "#f9fafb" }}>
                     {COLS.map(c => (
                       <th key={c.key} style={{
-                        padding: "12px 16px",
+                        padding: "12px 10px",
                         textAlign: c.align,
-                        fontSize: 11, fontWeight: 700, color: "#64748b",
-                        textTransform: "uppercase", letterSpacing: "0.07em",
+                        fontSize: 10, fontWeight: 700, color: "#64748b",
+                        textTransform: "uppercase", letterSpacing: "0.04em",
                         borderBottom: "2px solid #e5e7eb",
                         whiteSpace: "nowrap",
                       }}>
@@ -532,7 +532,7 @@ export default function ApprovalPage({ items = [], onApprove, onReject }) {
                     <tr
                       key={item.id}
                       onClick={() => setSelected(item)}
-                      style={{ cursor: "pointer", borderBottom: "1px solid #f3f4f6", background: "#fff", transition: "background 0.1s" }}
+                      style={{ cursor: "pointer", borderBottom: "1px solid #f5f5f6", background: "#fff", transition: "background 0.1s" }}
                       onMouseEnter={e => {
                         e.currentTarget.style.background = "#fffbf7";
                         e.currentTarget.style.boxShadow = "inset 3px 0 0 #F95B02";
@@ -543,21 +543,21 @@ export default function ApprovalPage({ items = [], onApprove, onReject }) {
                       }}
                     >
                       {/* Trans # */}
-                      <td style={{ padding: "14px 16px", textAlign: "left" }}>
+                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
                         <span style={{ fontSize: 13, fontWeight: 800, color: "#F95B02", fontFamily: "monospace" }}>
                           #{item.transNo}
                         </span>
                       </td>
 
                       {/* Date */}
-                      <td style={{ padding: "14px 16px", textAlign: "left" }}>
+                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
                         <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
                           {fmt(item.resDate)}
                         </span>
                       </td>
 
                       {/* Customer */}
-                      <td style={{ padding: "14px 16px", textAlign: "left" }}>
+                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item.customer}
                         </div>
@@ -569,7 +569,7 @@ export default function ApprovalPage({ items = [], onApprove, onReject }) {
                       </td>
 
                       {/* Product / SKU */}
-                      <td style={{ padding: "14px 16px", textAlign: "left" }}>
+                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item.summaryItem || item.sku || "—"}
                         </div>
@@ -581,19 +581,19 @@ export default function ApprovalPage({ items = [], onApprove, onReject }) {
                       </td>
 
                       {/* Qty */}
-                      <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                      <td style={{ padding: "14px 10px", textAlign: "right" }}>
                         <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>
                           {Number(item.reservedQty || 0).toLocaleString()}
                         </span>
                       </td>
 
                       {/* Location */}
-                      <td style={{ padding: "14px 16px", textAlign: "left" }}>
+                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
                         <span style={{ fontSize: 12, color: "#374151" }}>{item.place || "—"}</span>
                       </td>
 
                       {/* Status — own column, no overlap */}
-                      <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                      <td style={{ padding: "14px 10px", textAlign: "center" }}>
                         <StatusBadge status={item.status || "Pending"} />
                       </td>
 

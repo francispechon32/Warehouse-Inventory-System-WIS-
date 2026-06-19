@@ -66,9 +66,97 @@ const PAGE_SIZE = 8;
 const RIGHT_IN = new Set(["QTY", "COST/KILO", "COST/UNIT", "TOTAL PURCHASE", "RUNNING QTY", "AVG UNIT COST", "TOTAL VALUE"]);
 const RIGHT_OUT_BASE = new Set(["QTY OUT", "UNIT COST", "TOTAL PRICE", "RUNNING QTY", "RUNNING VALUE"]);
 
+
 function fmtPHP(n) {
   if (n === "—" || n === "") return "—";
   return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildStockCardRows(stockInRows, stockOutRows, skuKey) {
+  const inMapped = stockInRows.map(r => ({
+    _sortDate: r.date || "",
+    _sortTrans: String(r.transNo || ""),
+    _type: "IN",
+    id: `in-${r.id}`,
+    sku: r.sku || "",
+    type: "IN",
+    transNo: r.transNo,
+    dateToday: r.date || "",
+    tdtPo: r.tdtPo || "",
+    tdtPoDate: r.tdtPoDate || "",
+    vendorName: r.vendorName || "",
+    customerDr: r.customerDr || "",
+    tdtWo: r.tdtWo || "",
+    acceptDate: r.acceptDate || "",
+    recvQty: r.qty ?? null,
+    costKilo: r.costKilo ?? null,
+    costUnit: r.costUnit ?? null,
+    totalPurchases: r.totalPurchase ?? null,
+    dispatchDate: "",
+    delivQty: null,
+    unitCost: null,
+    price: null,
+    tdtDr: "",
+    branch: "",
+    bdrSummary: "",
+    tdtSi: "",
+    remarks: r.remark || "",
+  }));
+  const outMapped = stockOutRows.map(r => ({
+    _sortDate: r.dispatchDate || "",
+    _sortTrans: String(r.transNo || ""),
+    _type: "OUT",
+    id: `out-${r.id}`,
+    sku: r.sku || "",
+    type: "OUT",
+    transNo: r.transNo,
+    dateToday: r.dispatchDate || "",
+    tdtPo: "",
+    tdtPoDate: "",
+    vendorName: "",
+    customerDr: r.customer || "",
+    tdtWo: r.tdtWo || "",
+    acceptDate: "",
+    recvQty: null,
+    costKilo: null,
+    costUnit: null,
+    totalPurchases: null,
+    dispatchDate: r.dispatchDate || "",
+    delivQty: r.qtyOut ?? null,
+    unitCost: r.unitCost ?? null,
+    price: r.totalPrice ?? null,
+    tdtDr: r.tdtDr || "",
+    branch: r.branch || "",
+    bdrSummary: r.bdrSummary || "",
+    tdtSi: r.tdtSi || "",
+    remarks: r.remarks || "",
+  }));
+  const merged = [...inMapped, ...outMapped].sort((a, b) => {
+    const dateCmp = a._sortDate.localeCompare(b._sortDate);
+    if (dateCmp !== 0) return dateCmp;
+    if (a._type !== b._type) return a._type === "IN" ? -1 : 1;
+    return a._sortTrans.localeCompare(b._sortTrans, undefined, { numeric: true });
+  });
+  let runningQty = 0;
+  let runningValue = 0;
+  // TODO: confirm formula against Excel
+  return merged.map(row => {
+    if (skuKey) {
+      if (row.type === "IN") {
+        const qty = row.recvQty ?? 0;
+        const cost = row.costUnit ?? 0;
+        runningQty += qty;
+        runningValue += qty * cost;
+      } else {
+        const qty = row.delivQty ?? 0;
+        const avgBefore = runningQty > 0 ? runningValue / runningQty : 0;
+        runningQty = Math.max(0, runningQty - qty);
+        runningValue = Math.max(0, runningValue - qty * avgBefore);
+      }
+    }
+    const avgUnitCost = skuKey && runningQty > 0 ? runningValue / runningQty : 0;
+    return { ...row, runningQty: skuKey ? runningQty : 0, avgUnitCost, runningValue: skuKey ? runningValue : 0 };
+  });
 }
 
 function IconSearch({ size = 16 }) {
@@ -196,11 +284,11 @@ function SectionTable({ title, cols, rows, renderRow, rightAlign, pagination, se
         <span style={{ fontSize: 13, fontWeight: 700, color: "#374151", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 14px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>{title}</span>
       </div>
       <div style={{ overflowX: "auto", padding: "0" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr style={{ background: "#1c2235" }}>
               {cols.map((h) => (
-                <th key={h} style={{ padding: "12px 10px", textAlign: rightAlign.has(h) ? "right" : "center", color: "#fff", fontWeight: 700, fontSize: 9, whiteSpace: "nowrap" }}>{h}</th>
+                <th key={h} style={{ padding: "12px 10px", textAlign: rightAlign.has(h) ? "right" : "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.04em" }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -678,6 +766,8 @@ export default function StockSheetsPage({
   const [editingOutId, setEditingOutId] = useState(null);
   const [lastAddedInId, setLastAddedInId] = useState(null);
   const [lastAddedOutId, setLastAddedOutId] = useState(null);
+  const [cardPage, setCardPage] = useState(1);
+  useEffect(() => { setCardPage(1); }, [searchSku]);
   const handleSaveInEdit = async (updated) => {
     try {
       const next = stockInData.map(r => r.id === updated.id ? { ...updated } : r);
@@ -789,8 +879,15 @@ export default function StockSheetsPage({
   const pagedIn = sortedIn.slice((inPage - 1) * PAGE_SIZE, inPage * PAGE_SIZE);
   const pagedOut = sortedOut.slice((outPage - 1) * PAGE_SIZE, outPage * PAGE_SIZE);
 
-  const showIn = activeTab === "all" || activeTab === "in";
-  const showOut = activeTab === "all" || activeTab === "out";
+  const stockCardRows = useMemo(() => {
+    return buildStockCardRows(stockInRows, stockOutRows, skuKey);
+  }, [skuKey, stockInRows, stockOutRows]);
+  const cardTotalPages = Math.max(1, Math.ceil(stockCardRows.length / PAGE_SIZE));
+  const pagedCard = stockCardRows.slice((cardPage - 1) * PAGE_SIZE, cardPage * PAGE_SIZE);
+
+  const showStockCard = activeTab === "all";
+  const showIn = activeTab === "in";
+  const showOut = activeTab === "out";
 
   const tabs = [
     { id: "all", label: "All Transactions" },
@@ -947,6 +1044,97 @@ export default function StockSheetsPage({
         </div>
       </div>
 
+      {showStockCard && (
+        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginBottom: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px 12px", flexWrap: "wrap", gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#374151", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 14px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+              {skuKey ? `Stock Card — ${skuKey}` : "All Transactions"}
+            </span>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th colSpan={skuKey ? 8 : 9} style={{ background: "#1c2235", color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "0.07em", textAlign: "center", padding: "9px 8px", textTransform: "uppercase", borderRight: "2px solid #2d3748" }}>META</th>
+                  <th colSpan={4} style={{ background: "#92400e", color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "0.07em", textAlign: "center", padding: "9px 8px", textTransform: "uppercase", borderRight: "2px solid #7c3300" }}>RECEIVED PURCHASES</th>
+                  <th colSpan={8} style={{ background: "#92400e", color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "0.07em", textAlign: "center", padding: "9px 8px", textTransform: "uppercase", borderRight: skuKey ? "2px solid #7c3300" : "none" }}>DELIVERED GOODS</th>
+                  {skuKey && <th colSpan={3} style={{ background: "#166534", color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "0.07em", textAlign: "center", padding: "9px 8px", textTransform: "uppercase", borderRight: "2px solid #14532d" }}>BALANCE</th>}
+                  <th rowSpan={2} style={{ background: "#374151", color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "0.07em", textAlign: "center", padding: "9px 8px", textTransform: "uppercase", verticalAlign: "middle" }}>REMARKS</th>
+                </tr>
+                <tr>
+                  {!skuKey && <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748" }}>SKU</th>}
+                  <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748" }}>TRANS NOS.</th>
+                  <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748" }}>DATE TODAY</th>
+                  <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748" }}>TDT PO#</th>
+                  <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748" }}>TDT PO DATE</th>
+                  <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748" }}>VENDOR'S NAME</th>
+                  <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748" }}>CUSTOMER'S NAME AS PER DR</th>
+                  <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748" }}>TDT WO#</th>
+                  <th style={{ background: "#1c2235", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #2d3748", borderRight: "2px solid #2d3748" }}>ACCEPTANCE DATE</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>QTY</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>COST/KILO</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>COST/UNIT</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300", borderRight: "2px solid #7c3300" }}>TOTAL PURCHASES</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>DISPATCH DATE</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>QTY</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>UNIT COST</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>PRICE</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>TDT DR#</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>BRANCH</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300" }}>SUMMARY OF TDT BDR'S#</th>
+                  <th style={{ background: "#92400e", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #7c3300", borderRight: skuKey ? "2px solid #7c3300" : "none" }}>TDT SI#</th>
+                  {skuKey && <th style={{ background: "#166534", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #14532d" }}>QUANTITY</th>}
+                  {skuKey && <th style={{ background: "#166534", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #14532d" }}>UNIT COST</th>}
+                  {skuKey && <th style={{ background: "#166534", color: "#fff", fontWeight: 700, fontSize: 9, padding: "8px 8px", textAlign: "right", whiteSpace: "nowrap", letterSpacing: "0.04em", borderTop: "1px solid #14532d", borderRight: "2px solid #14532d" }}>PRICE</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {pagedCard.length === 0 ? (
+                  <tr><td colSpan={skuKey ? 24 : 22} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                    No records found{searchSku ? <> for SKU <strong style={{ color: "#374151" }}>"{searchSku}"</strong></> : ""}.
+                  </td></tr>
+                ) : pagedCard.map((row, idx) => {
+                  const isIn = row.type === "IN";
+                  return (
+                    <tr key={row.id} style={{ borderBottom: "1px solid #f5f5f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                      {!skuKey && <td style={{ padding: "14px 10px", fontWeight: 700, textAlign: "center", color: "#e87c27", whiteSpace: "nowrap" }}>{row.sku || "—"}</td>}
+                      <td style={{ padding: "14px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo || "—"}</td>
+                      <td style={{ padding: "14px 10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dateToday || "—"}</td>
+                      <td style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtPo || "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtPoDate || "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.vendorName}>{row.vendorName || "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.customerDr}>{row.customerDr || "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo || "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.acceptDate || "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 700, color: isIn ? "#15803d" : "#d1d5db" }}>{isIn && row.recvQty != null ? row.recvQty : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "right", color: isIn ? "#374151" : "#d1d5db" }}>{isIn && row.costKilo != null ? parseFloat(Number(row.costKilo).toFixed(2)) : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "right", color: isIn ? "#374151" : "#d1d5db" }}>{isIn && row.costUnit != null ? fmtPHP(row.costUnit) : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 600, color: isIn ? "#374151" : "#d1d5db" }}>{isIn && row.totalPurchases != null ? fmtPHP(row.totalPurchases) : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap", color: !isIn ? "#374151" : "#d1d5db" }}>{!isIn && row.dispatchDate ? row.dispatchDate : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 700, color: !isIn ? "#dc2626" : "#d1d5db" }}>{!isIn && row.delivQty != null ? row.delivQty : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "right", color: !isIn ? "#374151" : "#d1d5db" }}>{!isIn && row.unitCost != null ? fmtPHP(row.unitCost) : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 600, color: !isIn ? "#374151" : "#d1d5db" }}>{!isIn && row.price != null ? fmtPHP(row.price) : "—"}</td>
+                      <td style={{ padding: "14px 10px", color: !isIn ? "#e87c27" : "#d1d5db", fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }}>{!isIn && row.tdtDr ? row.tdtDr : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", color: !isIn ? "#374151" : "#d1d5db" }}>{!isIn && row.branch ? row.branch : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", color: !isIn ? "#374151" : "#d1d5db" }}>{!isIn && row.bdrSummary ? row.bdrSummary : "—"}</td>
+                      <td style={{ padding: "14px 10px", textAlign: "center", color: !isIn ? "#374151" : "#d1d5db" }}>{!isIn && row.tdtSi ? row.tdtSi : "—"}</td>
+                      {skuKey && <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>}
+                      {skuKey && <td style={{ padding: "14px 10px", textAlign: "right" }}>{fmtPHP(row.avgUnitCost)}</td>}
+                      {skuKey && <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.runningValue)}</td>}
+                      <td style={{ padding: "14px 10px", color: "#6b7280", textAlign: "left" }}>{row.remarks || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "14px 20px", borderTop: "1px solid #f3f4f6", background: "#fafafa" }}>
+            <Pagination currentPage={cardPage} totalPages={cardTotalPages} onPage={setCardPage} />
+          </div>
+        </div>
+      )}
+
       {showIn && (
         <SectionTable
           title="Received Purchases — Stock IN"
@@ -960,24 +1148,24 @@ export default function StockSheetsPage({
               return <StockInInlineEditRow key={row.id} row={row} onSave={handleSaveInEdit} onCancel={() => setEditingInId(null)} />;
             }
             return (
-            <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-              <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
-              <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.date}</td>
-<td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtPo}</td>
-<td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtPoDate}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.vendorNo}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.vendorName}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.customerDr}</td>
-<td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.acceptDate}</td>
-              <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.qty}</td>
-              <td style={{ padding: "10px", textAlign: "center" }}>{row.costKilo != null && row.costKilo !== "" ? parseFloat(Number(row.costKilo).toFixed(2)) : "—"}</td>
-              <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.costUnit)}</td>
-              <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPurchase)}</td>
-              <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
-              <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.avgUnitCost)}</td>
-              <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalValue)}</td>
-              <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remark || "—"}</td>
+            <tr key={row.id} style={{ borderBottom: "1px solid #f5f5f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+              <td style={{ padding: "14px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
+              <td style={{ padding: "14px 10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.date}</td>
+<td style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtPo}</td>
+<td style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtPoDate}</td>
+              <td style={{ padding: "14px 10px", textAlign: "center" }}>{row.vendorNo}</td>
+              <td style={{ padding: "14px 10px", textAlign: "center" }}>{row.vendorName}</td>
+              <td style={{ padding: "14px 10px", textAlign: "center" }}>{row.customerDr}</td>
+<td style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
+              <td style={{ padding: "14px 10px", textAlign: "center" }}>{row.acceptDate}</td>
+              <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 700 }}>{row.qty}</td>
+              <td style={{ padding: "14px 10px", textAlign: "center" }}>{row.costKilo != null && row.costKilo !== "" ? parseFloat(Number(row.costKilo).toFixed(2)) : "—"}</td>
+              <td style={{ padding: "14px 10px", textAlign: "right" }}>{fmtPHP(row.costUnit)}</td>
+              <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPurchase)}</td>
+              <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
+              <td style={{ padding: "14px 10px", textAlign: "right" }}>{fmtPHP(row.avgUnitCost)}</td>
+              <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalValue)}</td>
+              <td style={{ padding: "14px 10px", color: "#6b7280", textAlign: "center" }}>{row.remark || "—"}</td>
               <td style={{ padding: "8px 8px", textAlign: "center" }}>
                 <button onClick={() => setEditingInId(row.id)} title="Edit" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
                   <IconEdit size={12} /> Edit
@@ -1002,21 +1190,21 @@ export default function StockSheetsPage({
               return <StockOutInlineEditRow key={row.id} row={row} onSave={handleSaveOutEdit} onCancel={() => setEditingOutId(null)} />;
             }
             return (
-              <tr key={row.id} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                <td style={{ padding: "10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo}</td>
-                <td style={{ padding: "10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
-                <td style={{ padding: "10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
-                <td style={{ padding: "10px", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.customer}</td>
-                <td style={{ padding: "10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>{row.branch}</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>{row.bdrSummary}</td>
-                <td style={{ padding: "10px", textAlign: "center" }}>{row.tdtSi}</td>
-                <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.qtyOut}</td>
-                <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.unitCost)}</td>
-                <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPrice)}</td>
-                <td style={{ padding: "10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
-                <td style={{ padding: "10px", textAlign: "right" }}>{fmtPHP(row.runningValue)}</td>
-                <td style={{ padding: "10px", color: "#6b7280", textAlign: "center" }}>{row.remarks || "—"}</td>
+              <tr key={row.id} style={{ borderBottom: "1px solid #f5f5f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                <td style={{ padding: "14px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.transNo}</td>
+                <td style={{ padding: "14px 10px", whiteSpace: "nowrap", textAlign: "center" }}>{row.dispatchDate}</td>
+                <td style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap" }}>{row.tdtWo}</td>
+                <td style={{ padding: "14px 10px", fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>{row.customer}</td>
+                <td style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.tdtDr}</td>
+                <td style={{ padding: "14px 10px", textAlign: "center" }}>{row.branch}</td>
+                <td style={{ padding: "14px 10px", textAlign: "center" }}>{row.bdrSummary}</td>
+                <td style={{ padding: "14px 10px", textAlign: "center" }}>{row.tdtSi}</td>
+                <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 700 }}>{row.qtyOut}</td>
+                <td style={{ padding: "14px 10px", textAlign: "right" }}>{fmtPHP(row.unitCost)}</td>
+                <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 600 }}>{fmtPHP(row.totalPrice)}</td>
+                <td style={{ padding: "14px 10px", textAlign: "right", fontWeight: 700 }}>{row.runningQty}</td>
+                <td style={{ padding: "14px 10px", textAlign: "right" }}>{fmtPHP(row.runningValue)}</td>
+                <td style={{ padding: "14px 10px", color: "#6b7280", textAlign: "center" }}>{row.remarks || "—"}</td>
                 <td style={{ padding: "8px 8px", textAlign: "center" }}>
                   <button onClick={() => setEditingOutId(row.id)} title="Edit" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
                     <IconEdit size={12} /> Edit

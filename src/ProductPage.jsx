@@ -75,6 +75,21 @@ function IconSave({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
 }
 function IconX({ size = 14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>; }
+function IconGear({ size = 14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>; }
+
+const PROD_COLDEFS = [
+  { key: "sku",         label: "SKU CODE",      sticky: true, alwaysVisible: true },
+  { key: "description", label: "PRODUCT DESC",  alwaysVisible: true },
+  { key: "category",    label: "CATEGORY",      hideable: true },
+  { key: "unit",        label: "UNIT",          hideable: true },
+  { key: "beginning",   label: "BEGINNING",     hideable: true },
+  { key: "stockIn",     label: "STOCK IN",      hideable: true },
+  { key: "stockOut",    label: "STOCK OUT",     hideable: true },
+  { key: "stock",       label: "CURRENT STOCK", alwaysVisible: true },
+  { key: "avgCost",     label: "AVG COST",      hideable: true },
+  { key: "totalValue",  label: "TOTAL VALUE",   hideable: true },
+  { key: "status",      label: "STATUS",        alwaysVisible: true },
+];
 
 /* ─── SEARCH HIGHLIGHT ───────────────────────────────────── */
 function HighlightText({ text, query }) {
@@ -417,22 +432,20 @@ export default function ProductPage({ products: propProducts, setProducts: propS
   }, [initialStatusFilter]);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
-  const [editingId, setEditingId] = useState(null);
+  /* ── column visibility ── */
+  const [hiddenCols, setHiddenCols] = useState(new Set());
+  const [colVisOpen, setColVisOpen] = useState(false);
+  const colVisRef = useRef(null);
 
-  const handleSaveEdit = async (updated) => {
-    try {
-      const { stockIn, stockOut, ...safe } = updated;
-      if (setProducts) {
-        setProducts(d => d.map(r => r.id === updated.id ? { ...safe } : r));
-      } else {
-        await api.update(updated.id, safe);
-      }
-      setEditingId(null);
-      showToast("Product updated successfully.");
-    } catch {
-      showToast("Failed to save changes.", "error");
-    }
-  };
+  useEffect(() => {
+    if (!colVisOpen) return;
+    const handler = (e) => { if (colVisRef.current && !colVisRef.current.contains(e.target)) setColVisOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [colVisOpen]);
+
+  const toggleCol = (key) => setHiddenCols(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const visibleProdCols = PROD_COLDEFS.filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
 
   const filtered = (enriched || []).filter(p => {
     const q = searchQuery.toLowerCase();
@@ -538,7 +551,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
         }}
       />
 
-      <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+      <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
           <div style={{ position: "relative" }}>
             <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
@@ -566,58 +579,63 @@ export default function ProductPage({ products: propProducts, setProducts: propS
           <span style={{ fontSize: 12, color: "#9ca3af" }}>
             {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
           </span>
+          {/* ── column visibility toggle ── */}
+          <div ref={colVisRef} style={{ marginLeft: "auto", position: "relative" }}>
+            <button onClick={() => setColVisOpen(o => !o)} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: colVisOpen ? "#f3f4f6" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <IconGear size={13} /> Columns
+            </button>
+            {colVisOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: 160, padding: "6px 0" }}>
+                {PROD_COLDEFS.filter(c => c.hideable).map(c => (
+                  <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, color: "#374151", fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => toggleCol(c.key)} style={{ cursor: "pointer" }} />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-               {(() => {
-  const heads = ["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT",
-    periodPrefix ? `BEGINNING (${selectedPeriod})` : "BEGINNING INVENTORY",
-    periodPrefix ? `STOCK IN (${selectedPeriod})` : "STOCK IN",
-    periodPrefix ? `STOCK OUT (${selectedPeriod})` : "STOCK OUT",
-    "CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS","ACTION"];
-  const rightSet = new Set(["CURRENT STOCK","AVG COST","TOTAL VALUE"]);
-  return heads.map(h => (
-  <th key={h} style={{
-    padding: "16px 20px",
-    textAlign: h === "PRODUCT DESCRIPTION" ? "left" : rightSet.has(h) ? "right" : "center",
-    color: "#fff", fontWeight: 700, fontSize: 12,
-    whiteSpace: "nowrap",
-  }}>{h}</th>
-));
-})()}
+                {visibleProdCols.map(c => {
+                  let label = c.label;
+                  if (c.key === "beginning") label = periodPrefix ? `BEGIN (${selectedPeriod})` : "BEGINNING";
+                  if (c.key === "stockIn")   label = periodPrefix ? `IN (${selectedPeriod})` : "STOCK IN";
+                  if (c.key === "stockOut")  label = periodPrefix ? `OUT (${selectedPeriod})` : "STOCK OUT";
+                  const isRight = c.key === "avgCost" || c.key === "totalValue";
+                  return (
+                    <th key={c.key} style={{
+                      padding: "12px 10px", whiteSpace: "nowrap",
+                      textAlign: c.key === "description" ? "left" : isRight ? "right" : "center",
+                      color: "#fff", fontWeight: 700, fontSize: 10, letterSpacing: "0.04em",
+                      ...(c.sticky ? { position: "sticky", left: 0, zIndex: 3, background: "#1c2235", boxShadow: "3px 0 5px rgba(0,0,0,0.07)" } : {}),
+                    }}>{label}</th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={12} style={{ padding: "60px 20px", textAlign: "center" }}>
+                  <td colSpan={visibleProdCols.length} style={{ padding: "60px 20px", textAlign: "center" }}>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                       <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                       </svg>
                       <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", margin: 0 }}>
-                        {searchQuery
-                          ? `No products matching "${searchQuery}"`
-                          : statusFilter !== "All Status"
-                            ? `No ${statusFilter.toLowerCase()} items found`
-                            : "No items found"}
+                        {searchQuery ? `No products matching "${searchQuery}"` : statusFilter !== "All Status" ? `No ${statusFilter.toLowerCase()} items found` : "No items found"}
                       </p>
                       <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>
-                        {searchQuery
-                          ? "Try a different search term or clear the filters"
-                          : "Adjust your filters or import a product list"}
+                        {searchQuery ? "Try a different search term or clear the filters" : "Adjust your filters or import a product list"}
                       </p>
                       {searchQuery && (
-                        <button
-                          onClick={() => { setSearchQuery(""); setCurrentPage(1); }}
-                          style={{
-                            marginTop: 4, fontSize: 12, color: "#e87c27",
-                            background: "none", border: "1px solid #e87c27",
-                            borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontWeight: 600,
-                          }}
-                        >
+                        <button onClick={() => { setSearchQuery(""); setCurrentPage(1); }} style={{ marginTop: 4, fontSize: 12, color: "#e87c27", background: "none", border: "1px solid #e87c27", borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontWeight: 600 }}>
                           Clear search
                         </button>
                       )}
@@ -625,76 +643,68 @@ export default function ProductPage({ products: propProducts, setProducts: propS
                   </td>
                 </tr>
               ) : paginatedItems.map((product, idx) => {
-                if (editingId === product.id) {
-                  return <ProductInlineEditRow key={product.id} product={product} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
-                }
                 const low = isLowStock(product);
                 const displayStatus = deriveProductStatus(product.stock);
+                const rowBg = low ? (idx % 2 === 0 ? "#fffdf5" : "#fffbeb") : (idx % 2 === 0 ? "#fff" : "#fafafa");
                 return (
-                <tr
-                  key={product.id}
-                  style={{
-                    borderBottom: "1px solid #f3f4f6",
-                    background: low
-                      ? (idx % 2 === 0 ? "#fffdf5" : "#fffbeb")
-                      : (idx % 2 === 0 ? "#fff" : "#fafafa"),
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#f5f9ff"}
-                  onMouseLeave={(e) => e.currentTarget.style.background =
-                    low
-                      ? (idx % 2 === 0 ? "#fffdf5" : "#fffbeb")
-                      : (idx % 2 === 0 ? "#fff" : "#fafafa")
-                  }
-                >
-                  <td style={{ padding: "14px 20px", color: "#374151", fontWeight: 600, textAlign: "center" }}>
-                    <HighlightText text={product.sku} query={searchQuery} />
-                  </td>
-                  <td style={{ padding: "14px 20px", color: "#374151", fontSize: 12, textAlign: "left" }}>
-                    <HighlightText text={product.description} query={searchQuery} />
-                  </td>
-                  <td style={{ padding: "14px 20px", color: "#6b7280", fontSize: 12, textAlign: "center" }}>
-                    <HighlightText text={product.category} query={searchQuery} />
-                  </td>
-                  <td style={{ padding: "14px 20px", color: "#374151", textAlign: "center" }}>{product.unit}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{(product.beginningDisplay ?? product.beginningInventory) || 0}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{product.stockIn?.toLocaleString() || 0}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>{product.stockOut?.toLocaleString() || 0}</td>
-                 <td style={{
-  padding: "14px 20px", textAlign: "center",
-  color: low ? "#d97706" : "#374151",
-  fontWeight: low ? 700 : 400,
-}}>
-  {product.stock.toLocaleString()}
-  {low && (
-    <span style={{ marginLeft: 6, color: "#d97706" }}><IconWarning size={12} /></span>
-  )}
-</td>
-                  <td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>₱{product.avgCost.toFixed(2)}</td>
-<td style={{ padding: "14px 20px", textAlign: "center", color: "#374151" }}>₱{product.totalValue.toFixed(2)}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "center" }}>
-                    <span style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      whiteSpace: "nowrap",
-                      padding: "4px 12px",
-                      borderRadius: 12,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      lineHeight: 1.2,
-                      background: displayStatus === "Active" ? "#dcfce7" : "#fef3c7",
-                      color: displayStatus === "Active" ? "#16a34a" : "#d97706",
-                    }}>
-                      {displayStatus}
-                    </span>
-                  </td>
-                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingId(product.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        <IconEdit size={12} /> Edit
-                      </button>
-                    </td>
-                </tr>
-              );})}
+                  <tr key={product.id}
+                    style={{ borderBottom: "1px solid #f5f5f6", background: rowBg }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "#f5f9ff"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = rowBg}
+                  >
+                    {visibleProdCols.map(c => {
+                      const base = { padding: "14px 10px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+                      if (c.key === "sku") return (
+                        <td key="sku" title={product.sku} style={{ ...base, color: "#374151", fontWeight: 600, textAlign: "center", position: "sticky", left: 0, zIndex: 1, background: rowBg, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>
+                          <HighlightText text={product.sku} query={searchQuery} />
+                        </td>
+                      );
+                      if (c.key === "description") return (
+                        <td key="description" title={product.description} style={{ ...base, color: "#374151", textAlign: "left", maxWidth: 220 }}>
+                          <HighlightText text={product.description} query={searchQuery} />
+                        </td>
+                      );
+                      if (c.key === "category") return (
+                        <td key="category" title={product.category} style={{ ...base, color: "#6b7280", textAlign: "center", maxWidth: 120 }}>
+                          <HighlightText text={product.category} query={searchQuery} />
+                        </td>
+                      );
+                      if (c.key === "unit") return (
+                        <td key="unit" style={{ ...base, color: "#374151", textAlign: "center" }}>{product.unit}</td>
+                      );
+                      if (c.key === "beginning") return (
+                        <td key="beginning" style={{ ...base, textAlign: "center", color: "#374151" }}>{(product.beginningDisplay ?? product.beginningInventory) || 0}</td>
+                      );
+                      if (c.key === "stockIn") return (
+                        <td key="stockIn" style={{ ...base, textAlign: "center", color: "#374151" }}>{product.stockIn?.toLocaleString() || 0}</td>
+                      );
+                      if (c.key === "stockOut") return (
+                        <td key="stockOut" style={{ ...base, textAlign: "center", color: "#374151" }}>{product.stockOut?.toLocaleString() || 0}</td>
+                      );
+                      if (c.key === "stock") return (
+                        <td key="stock" style={{ ...base, textAlign: "center", color: low ? "#d97706" : "#374151", fontWeight: low ? 700 : 400 }}>
+                          {product.stock.toLocaleString()}
+                          {low && <span style={{ marginLeft: 4, color: "#d97706" }}><IconWarning size={11} /></span>}
+                        </td>
+                      );
+                      if (c.key === "avgCost") return (
+                        <td key="avgCost" style={{ ...base, textAlign: "right" }}>₱{product.avgCost.toFixed(2)}</td>
+                      );
+                      if (c.key === "totalValue") return (
+                        <td key="totalValue" style={{ ...base, textAlign: "right" }}>₱{product.totalValue.toFixed(2)}</td>
+                      );
+                      if (c.key === "status") return (
+                        <td key="status" style={{ ...base, textAlign: "center" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: displayStatus === "Active" ? "#dcfce7" : "#fef3c7", color: displayStatus === "Active" ? "#16a34a" : "#d97706" }}>
+                            {displayStatus}
+                          </span>
+                        </td>
+                      );
+                      return null;
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

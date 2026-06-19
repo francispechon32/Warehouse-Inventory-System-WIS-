@@ -115,9 +115,9 @@ backgroundPosition: "10% center",
           margin: "0 0 16px",
           letterSpacing: "-0.5px",
         }}>
-          Steel<br />
-          <span style={{ color: "#e87c27" }}>Distribution</span><br />
-          & Supply
+          Warehouse<br />
+          <span style={{ color: "#e87c27" }}>Inventory</span><br />
+          System
         </h2>
         <p style={{
           fontFamily: "'Inter', sans-serif",

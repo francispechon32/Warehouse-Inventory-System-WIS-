@@ -131,6 +131,23 @@ function IconChevronRight({ size = 14 }) {
 function IconX({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 }
+function IconGear({ size = 14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>; }
+
+const RTN_COLDEFS = [
+  { key: "transNo",     label: "TRANS #",          sticky: true, alwaysVisible: true },
+  { key: "returnDate",  label: "INSERT DATE",       alwaysVisible: true },
+  { key: "drNo",        label: "INSERT DR#",        alwaysVisible: true },
+  { key: "sku",         label: "SKU",              hideable: true },
+  { key: "item",        label: "ITEM",             alwaysVisible: true },
+  { key: "qtyReturned", label: "INSERT QTY",       alwaysVisible: true },
+  { key: "unitCost",    label: "INSERT UNIT COST", hideable: true },
+  { key: "totalCost",   label: "TOTAL COST",       hideable: true },
+  { key: "customer",    label: "CUSTOMER NAME",    alwaysVisible: true },
+  { key: "reason",      label: "REASON",           hideable: true },
+  { key: "totalQtyOut", label: "TOTAL QTY OUT",    hideable: true },
+  { key: "qtyBalance",  label: "QTY BALANCE",      alwaysVisible: true },
+];
+
 function IconEdit({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
 }
@@ -595,14 +612,40 @@ export default function ReturnPage() {
   const [rtnQtyOutSlotCount, setRtnQtyOutSlotCount] = useState(5);
   const [editingRtnQtyOutItem, setEditingRtnQtyOutItem] = useState(null);
   const [rtnQtyOutDraft, setRtnQtyOutDraft] = useState({});
-  const handleSaveEdit = async (updated) => {
+  const handleSaveEdit = async (updated, silent = false) => {
     try {
       await api.update(updated.id, updated);
       setEditingId(null);
-      showToast("Return row updated successfully.");
+      if (!silent) showToast("Return row updated successfully.");
     } catch {
-      showToast("Failed to save changes.", "error");
+      if (!silent) showToast("Failed to save changes.", "error");
     }
+  };
+
+  /* ── column visibility ── */
+  const [hiddenCols, setHiddenCols] = useState(new Set());
+  const [colVisOpen, setColVisOpen] = useState(false);
+  const colVisRef = useRef(null);
+  useEffect(() => {
+    if (!colVisOpen) return;
+    const handler = (e) => { if (colVisRef.current && !colVisRef.current.contains(e.target)) setColVisOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [colVisOpen]);
+  const toggleCol = (key) => setHiddenCols(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const visibleRTNCols = RTN_COLDEFS.filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
+
+  /* ── edit drawer ── */
+  const [editDrawerRow, setEditDrawerRow] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  const openEditDrawer = (row) => { setSelectedId(row.id); setPanelOpen(false); setEditDrawerRow(row); setEditDraft({ ...row }); };
+  const closeEditDrawer = () => { setEditDrawerRow(null); setEditDraft(null); };
+  const handleSaveDrawer = async () => {
+    if (!editDraft) return;
+    const saved = { ...editDraft, totalCost: (Number(editDraft.qtyReturned)||0) * (Number(editDraft.unitCost)||0) };
+    await handleSaveEdit(saved, true);
+    closeEditDrawer();
+    showToast("Return row updated successfully.");
   };
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
@@ -619,6 +662,7 @@ export default function ReturnPage() {
         setCurrentPage(1);
         setSelectedId(null);
         setPanelOpen(false);
+        closeEditDrawer();
         showToast(`Imported ${parsed.length} entries (${qo.length} qty-out records).`);
       } catch {
         showToast("Import succeeded but failed to save.", "error");
@@ -658,8 +702,9 @@ export default function ReturnPage() {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
       setSelectedId(null);
       setPanelOpen(false);
+      closeEditDrawer();
     }
-  }, [filtered, selectedId]);
+  }, [filtered, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
   const rtnQtyOutTotals = useMemo(() => {
@@ -710,7 +755,7 @@ export default function ReturnPage() {
       </div>
 
       {returnTab === "summary" && (
-      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
           <div style={{ position: "relative" }}>
             <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
@@ -738,73 +783,96 @@ export default function ReturnPage() {
           <span style={{ fontSize: 12, color: "#9ca3af" }}>
             {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
           </span>
+          <div ref={colVisRef} style={{ position: "relative", marginLeft: "auto" }}>
+            <button onClick={() => setColVisOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: colVisOpen ? "#f3f4f6" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <IconGear size={13} /> Columns
+            </button>
+            {colVisOpen && (
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 180, padding: "8px 0" }}>
+                {RTN_COLDEFS.filter(c => c.hideable).map(c => (
+                  <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, color: "#374151", fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                    onMouseLeave={e => e.currentTarget.style.background = ""}
+                  >
+                    <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => toggleCol(c.key)} style={{ accentColor: "#e87c27" }} />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-                {COLS.map((h) => (
-  <th
-    key={h}
-    style={{
-      padding: "14px 10px",
-      textAlign:"center",
-      color: "#fff",
-      fontWeight: 700,
-      fontSize: 10,
-      whiteSpace: "nowrap",
-    }}
-  >
-    {h}
-  </th>
-))}
+                {visibleRTNCols.map(c => (
+                  <th key={c.key} style={{
+                    padding: "12px 10px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.04em",
+                    ...(c.sticky ? { position: "sticky", left: 0, zIndex: 2, background: "#1c2235", boxShadow: "3px 0 5px rgba(0,0,0,0.15)" } : {}),
+                  }}>{c.label}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {paged.length === 0 && (
-                <tr><td colSpan={13} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+                <tr><td colSpan={visibleRTNCols.length} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
                   No results found for <strong style={{ color: "#374151" }}>"{searchQuery || "your filters"}"</strong>
-                  <div style={{ fontSize: 12, marginTop: 4 }}>Try a different search term or clear your filters.</div>
                 </td></tr>
               )}
               {paged.map((row, idx) => {
-                if (editingId === row.id) {
-                  return <ReturnInlineEditRow key={row.id} row={row} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
-                }
-                const isSel = selectedId === row.id;
+                const rowBg = selectedId === row.id ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
+                const rtnQtyOut = rtnQtyOutTotals[row.id] || 0;
+                const qtyBal = row.qtyReturned - rtnQtyOut;
                 return (
                   <tr
                     key={row.id}
-                    style={{
-                      borderBottom: "1px solid #f3f4f6",
-                      background: isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa",
-                      cursor: "pointer",
-                      boxShadow: isSel ? "inset 3px 0 0 #e87c27" : "none",
-                    }}
-                    onClick={() => { setSelectedId(row.id); setPanelOpen(true); }}
-                    onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.background = "#fef6f2"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa"; }}
+                    onClick={() => openEditDrawer(row)}
+                    style={{ borderBottom: "1px solid #f5f5f6", background: rowBg, cursor: "pointer", boxShadow: selectedId === row.id ? "inset 3px 0 0 #e87c27" : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                    onMouseLeave={e => e.currentTarget.style.background = rowBg}
                   >
-<td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{row.transNo}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{formatReturnExportDate(row.returnDate)}</td>
-                    <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", color: "#374151", fontWeight: 600, textAlign: "center" }}><Highlight text={row.sku} query={searchQuery} /></td>
-<td title={row.item} style={{ padding: "12px 10px", color: "#111827", maxWidth: 200, minWidth: 160, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "default" }}><Highlight text={row.item} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 700 }}>{row.qtyReturned}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "center" }}>{fmtPHP(row.unitCost)}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(row.totalCost)}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151", maxWidth: 140, textAlign: "center" }}><Highlight text={row.customer} query={searchQuery} /></td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280", fontSize: 11, textAlign: "center" }}>{row.reason}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 700, color: (rtnQtyOutTotals[row.id]||0) > 0 ? "#dc2626" : "#9ca3af" }}>{rtnQtyOutTotals[row.id] || 0}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "center" }}>
-                      <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: (row.qtyReturned - (rtnQtyOutTotals[row.id]||0)) > 0 ? "#fef3c7" : "#d1fae5", color: (row.qtyReturned - (rtnQtyOutTotals[row.id]||0)) > 0 ? "#d97706" : "#065f46" }}>{row.qtyReturned - (rtnQtyOutTotals[row.id]||0)}</span>
-                    </td>
-                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        <IconEdit size={12} /> Edit
-                      </button>
-                    </td>
+                    {visibleRTNCols.map(c => {
+                      if (c.key === "transNo") return (
+                        <td key="transNo" style={{ padding: "14px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center", position: "sticky", left: 0, zIndex: 1, background: rowBg, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>{row.transNo}</td>
+                      );
+                      if (c.key === "returnDate") return (
+                        <td key="returnDate" style={{ padding: "14px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{formatReturnExportDate(row.returnDate)}</td>
+                      );
+                      if (c.key === "drNo") return (
+                        <td key="drNo" style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo} query={searchQuery} /></td>
+                      );
+                      if (c.key === "sku") return (
+                        <td key="sku" style={{ padding: "14px 10px", color: "#374151", fontWeight: 600, textAlign: "center" }}><Highlight text={row.sku} query={searchQuery} /></td>
+                      );
+                      if (c.key === "item") return (
+                        <td key="item" title={row.item} style={{ padding: "14px 10px", color: "#111827", maxWidth: 180, minWidth: 130, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><Highlight text={row.item} query={searchQuery} /></td>
+                      );
+                      if (c.key === "qtyReturned") return (
+                        <td key="qtyReturned" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 700 }}>{row.qtyReturned}</td>
+                      );
+                      if (c.key === "unitCost") return (
+                        <td key="unitCost" style={{ padding: "14px 10px", textAlign: "center" }}>{fmtPHP(row.unitCost)}</td>
+                      );
+                      if (c.key === "totalCost") return (
+                        <td key="totalCost" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(row.totalCost)}</td>
+                      );
+                      if (c.key === "customer") return (
+                        <td key="customer" title={row.customer} style={{ padding: "14px 10px", color: "#374151", maxWidth: 140, minWidth: 100, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><Highlight text={row.customer} query={searchQuery} /></td>
+                      );
+                      if (c.key === "reason") return (
+                        <td key="reason" style={{ padding: "14px 10px", color: "#6b7280", fontSize: 10, textAlign: "center", whiteSpace: "nowrap" }}>{row.reason}</td>
+                      );
+                      if (c.key === "totalQtyOut") return (
+                        <td key="totalQtyOut" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 700, color: rtnQtyOut > 0 ? "#dc2626" : "#9ca3af" }}>{rtnQtyOut}</td>
+                      );
+                      if (c.key === "qtyBalance") return (
+                        <td key="qtyBalance" style={{ padding: "14px 10px", textAlign: "center" }}>
+                          <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: qtyBal > 0 ? "#fef3c7" : "#d1fae5", color: qtyBal > 0 ? "#d97706" : "#065f46" }}>{qtyBal}</span>
+                        </td>
+                      );
+                      return null;
+                    })}
                   </tr>
                 );
               })}
@@ -951,65 +1019,113 @@ export default function ReturnPage() {
       </div>
       )}
 
-      {panelOpen && selected && (
+      {editDrawerRow && editDraft && (
         <>
-          <button type="button" aria-label="Close" onClick={() => setPanelOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1040, border: "none", cursor: "pointer" }} />
-          <aside style={{ position: "fixed", top: 0, right: 0, width: "min(440px, 100vw)", height: "100vh", background: "#fff", zIndex: 1050, boxShadow: "-8px 0 40px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "20px 22px", background: "#1c2235", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+          <button onClick={closeEditDrawer} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 1200, border: "none", cursor: "pointer" }} aria-label="Close drawer" />
+          <aside style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "min(96vw, 440px)", background: "#fff", zIndex: 1201, display: "flex", flexDirection: "column", boxShadow: "-4px 0 32px rgba(0,0,0,0.18)" }}>
+            <div style={{ background: "#1c2235", padding: "18px 20px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Return Details</h2>
-                </div>
-                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600, textAlign: "left" }}>Return No. {selected.returnNo}</p>
+                <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Edit Return #{editDrawerRow.transNo}</div>
+                <div style={{ color: "#93a3c7", fontSize: 11, marginTop: 2 }}>{editDrawerRow.returnNo}</div>
               </div>
-              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}><IconX size={18} /></button>
+              <button onClick={closeEditDrawer} style={{ background: "none", border: "none", color: "#93a3c7", cursor: "pointer", padding: 4 }}><IconX size={18} /></button>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px 24px" }}>
-              {[
-                ["Trans #", selected.transNo],
-                ["INSERT DATE", formatDate(selected.returnDate)],
-                ["DR No.", selected.drNo],
-                ["Warehouse", selected.warehouse],
-                ["Return Reason", selected.reason],
-              ].map(([label, val]) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
-                  <span style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>{label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", textAlign: "right" }}>{val}</span>
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>INSERT DATE</label>
+                    <input type="date" value={editDraft.returnDate || ""} onChange={e => setEditDraft(d => ({ ...d, returnDate: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>INSERT DR#</label>
+                    <input value={editDraft.drNo || ""} onChange={e => setEditDraft(d => ({ ...d, drNo: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
                 </div>
-              ))}
-              <p style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.06em", margin: "20px 0 10px" }}>RETURNED ITEMS</p>
-              <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e5e7eb" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: "#f3f4f6" }}>
-                      {["Item Code", "Item Description", "INSERT QTY", "INSERT UNIT COST", "Return Value"].map((h) => (
-                        <th key={h} style={{ padding: "10px 8px", textAlign: h.includes("Qty") || h.includes("Cost") || h.includes("Value") ? "right" : "center", fontWeight: 700, color: "#111827" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.lineItems.map((it, i) => (
-                      <tr key={i} style={{ borderTop: "1px solid #e5e7eb", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                        <td style={{ padding: "10px 8px", fontWeight: 600, color: "#111827" }}>{it.code}</td>
-                        <td style={{ padding: "10px 8px", color: "#374151" }}>{it.desc}</td>
-                        <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700 }}>{it.qty}</td>
-                        <td style={{ padding: "10px 8px", textAlign: "right" }}>{fmtPHP(it.unit)}</td>
-                        <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>{fmtPHP(it.val)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>SKU</label>
+                    <input value={editDraft.sku || ""} onChange={e => setEditDraft(d => ({ ...d, sku: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>WAREHOUSE</label>
+                    <select value={editDraft.warehouse || "Meycauayan"} onChange={e => setEditDraft(d => ({ ...d, warehouse: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+                      {["Meycauayan", "Pampanga", "Marilao"].map(w => <option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>ITEM DESCRIPTION</label>
+                  <input value={editDraft.item || ""} onChange={e => setEditDraft(d => ({ ...d, item: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>INSERT QTY</label>
+                    <input type="number" min={0} value={editDraft.qtyReturned ?? ""} onChange={e => setEditDraft(d => ({ ...d, qtyReturned: parseFloat(e.target.value) || 0 }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>INSERT UNIT COST (₱)</label>
+                    <input type="number" min={0} step="0.01" value={editDraft.unitCost ?? ""} onChange={e => setEditDraft(d => ({ ...d, unitCost: parseFloat(e.target.value) || 0 }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                <div style={{ background: "#f8f9fb", borderRadius: 8, padding: "10px 14px" }}>
+                  <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 700 }}>TOTAL COST (auto)</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#374151", marginTop: 2 }}>{fmtPHP((Number(editDraft.qtyReturned)||0) * (Number(editDraft.unitCost)||0))}</div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>CUSTOMER NAME</label>
+                  <input value={editDraft.customer || ""} onChange={e => setEditDraft(d => ({ ...d, customer: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>REASON</label>
+                    <select value={editDraft.reason || "Damaged During Delivery"} onChange={e => setEditDraft(d => ({ ...d, reason: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+                      {["Damaged During Delivery", "Wrong item", "Customer cancel", "Quality hold"].map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>DISPOSITION</label>
+                    <select value={editDraft.disposition || "Restock"} onChange={e => setEditDraft(d => ({ ...d, disposition: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+                      {["Restock", "Credit memo", "Scrap"].map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {editDrawerRow.lineItems?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.06em", marginBottom: 8 }}>RETURNED ITEMS</div>
+                    <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                        <thead>
+                          <tr style={{ background: "#f3f4f6" }}>
+                            {["Code", "Description", "Qty", "Cost", "Value"].map(h => (
+                              <th key={h} style={{ padding: "7px 8px", textAlign: ["Qty","Cost","Value"].includes(h) ? "right" : "left", fontWeight: 700, color: "#374151", fontSize: 10 }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editDrawerRow.lineItems.map((it, i) => (
+                            <tr key={i} style={{ borderTop: "1px solid #e5e7eb", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                              <td style={{ padding: "7px 8px", fontWeight: 600, color: "#111827" }}>{it.code}</td>
+                              <td style={{ padding: "7px 8px", color: "#374151" }}>{it.desc}</td>
+                              <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{it.qty}</td>
+                              <td style={{ padding: "7px 8px", textAlign: "right" }}>{fmtPHP(it.unit)}</td>
+                              <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>{fmtPHP(it.val)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, color: "#6b7280" }}>Total Return Value</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#e87c27" }}>{fmtPHP(lineValSum(editDrawerRow.lineItems))}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb", display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 14, color: "#6b7280" }}>Total Returned Qty</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{lineQtySum(selected.lineItems)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 14, color: "#6b7280" }}>Total Returned Value</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#e87c27" }}>{fmtPHP(lineValSum(selected.lineItems))}</span>
-                </div>
-              </div>
+            </div>
+            <div style={{ padding: "14px 20px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={closeEditDrawer} style={{ padding: "8px 18px", border: "1px solid #d1d5db", borderRadius: 7, background: "#fff", color: "#374151", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={handleSaveDrawer} style={{ padding: "8px 18px", border: "none", borderRadius: 7, background: "#e87c27", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }}>Save Changes</button>
             </div>
           </aside>
         </>

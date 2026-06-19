@@ -441,6 +441,26 @@ const STATUS_BADGE = {
   Cancelled: { bg: "#e5e7eb", color: "#4b5563", panel: "#6b7280" },
 };
 
+const PURCH_COLDEFS = [
+  { key: "transNo",         label: "TRANS #",        sticky: true,  alwaysVisible: true  },
+  { key: "poInfo",          label: "PO INFO",         hideable: true                       },
+  { key: "eta",             label: "ETA",             hideable: true                       },
+  { key: "purchaser",       label: "PURCHASER",       hideable: true                       },
+  { key: "vendorInfo",      label: "VENDOR INFO",     hideable: true                       },
+  { key: "productDesc",     label: "PRODUCT DESC",    alwaysVisible: true                  },
+  { key: "destination",     label: "DEST.",           hideable: true                       },
+  { key: "tradingOrStocks", label: "TYPE",            hideable: true                       },
+  { key: "warehouseType",   label: "WH TYPE",         hideable: true                       },
+  { key: "metricTons",      label: "MT",              hideable: true                       },
+  { key: "qtyPerPo",        label: "QTY/PO",          alwaysVisible: true                  },
+  { key: "weight",          label: "WEIGHT",          hideable: true                       },
+  { key: "retention",       label: "RETENTION",       hideable: true                       },
+  { key: "costPerKilo",     label: "COST/KG",         hideable: true                       },
+  { key: "unitCost",        label: "UNIT COST",       hideable: true                       },
+  { key: "totalCost",       label: "TOTAL COST",      alwaysVisible: true                  },
+  { key: "status",          label: "STATUS",          alwaysVisible: true                  },
+];
+
 const TABLE_COLS_PURCH = [
   "TRANS NO.",
   "PO DATE",
@@ -522,6 +542,9 @@ function IconEdit({ size = 14 }) {
 }
 function IconSave({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
+}
+function IconGear({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>;
 }
 
 const selectSt = {
@@ -624,7 +647,7 @@ function WHInlineEditRow({ row, onSave, onCancel }) {
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
   return (
     <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
-      <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{draft.transNo}</td>
+      <td style={{ padding: "14px 10px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{draft.transNo}</td>
       <td style={{ padding: "6px 12px" }}>
         <input type="date" value={draft.receiptDate || ""} onChange={e => set("receiptDate", e.target.value)} {...modalCellInput({ width: 130 })} />
       </td>
@@ -634,11 +657,11 @@ function WHInlineEditRow({ row, onSave, onCancel }) {
       <td style={{ padding: "6px 12px" }}>
         <input type="number" min={0} value={draft.actualQtyReceived ?? ""} onChange={e => set("actualQtyReceived", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
       </td>
-      <td style={{ padding: "12px 16px", textAlign: "center" }}>
-        <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>0</span>
+      <td style={{ padding: "14px 10px", textAlign: "center" }}>
+        <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>0</span>
       </td>
-      <td style={{ padding: "12px 16px", textAlign: "center" }}>
-        <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>—</span>
+      <td style={{ padding: "14px 10px", textAlign: "center" }}>
+        <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>—</span>
       </td>
       <td style={{ padding: "4px 12px" }}>
         <input value={draft.encoder || ""} onChange={e => set("encoder", e.target.value)} {...modalCellInput({ width: 80 })} />
@@ -1057,8 +1080,6 @@ export default function PurchasingOrderPage({
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
   const [supplierFilter, setSupplierFilter] = useState("All Suppliers");
   const [currentPage, setCurrentPage] = useState(1);
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const EMPTY_CREATE_FORM = {
     poDate: "", eta: "", purchaser: "", tdtPo: "", vendor: "", productDesc: "", sku: "",
@@ -1075,6 +1096,42 @@ export default function PurchasingOrderPage({
   const [drSlotCount, setDrSlotCount] = useState(8);
   const { sortBy, setSortBy, applySort } = useSort("poDate", "productDesc");
   const [sortOpen, setSortOpen] = useState(false);
+
+  /* ── column visibility ── */
+  const [hiddenCols, setHiddenCols] = useState(new Set());
+  const [colVisOpen, setColVisOpen] = useState(false);
+  const colVisRef = useRef(null);
+
+  /* ── edit drawer ── */
+  const [editDrawerRow, setEditDrawerRow] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+
+  useEffect(() => {
+    if (!colVisOpen) return;
+    const handler = (e) => {
+      if (colVisRef.current && !colVisRef.current.contains(e.target)) setColVisOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [colVisOpen]);
+
+  const toggleCol = (key) => {
+    setHiddenCols(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const openEditDrawer = (row) => { setEditDrawerRow(row); setEditDraft({ ...row }); };
+  const closeEditDrawer = () => { setEditDrawerRow(null); setEditDraft(null); };
+  const handleSaveDrawer = async () => {
+    if (!editDraft) return;
+    await handleSaveEdit(editDraft);
+    closeEditDrawer();
+  };
+
+  const visiblePurchCols = PURCH_COLDEFS.filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
 
   const handleSaveEdit = async (updated) => {
     try {
@@ -1106,9 +1163,8 @@ export default function PurchasingOrderPage({
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
     setCurrentPage(1);
-    setPanelOpen(false);
-    setSelectedId(null);
-  }, [initialStatusFilter]);
+    closeEditDrawer();
+  }, [initialStatusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {
     let rows = orders;
@@ -1133,17 +1189,14 @@ export default function PurchasingOrderPage({
   }, [orders, searchQuery, statusFilter, supplierFilter, dateRange]);
 
   useEffect(() => {
-    if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
-      setSelectedId(null);
-      setPanelOpen(false);
+    if (editDrawerRow != null && !filtered.some((r) => r.id === editDrawerRow.id)) {
+      closeEditDrawer();
     }
-  }, [filtered, selectedId]);
+  }, [filtered, editDrawerRow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paged = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const selected = selectedId != null ? orders.find((r) => r.id === selectedId) : null;
-  const panelBadge = selected ? (STATUS_BADGE[selected.status] || STATUS_BADGE.Pending) : STATUS_BADGE.Pending;
 
   const totalSeed = 218;
 
@@ -1177,8 +1230,7 @@ export default function PurchasingOrderPage({
                     await api.bulkReplace(parsed);
                   }
                   setCurrentPage(1);
-                  setSelectedId(null);
-                  setPanelOpen(false);
+                  closeEditDrawer();
                   showToast(`Imported ${parsed.length} purchase orders successfully.`);
                 } catch {
                   showToast("Import succeeded but failed to save.", "error");
@@ -1244,95 +1296,151 @@ export default function PurchasingOrderPage({
       </div>
 
       {activeTab === "purchasing" && (
-      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
+
+        {/* ── Column Visibility Toggle ── */}
+        <div ref={colVisRef} style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px 2px", position: "relative" }}>
+          <button
+            onClick={() => setColVisOpen(v => !v)}
+            title="Toggle column visibility"
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", border: "1px solid #d1d5db", borderRadius: 6, background: colVisOpen ? "#fff4ed" : "#fafafa", color: colVisOpen ? "#e87c27" : "#6b7280", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s" }}
+          >
+            <IconGear size={12} /> Columns
+          </button>
+          {colVisOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 2px)", right: 12, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: 180, padding: "6px 0" }}>
+              <div style={{ padding: "3px 12px 5px", fontSize: 9, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.08em", textTransform: "uppercase" }}>Show / Hide Columns</div>
+              {PURCH_COLDEFS.filter(c => c.hideable).map(col => (
+                <label key={col.key}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 12px", cursor: "pointer", fontSize: 11, color: "#374151" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  <input type="checkbox" checked={!hiddenCols.has(col.key)} onChange={() => toggleCol(col.key)} style={{ cursor: "pointer", accentColor: "#e87c27", width: 13, height: 13 }} />
+                  {col.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Compact Table ── */}
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <table style={{ borderCollapse: "collapse", fontSize: 12, width: "max-content", minWidth: "100%" }}>
             <thead>
               <tr style={{ background: "#1c2235" }}>
-               {TABLE_COLS.map((h) => (
-  <th key={h} style={{
-    padding: "14px 10px",
-   textAlign: "center",
-    color: "#fff",
-    fontWeight: 700,
-    fontSize: 10,
-    whiteSpace: "nowrap",
-  }}>{h}</th>
-))}
+                {visiblePurchCols.map((col) => (
+                  <th key={col.key} style={{
+                    padding: "12px 10px",
+                    textAlign: "center",
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: 10,
+                    whiteSpace: "nowrap",
+                    letterSpacing: "0.04em",
+                    userSelect: "none",
+                    ...(col.sticky ? { position: "sticky", left: 0, zIndex: 3, background: "#1c2235", boxShadow: "3px 0 6px rgba(0,0,0,0.18)" } : {}),
+                  }}>{col.label}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {paged.length === 0 && (
-                <tr><td colSpan={TABLE_COLS.length} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
+                <tr><td colSpan={visiblePurchCols.length} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
                   No results found for <strong style={{ color: "#374151" }}>"{searchQuery || "your filters"}"</strong>
                   <div style={{ fontSize: 12, marginTop: 4 }}>Try a different search term or clear your filters.</div>
                 </td></tr>
               )}
               {paged.map((row, idx) => {
-                if (editingId === row.id) {
-                  return <POInlineEditRow key={row.id} row={row} onSave={handleSaveEdit} onCancel={() => setEditingId(null)} />;
-                }
-                const isSel = selectedId === row.id;
+                const isActive = editDrawerRow?.id === row.id;
                 const st = STATUS_BADGE[row.status] || STATUS_BADGE.Pending;
                 const { totalCost, unitCost } = poComputedCosts(row);
-                const cellSt = (alignRight = false) => ({
-                  padding: "12px 10px",
-                  textAlign: alignRight ? "right" : "center",
-                  color: "#374151",
-                  fontSize: 11,
-                  whiteSpace: "nowrap",
-                });
-                const kiloDisplay =
-                  row.costPerKilo === "" || row.costPerKilo == null
-                    ? "—"
-                    : typeof row.costPerKilo === "number"
-                      ? fmtPHP(row.costPerKilo)
-                      : row.costPerKilo;
+                const kiloDisplay = row.costPerKilo === "" || row.costPerKilo == null ? "—" : typeof row.costPerKilo === "number" ? fmtPHP(row.costPerKilo) : row.costPerKilo;
+                const rowBg = isActive ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
+                const cell = { padding: "14px 10px", fontSize: 11, color: "#374151", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 150 };
                 return (
                   <tr
                     key={row.id}
-                    style={{ borderBottom: "1px solid #f3f4f6", background: isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer", boxShadow: isSel ? "inset 3px 0 0 #e87c27" : "none" }}
-                    onClick={() => { setSelectedId(row.id); setPanelOpen(true); }}
-                    onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.background = "#fef6f2"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa"; }}
+                    style={{ borderBottom: "1px solid #f5f5f6", background: rowBg, cursor: "pointer", boxShadow: isActive ? "inset 3px 0 0 #e87c27" : "none" }}
+                    onClick={() => openEditDrawer(row)}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#fef6f2"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
                   >
-                    <td style={{ ...cellSt(), color: "#6b7280", fontWeight: 600 }}>{row.transNo}</td>
-                    <td style={cellSt()}>{row.poDate}</td>
-                    <td style={cellSt()}>{row.eta}</td>
-                    <td style={cellSt()}><Highlight text={row.purchaser} query={searchQuery} /></td>
-                    <td style={{ ...cellSt(), color: "#e87c27", fontWeight: 700 }}><Highlight text={row.tdtPo} query={searchQuery} /></td>
-                    <td style={{ ...cellSt(), color: "#111827", fontWeight: 600 }}><Highlight text={row.vendor} query={searchQuery} /></td>
-<td title={row.productDesc} style={{ ...cellSt(), maxWidth: 200, minWidth: 160, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "default" }}><Highlight text={row.productDesc} query={searchQuery} /></td>
-                    <td style={cellSt()}><Highlight text={row.destination} query={searchQuery} /></td>
-                    <td style={cellSt()}>{row.tradingOrStocks}</td>
-                    <td style={cellSt()}>{row.warehouseType}</td>
-                 <td style={cellSt()}>{row.metricTons}</td>
-<td style={{ ...cellSt(), fontWeight: 700 }}>{row.qtyPerPo}</td>
-
-                    <td style={cellSt()}>{row.weight}</td>
-                    <td style={cellSt()}>{row.retention || "—"}</td>
-            <td style={cellSt()}>{kiloDisplay}</td>
-<td style={cellSt()}>{unitCost ? fmtPHP(unitCost) : "—"}</td>
-                    <td style={{ ...cellSt(true), fontWeight: 600, color: "#e87c27" }}>{totalCost ? fmtPHP(totalCost) : "—"}</td>
-                    <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 12, background: st.bg, color: st.color }}>
-                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: st.panel, display: "inline-block", flexShrink: 0 }} />
-                        {row.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingId(row.id); }} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        <IconEdit size={12} /> Edit
-                      </button>
-                    </td>
+                    {visiblePurchCols.map(col => {
+                      if (col.key === "transNo") return (
+                        <td key="transNo" title={row.transNo} style={{ ...cell, textAlign: "center", color: "#6b7280", fontWeight: 700, position: "sticky", left: 0, background: rowBg, zIndex: 1, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>{row.transNo}</td>
+                      );
+                      if (col.key === "poInfo") return (
+                        <td key="poInfo" style={{ ...cell, textAlign: "left", minWidth: 115, maxWidth: 160 }}>
+                          <div title={row.tdtPo} style={{ fontWeight: 700, color: "#e87c27", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={row.tdtPo} query={searchQuery} /></div>
+                          <div title={row.poDate} style={{ fontSize: 9, color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.poDate}</div>
+                        </td>
+                      );
+                      if (col.key === "eta") return (
+                        <td key="eta" title={row.eta} style={{ ...cell, textAlign: "center" }}>{row.eta}</td>
+                      );
+                      if (col.key === "purchaser") return (
+                        <td key="purchaser" title={row.purchaser} style={{ ...cell, textAlign: "left" }}><Highlight text={row.purchaser} query={searchQuery} /></td>
+                      );
+                      if (col.key === "vendorInfo") return (
+                        <td key="vendorInfo" style={{ ...cell, textAlign: "left", minWidth: 120, maxWidth: 170 }}>
+                          <div title={row.vendor} style={{ fontWeight: 700, color: "#111827", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={row.vendor} query={searchQuery} /></div>
+                          <div style={{ fontSize: 9, color: "#9ca3af", whiteSpace: "nowrap" }}>Supplier</div>
+                        </td>
+                      );
+                      if (col.key === "productDesc") return (
+                        <td key="productDesc" title={row.productDesc} style={{ ...cell, textAlign: "left", minWidth: 140, maxWidth: 210 }}><Highlight text={row.productDesc} query={searchQuery} /></td>
+                      );
+                      if (col.key === "destination") return (
+                        <td key="destination" title={row.destination} style={{ ...cell, textAlign: "center" }}><Highlight text={row.destination} query={searchQuery} /></td>
+                      );
+                      if (col.key === "tradingOrStocks") return (
+                        <td key="tradingOrStocks" style={{ ...cell, textAlign: "center" }}>{row.tradingOrStocks}</td>
+                      );
+                      if (col.key === "warehouseType") return (
+                        <td key="warehouseType" style={{ ...cell, textAlign: "center" }}>{row.warehouseType}</td>
+                      );
+                      if (col.key === "metricTons") return (
+                        <td key="metricTons" style={{ ...cell, textAlign: "right" }}>{row.metricTons}</td>
+                      );
+                      if (col.key === "qtyPerPo") return (
+                        <td key="qtyPerPo" style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{row.qtyPerPo}</td>
+                      );
+                      if (col.key === "weight") return (
+                        <td key="weight" style={{ ...cell, textAlign: "center" }}>{row.weight}</td>
+                      );
+                      if (col.key === "retention") return (
+                        <td key="retention" style={{ ...cell, textAlign: "center" }}>{row.retention || "—"}</td>
+                      );
+                      if (col.key === "costPerKilo") return (
+                        <td key="costPerKilo" style={{ ...cell, textAlign: "right" }}>{kiloDisplay}</td>
+                      );
+                      if (col.key === "unitCost") return (
+                        <td key="unitCost" style={{ ...cell, textAlign: "right" }}>{unitCost ? fmtPHP(unitCost) : "—"}</td>
+                      );
+                      if (col.key === "totalCost") return (
+                        <td key="totalCost" style={{ ...cell, textAlign: "right", fontWeight: 600, color: "#e87c27" }}>{totalCost ? fmtPHP(totalCost) : "—"}</td>
+                      );
+                      if (col.key === "status") return (
+                        <td key="status" style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 12, background: st.bg, color: st.color }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: st.panel, display: "inline-block", flexShrink: 0 }} />
+                            {row.status}
+                          </span>
+                        </td>
+                      );
+                      return null;
+                    })}
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
+
+        {/* ── Pagination ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
             Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length} entries
           </span>
@@ -1351,7 +1459,7 @@ export default function PurchasingOrderPage({
       <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
         <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", padding: "0 0 0 0" }}>
           {[["receiving","Warehouse Receiving"],["series","Series of Acceptance"]].map(([key,label]) => (
-            <button key={key} onClick={() => { setWhTab(key); setCurrentPage(1); }} style={{ padding: "12px 16px", background: "none", border: "none", cursor: "pointer", borderBottom: whTab===key?"3px solid #e87c27":"3px solid transparent", color: whTab===key?"#e87c27":"#9ca3af", fontSize: 13, fontWeight: 700, marginBottom: -2 }}>{label}</button>
+            <button key={key} onClick={() => { setWhTab(key); setCurrentPage(1); }} style={{ padding: "14px 10px", background: "none", border: "none", cursor: "pointer", borderBottom: whTab===key?"3px solid #e87c27":"3px solid transparent", color: whTab===key?"#e87c27":"#9ca3af", fontSize: 13, fontWeight: 700, marginBottom: -2 }}>{label}</button>
           ))}
         </div>
         {whTab === "receiving" ? (
@@ -1360,7 +1468,7 @@ export default function PurchasingOrderPage({
             <thead>
               <tr style={{ background: "#1c2235" }}>
                 {["TRANS NO.","ACTUAL RECEIPT","DELIVERY RECEIPT NO.","QTY RECEIVED","QTY VARIANCE","VARIANCE AMOUNT","ENCODER","RECIPIENT","CHECKER","MANAGER","REMARKS / MEMO","RECORDED TO PE?","ACTION"].map((h,i) => (
-                  <th key={h+i} style={{ padding: "14px 16px", textAlign: h==="REMARKS / MEMO"?"left":"center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                  <th key={h+i} style={{ padding: "12px 10px", textAlign: h==="REMARKS / MEMO"?"left":"center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.04em" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1373,27 +1481,27 @@ export default function PurchasingOrderPage({
                 const actualQty = row.actualQtyReceived || 0;
                 return (
                   <tr key={row.id}
-                    style={{ borderBottom: "1px solid #f3f4f6", background: idx%2===0?"#fff":"#fafafa" }}
+                    style={{ borderBottom: "1px solid #f5f5f6", background: idx%2===0?"#fff":"#fafafa" }}
                     onMouseEnter={e => e.currentTarget.style.background="#fef6f2"}
                     onMouseLeave={e => e.currentTarget.style.background=idx%2===0?"#fff":"#fafafa"}
                   >
-                    <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{row.transNo}</td>
-                    <td style={{ padding: "12px 16px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{row.receiptDate || "—"}</td>
-                    <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.supplierDrNo || "—"}</td>
-                    <td style={{ padding: "12px 16px", textAlign: "center", fontWeight: 700 }}>{actualQty.toLocaleString()}</td>
-                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>0</span>
+                    <td style={{ padding: "14px 10px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{row.transNo}</td>
+                    <td style={{ padding: "14px 10px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{row.receiptDate || "—"}</td>
+                    <td style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.supplierDrNo || "—"}</td>
+                    <td style={{ padding: "14px 10px", textAlign: "center", fontWeight: 700 }}>{actualQty.toLocaleString()}</td>
+                    <td style={{ padding: "14px 10px", textAlign: "center" }}>
+                      <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>0</span>
                     </td>
-                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>—</span>
+                    <td style={{ padding: "14px 10px", textAlign: "center" }}>
+                      <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>—</span>
                     </td>
-                    <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.encoder || "—"}</td>
-                    <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.receiverName || "—"}</td>
-                    <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.checkerName || "—"}</td>
-                    <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.manager || "—"}</td>
-                    <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 180, textAlign: "left" }}>{row.remarksVariance || "—"}</td>
-                    <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                      <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                    <td style={{ padding: "14px 10px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.encoder || "—"}</td>
+                    <td style={{ padding: "14px 10px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.receiverName || "—"}</td>
+                    <td style={{ padding: "14px 10px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.checkerName || "—"}</td>
+                    <td style={{ padding: "14px 10px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.manager || "—"}</td>
+                    <td style={{ padding: "14px 10px", color: "#6b7280", fontSize: 12, maxWidth: 180, textAlign: "left" }}>{row.remarksVariance || "—"}</td>
+                    <td style={{ padding: "14px 10px", textAlign: "center" }}>
+                      <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
                         background: row.recordedToPe==="Yes"?"#d1fae5":"#fef3c7",
                         color: row.recordedToPe==="Yes"?"#065f46":"#d97706" }}>
                         {row.recordedToPe || "No"}
@@ -1444,15 +1552,15 @@ export default function PurchasingOrderPage({
                       <tr style={{ background: "#1c2235" }}>
                         <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>PRODUCT DESCRIPTION</th>
                         <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>SUPPLIER</th>
-                        <th colSpan={slots * 2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, textAlign: "center", borderBottom: "1px solid #2a3450" }}>SERIES OF ACCEPTANCE — DELIVERY RECEIPTS</th>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 90 }}>TOTAL QTY RECEIVED</th>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 60 }}>ACTION</th>
+                        <th colSpan={slots * 2} style={{ padding: "12px 10px", color: "#fff", fontWeight: 700, fontSize: 10, textAlign: "center", borderBottom: "1px solid #2a3450", letterSpacing: "0.04em" }}>SERIES OF ACCEPTANCE — DELIVERY RECEIPTS</th>
+                        <th rowSpan={2} style={{ padding: "12px 10px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 90, letterSpacing: "0.04em" }}>TOTAL QTY RECEIVED</th>
+                        <th rowSpan={2} style={{ padding: "12px 10px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 60, letterSpacing: "0.04em" }}>ACTION</th>
                       </tr>
                       <tr style={{ background: "#1c2235" }}>
                         {Array.from({ length: slots }, (_, i) => (
                           <React.Fragment key={i}>
-                            <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>VDR#</th>
-                            <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center" }}>QTY</th>
+                            <th style={{ padding: "12px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450", letterSpacing: "0.04em" }}>VDR#</th>
+                            <th style={{ padding: "12px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", letterSpacing: "0.04em" }}>QTY</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -1462,10 +1570,10 @@ export default function PurchasingOrderPage({
                         const isEditing = editingSeriesProduct === g.productDesc;
                         return (
                           <tr key={g.productDesc}
-                            style={{ borderBottom: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : gi % 2 === 0 ? "#fff" : "#fafafa" }}
+                            style={{ borderBottom: "1px solid #f5f5f6", background: isEditing ? "#fffbf7" : gi % 2 === 0 ? "#fff" : "#fafafa" }}
                           >
-                            <td style={{ padding: "10px 14px", color: "#111827", fontWeight: 600, fontSize: 12, textAlign: "left", borderRight: "1px solid #f3f4f6", maxWidth: 240, minWidth: 180 }}>{g.productDesc}</td>
-                            <td style={{ padding: "10px 14px", color: "#6b7280", fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6" }}>{g.vendor}</td>
+                            <td style={{ padding: "14px 10px", color: "#111827", fontWeight: 600, fontSize: 12, textAlign: "left", borderRight: "1px solid #f3f4f6", maxWidth: 240, minWidth: 180 }}>{g.productDesc}</td>
+                            <td style={{ padding: "14px 10px", color: "#6b7280", fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6" }}>{g.vendor}</td>
                             {Array.from({ length: slots }, (_, slotIdx) => {
                               const dr = g.drs[slotIdx];
                               if (isEditing) {
@@ -1482,12 +1590,12 @@ export default function PurchasingOrderPage({
                               }
                               return (
                                 <React.Fragment key={slotIdx}>
-                                  <td style={{ padding: "10px 10px", color: dr ? "#e87c27" : "#e5e7eb", fontWeight: dr ? 700 : 400, fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6", whiteSpace: "nowrap", minWidth: 100 }}>{dr ? dr.dr : "—"}</td>
-                                  <td style={{ padding: "10px 10px", color: dr ? "#111827" : "#e5e7eb", fontWeight: dr ? 700 : 400, fontSize: 12, textAlign: "center", minWidth: 60 }}>{dr ? dr.qty.toLocaleString() : "—"}</td>
+                                  <td style={{ padding: "14px 10px", color: dr ? "#e87c27" : "#e5e7eb", fontWeight: dr ? 700 : 400, fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6", whiteSpace: "nowrap", minWidth: 100 }}>{dr ? dr.dr : "—"}</td>
+                                  <td style={{ padding: "14px 10px", color: dr ? "#111827" : "#e5e7eb", fontWeight: dr ? 700 : 400, fontSize: 12, textAlign: "center", minWidth: 60 }}>{dr ? dr.qty.toLocaleString() : "—"}</td>
                                 </React.Fragment>
                               );
                             })}
-                            <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 800, color: "#e87c27", fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.drs.reduce((s, d) => s + d.qty, 0).toLocaleString()}</td>
+                            <td style={{ padding: "14px 10px", textAlign: "center", fontWeight: 800, color: "#e87c27", fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.drs.reduce((s, d) => s + d.qty, 0).toLocaleString()}</td>
                             <td style={{ padding: "8px 8px", textAlign: "center" }}>
                               {isEditing ? (
                                 <div style={{ display: "flex", gap: 3, flexDirection: "column", alignItems: "center" }}>
@@ -1575,69 +1683,161 @@ export default function PurchasingOrderPage({
       </div>
       )}
 
-      {panelOpen && selected && (
+      {/* ── Edit Drawer ── */}
+      {editDrawerRow && editDraft && (
         <>
-          <button type="button" aria-label="Close" onClick={() => setPanelOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1040, border: "none", cursor: "pointer" }} />
-          <aside style={{ position: "fixed", top: 0, right: 0, width: "min(440px, 100vw)", height: "100vh", background: "#fff", zIndex: 1050, boxShadow: "-8px 0 40px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <div style={{ padding: "20px 22px", background: "#1c2235", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+          <button type="button" aria-label="Close" onClick={closeEditDrawer}
+            style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1040, border: "none", cursor: "pointer" }} />
+          <aside style={{ position: "fixed", top: 0, right: 0, width: "min(500px, 100vw)", height: "100vh", background: "#fff", zIndex: 1050, boxShadow: "-8px 0 40px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+            {/* Header */}
+            <div style={{ padding: "18px 22px", background: "#1c2235", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Transaction Details</h2>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 20, background: panelBadge.panel, color: "#fff", lineHeight: "16px" }}>
-                    <span style={{ width: 3, height: 3, borderRadius: "50%", background: "#fff", display: "inline-block", flexShrink: 0 }} />
-                    {selected.status}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#fff" }}>Edit Purchase Order</h2>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: (STATUS_BADGE[editDraft.status] || STATUS_BADGE.Pending).panel, color: "#fff", lineHeight: "14px" }}>
+                    {editDraft.status}
                   </span>
                 </div>
-                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600, textAlign: "left" }}>Transaction No. {selected.txnNo}</p>
+                <p style={{ margin: 0, fontSize: 11, color: "#9ca3af", fontWeight: 500, textAlign: "left" }}>Trans #{editDraft.transNo} · {editDraft.tdtPo}</p>
               </div>
-              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}><IconX size={18} /></button>
+              <button type="button" onClick={closeEditDrawer} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", flexShrink: 0 }}>
+                <IconX size={17} />
+              </button>
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px 24px" }}>
-              {[
-                ["Reference No.", selected.txnNo],
-                ["Date", formatDate(selected.poDate)],
-                ["Supplier", selected.vendor],
-                ["Status", selected.status],
-                ["Retention", selected.retention || "—"],
-              ].map(([label, val]) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
-                  <span style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>{label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", textAlign: "right" }}>{val}</span>
-                </div>
-              ))}
-              <p style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.06em", margin: "20px 0 10px" }}>ORDERED ITEMS</p>
-              <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e5e7eb" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: "#f3f4f6" }}>
-                      {["Item Code", "Item Description", "Qty", "Unit Cost", "Line Value"].map((h) => (
-                        <th key={h} style={{ padding: "10px 8px", textAlign: h === "Item Code" || h === "Item Description" ? "center" : "right", fontWeight: 700, color: "#111827" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.lineItems.map((it, i) => (
-                      <tr key={i} style={{ borderTop: "1px solid #e5e7eb", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                        <td style={{ padding: "10px 8px", fontWeight: 600, color: "#111827" }}>{it.code}</td>
-                        <td style={{ padding: "10px 8px", color: "#374151" }}>{it.desc}</td>
-                        <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700 }}>{it.qty}</td>
-                        <td style={{ padding: "10px 8px", textAlign: "right" }}>{fmtPHP(it.unit)}</td>
-                        <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>{fmtPHP(it.val)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb", display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 14, color: "#6b7280" }}>Total Qty</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{lineQtySum(selected.lineItems)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 14, color: "#6b7280" }}>Total Purchased Value</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#e87c27" }}>{fmtPHP(lineValSum(selected.lineItems))}</span>
-                </div>
-              </div>
+
+            {/* Scrollable Form Body */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px 24px" }}>
+              {(() => {
+                const fieldStyle = { display: "flex", flexDirection: "column", gap: 4 };
+                const labelStyle = { fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em" };
+                const inputStyle = { padding: "7px 10px", border: "1.5px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", outline: "none", color: "#374151", transition: "border-color 0.15s" };
+                const setD = (k, v) => setEditDraft(d => ({ ...d, [k]: v }));
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "13px 14px" }}>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>PO Date</label>
+                      <input type="date" value={editDraft.poDate || ""} onChange={e => setD("poDate", e.target.value)} style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>ETA</label>
+                      <input type="date" value={editDraft.eta || ""} onChange={e => setD("eta", e.target.value)} style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Name of Purchaser</label>
+                      <input value={editDraft.purchaser || ""} onChange={e => setD("purchaser", e.target.value)} placeholder="e.g. Maria Santos" style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>TDT Purchase Order #</label>
+                      <input value={editDraft.tdtPo || ""} onChange={e => setD("tdtPo", e.target.value)} placeholder="e.g. PO-2026-0142" style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Vendor / Supplier</label>
+                      <input value={editDraft.vendor || ""} onChange={e => setD("vendor", e.target.value)} placeholder="e.g. Steel Asia Corp" style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Destination</label>
+                      <input value={editDraft.destination || ""} onChange={e => setD("destination", e.target.value)} style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
+                      <label style={labelStyle}>Product Description</label>
+                      <textarea value={editDraft.productDesc || ""} onChange={e => setD("productDesc", e.target.value)} rows={2}
+                        style={{ ...inputStyle, resize: "vertical" }}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Trading or Stocks</label>
+                      <select value={editDraft.tradingOrStocks || "Stocks"} onChange={e => setD("tradingOrStocks", e.target.value)}
+                        style={{ ...inputStyle, background: "#fff", cursor: "pointer" }}>
+                        <option value="Stocks">Stocks</option>
+                        <option value="Trading">Trading</option>
+                      </select>
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Warehouse Type</label>
+                      <select value={editDraft.warehouseType || "Stocks"} onChange={e => setD("warehouseType", e.target.value)}
+                        style={{ ...inputStyle, background: "#fff", cursor: "pointer" }}>
+                        <option value="Stocks">Stocks</option>
+                        <option value="Backload">Backload</option>
+                      </select>
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Metric Tons</label>
+                      <input type="number" min={0} step="0.1" value={editDraft.metricTons ?? ""} onChange={e => setD("metricTons", parseFloat(e.target.value) || 0)}
+                        style={{ ...inputStyle, textAlign: "right" }}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Qty as per PO</label>
+                      <input type="number" min={0} value={editDraft.qtyPerPo ?? ""} onChange={e => setD("qtyPerPo", parseInt(e.target.value) || 0)}
+                        style={{ ...inputStyle, textAlign: "right" }}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Weight</label>
+                      <input value={editDraft.weight || ""} onChange={e => setD("weight", e.target.value)} placeholder="e.g. 2.4 MT" style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Retention</label>
+                      <input value={editDraft.retention || ""} onChange={e => setD("retention", e.target.value)} placeholder="If applicable" style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Cost per Kilo (₱)</label>
+                      <input type="number" min={0} step="0.01" value={editDraft.costPerKilo ?? ""} onChange={e => setD("costPerKilo", parseFloat(e.target.value) || "")}
+                        style={{ ...inputStyle, textAlign: "right" }}
+                        onFocus={e => e.target.style.borderColor = "#e87c27"} onBlur={e => e.target.style.borderColor = "#e5e7eb"} />
+                    </div>
+
+                    <div style={fieldStyle}>
+                      <label style={labelStyle}>Status</label>
+                      <select value={editDraft.status || "Pending"} onChange={e => setD("status", e.target.value)}
+                        style={{ ...inputStyle, background: "#fff", cursor: "pointer", fontWeight: 700, color: (STATUS_BADGE[editDraft.status] || STATUS_BADGE.Pending).color }}>
+                        {STATUS_OPTS.filter(s => s !== "All Status").map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "14px 22px", borderTop: "1px solid #f1f5f9", background: "#fafbfc", display: "flex", justifyContent: "flex-end", gap: 10, flexShrink: 0 }}>
+              <button type="button" onClick={closeEditDrawer}
+                style={{ padding: "9px 18px", borderRadius: 8, border: "1.5px solid #e5e7eb", background: "#fff", color: "#374151", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit", transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#f9fafb"; e.currentTarget.style.borderColor = "#d1d5db"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#e5e7eb"; }}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleSaveDrawer}
+                style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "#e87c27", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 2px 8px rgba(232,124,39,0.3)", transition: "all 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#d07020"}
+                onMouseLeave={e => e.currentTarget.style.background = "#e87c27"}>
+                <IconSave size={13} />
+                Save Changes
+              </button>
             </div>
           </aside>
         </>

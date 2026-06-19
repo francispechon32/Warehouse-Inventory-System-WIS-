@@ -384,12 +384,9 @@ function buildTopReleasedItems(stockOut, products) {
     .slice(0, 5);
   const maxQty = sorted[0]?.[1] || 1;
   return sorted.map(([sku, qty]) => {
-    const p = products.find(p => p.sku === sku);
-    const desc = p?.description || sku;
-    const shortName = desc.length > 22 ? desc.slice(0, 22) + "…" : desc;
     return {
       sku,
-      name: shortName,
+      name: sku,
       value: `${qty} pcs`,
       pct: Math.round((qty / maxQty) * 100),
     };
@@ -1069,7 +1066,7 @@ const firstName = (userName || displayName).split(" ")[0];
     setStockExpanded(true);
     setActiveNav("Ending Inventory");
   };
-  const goToStockSheets = () => setActiveNav("Stock Sheets");
+  const goToStockSheets = () => setActiveNav("Stock Card");
   const handleActivityClick = (a) => {
     const allRows = [...stockInRows.map(r => ({ ...r, type: "in" })), ...stockOutRows.map(r => ({ ...r, type: "out" }))];
     const full = allRows.find(r => r.id === a.id);
@@ -1079,7 +1076,7 @@ const firstName = (userName || displayName).split(" ")[0];
     if (selectedTransaction) {
       setStockSheetsSku(selectedTransaction.sku);
       setSelectedTransaction(null);
-      setActiveNav("Stock Sheets");
+      setActiveNav("Stock Card");
     }
   };
 
@@ -1161,7 +1158,7 @@ const firstName = (userName || displayName).split(" ")[0];
     { label: "Product",          Icon: IconCart,   hasChildren: false },
     { label: "Stock Management", Icon: IconStock,  hasChildren: true  },
     { label: "Purchasing Order", Icon: IconPO,     hasChildren: false },
-    { label: "Stock Sheets",     Icon: IconSheets, hasChildren: false },
+    { label: "Stock Card",     Icon: IconSheets, hasChildren: false },
   ];
 
   const isAnyStockSubActive = stockSubItems.some(s => s.label === activeNav);
@@ -1174,6 +1171,8 @@ const firstName = (userName || displayName).split(" ")[0];
         html, body, #root { width: 100%; height: 100%; overflow: hidden; }
         body { font-family: 'Poppins', sans-serif; background: #f5f6fa; }
         #root { max-width: 100% !important; width: 100% !important; border: none !important; }
+        aside nav::-webkit-scrollbar { display: none; }
+
         #scroll-area::-webkit-scrollbar { width: 4px; }
         #scroll-area::-webkit-scrollbar-track { background: #f1f1f1; }
         #scroll-area::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
@@ -1462,7 +1461,7 @@ const firstName = (userName || displayName).split(" ")[0];
             }}>Menu</p>
           )}
 
-          <nav style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 20 }}>
+<nav style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 20, scrollbarWidth: "none", msOverflowStyle: "none" }}>
             {menuItems.map(({ label, Icon, hasChildren }) => {
               const isActive     = activeNav === label;
               const isItemActive = isActive;
@@ -1697,7 +1696,7 @@ const firstName = (userName || displayName).split(" ")[0];
               <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0, textAlign: "left" }}>
                 {activeNav === "Product"               ? "List of SKU"
                   : activeNav === "Ending Inventory"   ? "Ending Inventory"
-                  : activeNav === "Stock Sheets"       ? "Stock Sheets"
+                  : activeNav === "Stock Card"       ? "Stock Card"
                   : activeNav === "Purchasing Order"   ? "Purchasing Orders"
                   : activeNav === "Backload Inventory" ? "Backload Inventory"
                   : activeNav === "Advance Customer PO"? "Advance Customer PO"
@@ -1707,7 +1706,7 @@ const firstName = (userName || displayName).split(" ")[0];
               </h1>
               {activeNav === "Product"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
               {activeNav === "Ending Inventory"       && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Monthly Warehouse Inventory</p>}
-              {activeNav === "Stock Sheets"           && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>}
+              {activeNav === "Stock Card"           && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>}
               {activeNav === "Purchasing Order"       && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>}
               {activeNav === "Backload Inventory"     && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Track backloaded inventory</p>}
               {activeNav === "Advance Customer PO"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Advance customer purchase orders</p>}
@@ -1847,7 +1846,7 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                 inventoryData={endingInventory}
                 setInventoryData={setEndingInventory}
               />
-            ) : activeNav === "Stock Sheets" ? (
+            ) : activeNav === "Stock Card" ? (
               <StockSheetsPage
                 stockInData={stockInRows}
                 setStockInData={setStockInRows}
@@ -1912,7 +1911,7 @@ src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&backgr
                       icon={<IconBag size={30} />} iconBg="#F95B02" iconColor="#ffffff"
                       label={`Transactions (${dashboardPeriod})`} value={String(transactionsInPeriod)}
                       badge={{
-                        text: transactionsInPeriod > 0 ? "View in Stock Sheets" : "No transactions",
+                        text: transactionsInPeriod > 0 ? "View in Stock Card" : "No transactions",
                         color: transactionsInPeriod > 0 ? "#e87c27" : "#6b7280",
                         bg: "transparent",
                       }}
