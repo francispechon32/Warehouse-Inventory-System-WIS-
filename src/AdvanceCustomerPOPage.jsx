@@ -1,5 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import useSort from "./useSort";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
 import {
   cellStr,
   cellNum,
@@ -9,10 +13,26 @@ import {
   rowHasData,
   readWorkbookSheet,
 } from "./excelImportUtils";
+import { modalCellInput, modalInput } from "./modalFormStyles";
+import Table from "./Table";
+
+function Highlight({ text, query }) {
+  if (!query || !text) return <>{String(text)}</>;
+  const idx = String(text).toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{String(text)}</>;
+  const s = String(text);
+  return (
+    <>
+      {s.slice(0, idx)}
+      <mark style={{ background: "#fef08a", color: "#111827", padding: 0, borderRadius: 2 }}>{s.slice(idx, idx + query.length)}</mark>
+      {s.slice(idx + query.length)}
+    </>
+  );
+}
 
 const PAGE_SIZE = 8;
 
-const PLACES = ["All locations", "Manila", "Cebu", "Davao"];
+const PLACES = ["All locations", "Meycauayan", "Pampanga", "Marilao"];
 
 /** Optional per-row overrides; otherwise SKU/item come from lineItems. */
 function getSummaryFields(row) {
@@ -276,10 +296,33 @@ function IconCalendar({ size = 16 }) {
 function IconX({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>;
 }
+function IconGear({ size = 14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>; }
+
+const ACPO_COLDEFS = [
+  { key: "transNo",     label: "TRANS NO.",          sticky: true, alwaysVisible: true },
+  { key: "resDate",     label: "RESERVATION DATE",   alwaysVisible: true },
+  { key: "soWo",        label: "SO#/WO#",            hideable: true },
+  { key: "tdtDr",       label: "TDT DR#",            alwaysVisible: true },
+  { key: "customer",    label: "CUSTOMER'S NAME",    alwaysVisible: true },
+  { key: "place",       label: "PLACE OF DELIVERY",  hideable: true },
+  { key: "reservedQty", label: "RESERVED QTY",       alwaysVisible: true },
+  { key: "currentStock",label: "CURRENT STOCK",      hideable: true },
+  { key: "estEnding",   label: "EST ENDING BALANCE", alwaysVisible: true },
+  { key: "approvedBy",  label: "APPROVED BY",        hideable: true },
+  { key: "status",      label: "STATUS",             alwaysVisible: true },
+];
+
+function IconEdit({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function IconSave({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
+}
 const STATUS_STYLE = {
-  Active: { bg: "#dcfce7", color: "#15803d", badgeBg: "#22c55e" },
-  Pending: { bg: "#fef3c7", color: "#d97706", badgeBg: "#f59e0b" },
-  Closed: { bg: "#e5e7eb", color: "#4b5563", badgeBg: "#6b7280" },
+  Active:   { bg: "#dcfce7", color: "#15803d", badgeBg: "#22c55e" },
+  Pending:  { bg: "#fef3c7", color: "#d97706", badgeBg: "#f59e0b" },
+  Closed:   { bg: "#e5e7eb", color: "#4b5563", badgeBg: "#6b7280" },
+  Rejected: { bg: "#fee2e2", color: "#dc2626", badgeBg: "#ef4444" },
 };
 
 function lineTotals(lines) {
@@ -291,51 +334,130 @@ function lineTotals(lines) {
 
 /* ─── SheetJS loader ── */
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 function IconUpload({ size = 16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
 
-/* ─── EXPORT ── */
+/* ─── EXPORT (flat table matching website columns) ── */
+function formatAcpoExportDateTime(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatAcpoExportDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
 function exportToWis(rows) {
-  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
-  const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
-  const headers = [
-    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
-    ["Advance Customer Purchase Orders"],
-    ["LOCATION:", "MARILAO WAREHOUSE"],
-    ["AS OF", new Date().toLocaleString()],
-    [],
-    ["NO.", "TRANS #", "DATE", "SO/WO", "TDT DR", "CUSTOMER", "PLACE", "RESERVED QTY", "CURRENT STOCK", "EST. ENDING", "APPROVED BY", "STATUS"],
+  const C = (r, c) => XLSX.utils.encode_cell({ r, c });
+  const ws = {};
+  const put = (r, c, v, t, style) => {
+    ws[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s: style };
+  };
+
+  const peachFill = { patternType: "solid", fgColor: { rgb: "FFF9E6" } };
+  const hdrFill = { patternType: "solid", fgColor: { rgb: "1C2235" } };
+  const dataFill = { patternType: "solid", fgColor: { rgb: "FCE4D6" } };
+  const altFill = { patternType: "solid", fgColor: { rgb: "FFF9F0" } };
+  const hdrBorder = {
+    top: { style: "thin", color: { rgb: "FFFFFF" } },
+    bottom: { style: "thin", color: { rgb: "FFFFFF" } },
+    left: { style: "thin", color: { rgb: "FFFFFF" } },
+    right: { style: "thin", color: { rgb: "FFFFFF" } },
+  };
+  const dataBorder = {
+    top: { style: "thin", color: { rgb: "E5E7EB" } },
+    bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+    left: { style: "thin", color: { rgb: "E5E7EB" } },
+    right: { style: "thin", color: { rgb: "E5E7EB" } },
+  };
+  const f = {
+    title: () => ({ name: "Arial", sz: 13, bold: true, color: { rgb: "1C2235" } }),
+    sub: () => ({ name: "Arial", sz: 10, color: { rgb: "6B7280" } }),
+    hdr: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "FFFFFF" } }),
+    body: (bold = false) => ({ name: "Arial", sz: 9, bold, color: { rgb: "374151" } }),
+    orange: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "E87C27" } }),
+  };
+  const a = {
+    ctr: () => ({ horizontal: "center", vertical: "center" }),
+    left: () => ({ horizontal: "left", vertical: "center" }),
+    right: () => ({ horizontal: "right", vertical: "center" }),
+  };
+  const qtyFmt = "#,##0";
+  const now = formatAcpoExportDateTime();
+
+  put(0, 0, "TDT ADVANCE CUSTOMER PURCHASE ORDER", "s", { font: f.title(), alignment: a.left(), fill: peachFill });
+  put(1, 0, `Exported: ${now}`, "s", { font: f.sub(), alignment: a.left(), fill: peachFill });
+
+  const hdrs = [
+    "TRANS NO.", "RESERVATION DATE", "SO#/WO#", "TDT DR#",
+    "CUSTOMER'S NAME", "PLACE OF DELIVERY", "RESERVED QTY",
+    "CURRENT STOCK", "EST ENDING BALANCE", "APPROVED BY", "STATUS",
   ];
-  const dataRows = rows.map((r, i) => [i+1, r.transNo, r.resDate, r.soWo, r.tdtDr, r.customer, r.place, r.reservedQty, r.currentStock, r.estEnding ?? "—", r.approvedBy, r.status]);
-  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:5},{wch:8},{wch:12},{wch:12},{wch:12},{wch:30},{wch:14},{wch:14},{wch:14},{wch:12},{wch:14},{wch:12}];
-  const numCols = ws["!cols"].length;
-  // Style header row 6
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(0, numCols).split("").forEach(c => {
-    const addr = `${c}6`;
-    if (ws[addr]) ws[addr].s = { font: { bold: true, sz: 9, color: { rgb: "FFFFFF" }, name: "Arial" }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center", wrapText: true } };
+  hdrs.forEach((h, ci) => {
+    put(3, ci, h, "s", { font: f.hdr(), fill: hdrFill, alignment: a.ctr(), border: hdrBorder });
   });
-  // Style title rows
-  ["A1","A2","A3","B3","A4","B4"].forEach(cell => {
-    if (ws[cell]) ws[cell].s = { font: { bold: true, sz: 13, name: "Arial" }, alignment: { horizontal: "left" } };
+
+  rows.forEach((row, i) => {
+    const ri = 4 + i;
+    const fill = i % 2 === 0 ? dataFill : altFill;
+    const cells = [
+      { v: row.transNo, bold: true },
+      { v: formatAcpoExportDate(row.resDate) },
+      { v: row.soWo || "—" },
+      { v: row.tdtDr || "—", orange: true },
+      { v: row.customer || "", left: true },
+      { v: row.place || "" },
+      { v: row.reservedQty ?? 0, num: true, fmt: qtyFmt, bold: true },
+      { v: row.currentStock ?? 0, num: true, fmt: qtyFmt },
+      { v: row.estEnding ?? "", num: typeof row.estEnding === "number", fmt: qtyFmt, bold: true },
+      { v: row.approvedBy || "" },
+      { v: row.status || "" },
+    ];
+    cells.forEach(({ v, bold, orange, left, num, fmt }, ci) => {
+      const font = orange ? f.orange() : f.body(bold);
+      put(ri, ci, v, num ? "n" : "s", {
+        font,
+        fill,
+        alignment: left ? a.left() : a.ctr(),
+        border: dataBorder,
+        ...(fmt && num ? { numFmt: fmt } : {}),
+      });
+    });
   });
+
+  const lastRow = Math.max(4 + rows.length - 1, 3);
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: hdrs.length - 1 });
   ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: numCols - 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: numCols - 1 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: hdrs.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: hdrs.length - 1 } },
   ];
+  ws["!cols"] = [
+    { wch: 12 },  // TRANS NO.
+    { wch: 18 },  // RESERVATION DATE
+    { wch: 14 },  // SO#/WO#
+    { wch: 16 },  // TDT DR#
+    { wch: 28 },  // CUSTOMER'S NAME
+    { wch: 20 },  // PLACE OF DELIVERY (17 chars)
+    { wch: 15 },  // RESERVED QTY
+    { wch: 15 },  // CURRENT STOCK
+    { wch: 20 },  // EST ENDING BALANCE (18 chars)
+    { wch: 16 },  // APPROVED BY
+    { wch: 12 },  // STATUS
+  ];
+  ws["!rows"] = [
+    { hpt: 22 }, { hpt: 16 }, { hpt: 6 }, { hpt: 36 },
+    ...rows.map(() => ({ hpt: 20 })),
+  ];
+
   XLSX.utils.book_append_sheet(wb, ws, "ADVANCE CUSTOMER PO");
-  XLSX.writeFile(wb, "TDT_WIS_Advance_Customer_PO_Export.xlsx");
+  XLSX.writeFile(wb, "TDT_Advance_Customer_PO_Summary.xlsx");
 }
 
 /* ─── IMPORT parser ── */
@@ -343,7 +465,7 @@ async function importReservations(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["ADVANCE"]);
     const headerIdx = findHeaderRowIndex(raw, ["TRANS"], 20);
-    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 6;
+    const dataStart = headerIdx >= 0 ? headerIdx + 1 : 4;
     const headers = headerIdx >= 0 ? raw[headerIdx] : null;
     const parsed = [];
 
@@ -351,39 +473,27 @@ async function importReservations(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
-      let transNo = cellStr(pickCol(r, headers, ["TRANS #", "TRANS"], 1));
-      let resDate = formatExcelDate(pickCol(r, headers, ["DATE", "RESERVATION"], 2));
-      const col0 = cellStr(r[0]);
-      const col1 = cellStr(r[1]);
-      const col2 = r[2];
-      if (!transNo && col0 && formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
-        transNo = col0;
-        resDate = formatExcelDate(col1);
-      } else if (!transNo && col1 && !formatExcelDate(col1).match(/^\d{4}-\d{2}-\d{2}/)) {
-        transNo = col1;
-        if (formatExcelDate(col2).match(/^\d{4}-\d{2}-\d{2}/)) resDate = formatExcelDate(col2);
-      }
-
-      const customer = cellStr(pickCol(r, headers, ["CUSTOMER"], 5));
-      const tdtDr = cellStr(pickCol(r, headers, ["TDT DR", "DR"], 4));
+      const transNo = cellStr(pickCol(r, headers, ["TRANS NO.", "TRANS #", "TRANS"], 0));
+      const customer = cellStr(pickCol(r, headers, ["CUSTOMER'S NAME", "CUSTOMER"], 4));
+      const tdtDr = cellStr(pickCol(r, headers, ["TDT DR#", "TDT DR", "DR"], 3));
       if (!transNo && !customer && !tdtDr) continue;
 
-      const estRaw = pickCol(r, headers, ["EST", "ENDING"], 9);
+      const estRaw = pickCol(r, headers, ["EST ENDING BALANCE", "EST ENDING", "EST"], 8);
       const estStr = cellStr(estRaw);
 
       parsed.push({
         id: parsed.length + 1,
         transNo: transNo || String(parsed.length + 1).padStart(3, "0"),
-        resDate,
-        soWo: cellStr(pickCol(r, headers, ["SO", "WO"], 3)) || "—",
+        resDate: formatExcelDate(pickCol(r, headers, ["RESERVATION DATE", "DATE"], 1)),
+        soWo: cellStr(pickCol(r, headers, ["SO#/WO#", "SO", "WO"], 2)) || "—",
         tdtDr,
         customer,
-        place: cellStr(pickCol(r, headers, ["PLACE"], 6)) || "Manila",
-        reservedQty: cellNum(pickCol(r, headers, ["RESERVED"], 7)),
-        currentStock: cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 8)),
+        place: cellStr(pickCol(r, headers, ["PLACE OF DELIVERY", "PLACE"], 5)) || "Manila",
+        reservedQty: cellNum(pickCol(r, headers, ["RESERVED QTY", "RESERVED"], 6)),
+        currentStock: cellNum(pickCol(r, headers, ["CURRENT STOCK", "STOCK"], 7)),
         estEnding: estStr && estStr !== "—" ? cellNum(estRaw) : null,
-        approvedBy: cellStr(pickCol(r, headers, ["APPROVED"], 10)),
-        status: cellStr(pickCol(r, headers, ["STATUS"], 11)) || "Pending",
+        approvedBy: cellStr(pickCol(r, headers, ["APPROVED BY", "APPROVED"], 9)),
+        status: cellStr(pickCol(r, headers, ["STATUS"], 10)) || "Pending",
         drNo: tdtDr,
         remarks: "",
         lineItems: [],
@@ -392,15 +502,97 @@ async function importReservations(file, onDone, onError) {
       });
     }
 
-    if (!parsed.length) throw new Error("No data rows found. Fill TRANS #, CUSTOMER, or TDT DR columns.");
+    if (!parsed.length) throw new Error("No data rows found. Fill TRANS NO., CUSTOMER, or TDT DR# columns.");
     onDone(parsed);
   } catch (err) {
     onError(err.message || "Import failed.");
   }
 }
-export default function AdvanceCustomerPOPage() {
+const selectSt = {
+  padding: "10px 30px 10px 12px",
+  fontSize: 14,
+  border: "2px solid #F95B02",
+  borderRadius: 15,
+  background: "#ffffff",
+  color: "#F95B02",
+  cursor: "pointer",
+  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+  appearance: "none",
+  WebkitAppearance: "none",
+  fontWeight: 700,
+  outline: "none",
+  boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
+};
+function AcpoInlineEditRow({ row, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ ...row });
+  const set = (k, v) => setDraft(d => {
+    const next = { ...d, [k]: v };
+    const rqty = parseFloat(next.reservedQty) || 0;
+    const cstock = parseFloat(next.currentStock) || 0;
+    next.estEnding = cstock - rqty;
+    return next;
+  });
+  const st = STATUS_STYLE[draft.status] || STATUS_STYLE.Pending;
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600 }}>{draft.transNo}</td>
+      <td style={{ padding: "6px 10px" }}>
+        <input type="date" value={draft.resDate || ""} onChange={e => set("resDate", e.target.value)} {...modalCellInput({ width: 130 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.soWo || ""} onChange={e => set("soWo", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.tdtDr || ""} onChange={e => set("tdtDr", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.customer || ""} onChange={e => set("customer", e.target.value)} {...modalCellInput({ width: 140 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.place || ""} onChange={e => set("place", e.target.value)} {...modalCellInput({ width: 120 })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input type="number" min={0} value={draft.reservedQty ?? ""} onChange={e => set("reservedQty", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "4px 10px" }}>
+        <input type="number" min={0} value={draft.currentStock ?? ""} onChange={e => set("currentStock", parseInt(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "12px 10px", textAlign: "center", fontWeight: 600, color: draft.estEnding < 0 ? "#dc2626" : "#065f46" }}>{draft.estEnding}</td>
+      <td style={{ padding: "4px 10px" }}>
+        <input value={draft.approvedBy || ""} onChange={e => set("approvedBy", e.target.value)} {...modalCellInput({ width: 100 })} />
+      </td>
+      <td style={{ padding: "6px 10px", textAlign: "center" }}>
+        <select value={draft.status} onChange={e => set("status", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 100, fontWeight: 700, color: st.color, background: st.bg }}>
+          {["Active","Pending","Completed","Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </td>
+      <td style={{ padding: "6px 8px", textAlign: "center" }}>
+        <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+          <button onClick={() => onSave(draft)} title="Save" style={{ padding: "5px 8px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={13} /></button>
+          <button onClick={onCancel} title="Cancel" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={13} /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+export default function AdvanceCustomerPOPage({ onPendingCreated, statusUpdates }) {
+  const api = useApi(ENDPOINTS.advanceCustomerPO, SEED_RESERVATIONS);
+  useEffect(() => { api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Apply approval/rejection status updates from the Approval page
+  const appliedUpdates = useRef(new Set());
+  useEffect(() => {
+    if (!statusUpdates?.length) return;
+    statusUpdates.forEach(u => {
+      const key = `${u.id}-${u.status}`;
+      if (appliedUpdates.current.has(key)) return;
+      appliedUpdates.current.add(key);
+      api.update(u.id, { status: u.status }).catch(() => {});
+    });
+  }, [statusUpdates]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reservations    = api.data;
+  const setReservations = null;
   const [searchSku, setSearchSku] = useState("");
-  const [reservations, setReservations] = useState(SEED_RESERVATIONS);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -412,6 +604,47 @@ export default function AdvanceCustomerPOPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const { sortBy, setSortBy, applySort } = useSort("resDate", "customer");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const handleSaveEdit = async (updated, silent = false) => {
+    try {
+      await api.update(updated.id, updated);
+      setEditingId(null);
+      if (!silent) showToast("Reservation updated successfully.");
+    } catch {
+      if (!silent) showToast("Failed to save changes.", "error");
+    }
+  };
+
+  /* ── column visibility ── */
+  const [hiddenCols, setHiddenCols] = useState(new Set());
+  const [colVisOpen, setColVisOpen] = useState(false);
+  const colVisRef = useRef(null);
+  useEffect(() => {
+    if (!colVisOpen) return;
+    const handler = (e) => { if (colVisRef.current && !colVisRef.current.contains(e.target)) setColVisOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [colVisOpen]);
+  const toggleCol = (key) => setHiddenCols(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const visibleACPOCols = ACPO_COLDEFS.filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
+
+  /* ── edit drawer ── */
+  const [editDrawerRow, setEditDrawerRow] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  const openEditDrawer = (row) => { setSelectedId(row.id); setPanelOpen(false); setEditDrawerRow(row); setEditDraft({ ...row }); };
+  const closeEditDrawer = () => { setEditDrawerRow(null); setEditDraft(null); };
+  const handleSaveDrawer = async () => {
+    if (!editDraft) return;
+    const saved = { ...editDraft, estEnding: (Number(editDraft.currentStock) || 0) - (Number(editDraft.reservedQty) || 0) };
+    await handleSaveEdit(saved, true);
+    closeEditDrawer();
+    showToast("Reservation updated successfully.");
+  };
 
   const filtered = useMemo(() => {
     let rows = reservations;
@@ -419,29 +652,39 @@ export default function AdvanceCustomerPOPage() {
       const q = searchSku.toLowerCase();
       rows = rows.filter(
         (r) =>
-          r.customer.toLowerCase().includes(q) ||
-          r.tdtDr.toLowerCase().includes(q) ||
-          r.soWo.toLowerCase().includes(q) ||
-          String(r.transNo).includes(q) ||
-          r.drNo.toLowerCase().includes(q) ||
-          r.lineItems.some(
-            (L) => L.code.toLowerCase().includes(q) || L.desc.toLowerCase().includes(q)
+          (r.customer || "").toLowerCase().includes(q) ||
+          (r.tdtDr || "").toLowerCase().includes(q) ||
+          (r.soWo || "").toLowerCase().includes(q) ||
+          String(r.transNo || "").toLowerCase().includes(q) ||
+          (r.drNo || "").toLowerCase().includes(q) ||
+          (r.resDate || "").toLowerCase().includes(q) ||
+          (r.place || "").toLowerCase().includes(q) ||
+          String(r.reservedQty || "").toLowerCase().includes(q) ||
+          String(r.currentStock || "").toLowerCase().includes(q) ||
+          String(r.estEnding || "").toLowerCase().includes(q) ||
+          (r.approvedBy || "").toLowerCase().includes(q) ||
+          (r.lineItems || []).some(
+            (L) => (L.code || "").toLowerCase().includes(q) || (L.desc || "").toLowerCase().includes(q)
           )
       );
     }
     if (place !== "All locations") rows = rows.filter((r) => r.place === place);
+    if (dateRange.start) rows = rows.filter((r) => (r.resDate || "") >= dateRange.start);
+    if (dateRange.end)   rows = rows.filter((r) => (r.resDate || "") <= dateRange.end);
     return rows;
-  }, [reservations, searchSku, place]);
+  }, [reservations, searchSku, place, dateRange]);
 
   useEffect(() => {
     if (selectedId != null && !filtered.some((r) => r.id === selectedId)) {
       setSelectedId(null);
       setPanelOpen(false);
+      closeEditDrawer();
     }
-  }, [filtered, selectedId]);
+  }, [filtered, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const paged = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const selected = selectedId != null ? reservations.find((r) => r.id === selectedId) : null;
   const panelLines = selected
@@ -470,7 +713,9 @@ export default function AdvanceCustomerPOPage() {
         filters={[
           { key: "place", value: place, onChange: (v) => { setPlace(v); setCurrentPage(1); }, options: PLACES, minWidth: 170 },
         ]}
-        primaryAction={{ label: "Create New Reservation", onClick: () => {} }}
+        primaryAction={{ label: "Create New Reservation", onClick: () => setShowCreate(true) }}
+        dateRange={dateRange}
+        onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
         importExport={{
           fileInputRef: importRef,
           onFileChange: (e) => {
@@ -478,13 +723,18 @@ export default function AdvanceCustomerPOPage() {
             if (!file) return;
             setImporting(true);
             importReservations(file,
-              (parsed) => {
-                setImporting(false);
-                setReservations(parsed);
-                setCurrentPage(1);
-                setSelectedId(null);
-                setPanelOpen(false);
-                showToast(`Imported ${parsed.length} reservations successfully.`);
+              async (parsed) => {
+                try {
+                  await api.bulkReplace(parsed);
+                  setCurrentPage(1);
+                  setSelectedId(null);
+                  setPanelOpen(false);
+                  showToast(`Imported ${parsed.length} reservations successfully.`);
+                } catch {
+                  showToast("Import succeeded but failed to save.", "error");
+                } finally {
+                  setImporting(false);
+                }
               },
               (err) => {
                 setImporting(false);
@@ -495,10 +745,7 @@ export default function AdvanceCustomerPOPage() {
           },
           importing,
           importDisabled: !xlsxReady,
-          onExport: () => {
-            if (!xlsxReady) { showToast("SheetJS not ready yet.", "error"); return; }
-            exportToWis(reservations);
-          },
+          onExport: () => exportToWis(reservations),
         }}
       />
 
@@ -531,80 +778,126 @@ export default function AdvanceCustomerPOPage() {
         </div>
       </div>
 
-      <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {["TRANS NO.", "RESERVATION DATE", "SO#/WO#", "TDT DR#", "CUSTOMER'S NAME", "PLACE OF DELIVERY", "RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE", "APPROVED BY", "STATUS"].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "14px 10px",
-                      textAlign: ["RESERVED QTY", "CURRENT STOCK", "EST ENDING BALANCE"].includes(h) ? "right" : "left",
-                      color: "#fff",
-                      fontWeight: 700,
-                      fontSize: 10,
-                      whiteSpace: "nowrap",
-                    }}
+      <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+              </svg>
+            </button>
+            {sortOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+                {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                  <div key={val} onClick={() => { setSortBy(val); setCurrentPage(1); setSortOpen(false); }}
+                    style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                    onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
                   >
-                    {h}
-                  </th>
+                    <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                    <span>{text}</span>
+                    {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                  </div>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 && (
-                <tr>
-                  <td colSpan={11} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No reservations match your filters.</td>
-                </tr>
-              )}
-              {paged.map((row, idx) => {
-                const st = STATUS_STYLE[row.status] || STATUS_STYLE.Pending;
-                const isSel = selectedId === row.id;
-                return (
-                  <tr
-                    key={row.id}
-                    style={{
-                      borderBottom: "1px solid #f3f4f6",
-                      background: isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa",
-                      cursor: "pointer",
-                      boxShadow: isSel ? "inset 3px 0 0 #e87c27" : "none",
-                    }}
-                    onClick={() => { setSelectedId(row.id); setPanelOpen(true); }}
-                    onMouseEnter={(e) => {
-                      if (!isSel) e.currentTarget.style.background = "#fef6f2";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = isSel ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
-                    }}
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+            {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+          </span>
+          <div ref={colVisRef} style={{ position: "relative", marginLeft: "auto" }}>
+            <button onClick={() => setColVisOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: colVisOpen ? "#f3f4f6" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <IconGear size={13} /> Columns
+            </button>
+            {colVisOpen && (
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 190, padding: "8px 0" }}>
+                {ACPO_COLDEFS.filter(c => c.hideable).map(c => (
+                  <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, color: "#374151", fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                    onMouseLeave={e => e.currentTarget.style.background = ""}
                   >
-                    <td style={{ padding: "12px 10px", color: "#6b7280", fontWeight: 600 }}>{row.transNo}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151", whiteSpace: "nowrap" }}>{row.resDate}</td>
-                    <td style={{ padding: "12px 10px", color: "#374151" }}>{row.soWo}</td>
-                    <td style={{ padding: "12px 10px", color: "#e87c27", fontWeight: 700 }}>{row.tdtDr}</td>
-                    <td style={{ padding: "12px 10px", color: "#111827", fontWeight: 600, maxWidth: 160 }}>{row.customer}</td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280" }}>{row.place}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 700 }}>{row.reservedQty}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "right" }}>{row.currentStock}</td>
-                    <td style={{ padding: "12px 10px", textAlign: "right", fontWeight: 600 }}>{row.estEnding}</td>
-                    <td style={{ padding: "12px 10px", color: "#6b7280" }}>{row.approvedBy}</td>
-                    <td style={{ padding: "12px 10px" }}>
-                      <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>{row.status}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => toggleCol(c.key)} style={{ accentColor: "#e87c27" }} />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+        <Table columns={visibleACPOCols.map(c => ({
+          ...c,
+          align: c.key === "reservedQty" || c.key === "currentStock" || c.key === "estEnding" ? "center" : "left",
+        }))}>
+          {paged.length === 0 && (
+            <tr>
+              <td colSpan={visibleACPOCols.length} className="wis-td wis-td-center wis-td-light" style={{ padding: "48px 20px", fontSize: 14 }}>
+                No results found for <strong style={{ color: "#374151" }}>"{searchSku || "your filters"}"</strong>
+              </td>
+            </tr>
+          )}
+          {paged.map((row, idx) => {
+            const rowBg = selectedId === row.id ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
+            return (
+              <tr
+                key={row.id}
+                className={`wis-tr ${idx % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"} ${selectedId === row.id ? "wis-tr-selected" : ""}`}
+                onClick={() => openEditDrawer(row)}
+                style={{ cursor: "pointer" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                onMouseLeave={e => e.currentTarget.style.background = rowBg}
+              >
+                {visibleACPOCols.map(c => {
+                  if (c.key === "transNo") return (
+                    <td key="transNo" className="wis-td wis-td-bold wis-td-sticky" style={{ background: rowBg }}><Highlight text={row.transNo} query={searchSku} /></td>
+                  );
+                  if (c.key === "resDate") return (
+                    <td key="resDate" className="wis-td" style={{ whiteSpace: "nowrap" }}><Highlight text={row.resDate} query={searchSku} /></td>
+                  );
+                  if (c.key === "soWo") return (
+                    <td key="soWo" className="wis-td"><Highlight text={row.soWo} query={searchSku} /></td>
+                  );
+                  if (c.key === "tdtDr") return (
+                    <td key="tdtDr" className="wis-td wis-td-accent wis-td-bold"><Highlight text={row.tdtDr} query={searchSku} /></td>
+                  );
+                  if (c.key === "customer") return (
+                    <td key="customer" title={row.customer} className="wis-td wis-td-bold" style={{ maxWidth: 150, minWidth: 110 }}><Highlight text={row.customer} query={searchSku} /></td>
+                  );
+                  if (c.key === "place") return (
+                    <td key="place" className="wis-td wis-td-muted"><Highlight text={row.place} query={searchSku} /></td>
+                  );
+                  if (c.key === "reservedQty") return (
+                    <td key="reservedQty" className="wis-td wis-td-center wis-td-bold"><Highlight text={row.reservedQty} query={searchSku} /></td>
+                  );
+                  if (c.key === "currentStock") return (
+                    <td key="currentStock" className="wis-td wis-td-center"><Highlight text={row.currentStock} query={searchSku} /></td>
+                  );
+                  if (c.key === "estEnding") return (
+                    <td key="estEnding" className="wis-td wis-td-center wis-td-bold"><Highlight text={row.estEnding} query={searchSku} /></td>
+                  );
+                  if (c.key === "approvedBy") return (
+                    <td key="approvedBy" className="wis-td wis-td-muted"><Highlight text={row.approvedBy} query={searchSku} /></td>
+                  );
+                  if (c.key === "status") return (
+                    <td key="status" className="wis-td wis-td-center">
+                      <span className={`wis-badge wis-badge-${row.status === "Active" ? "green" : row.status === "Pending" ? "yellow" : row.status === "Closed" ? "gray" : row.status === "Rejected" ? "red" : "blue"}`}>
+                        {row.status}
+                      </span>
+                    </td>
+                  );
+                  return null;
+                })}
+              </tr>
+            );
+          })}
+        </Table>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} Advance Customer PO — May 2026
+            Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length} Advance Customer PO — May 2026
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage === 1 ? "not-allowed" : "pointer", opacity: currentPage === 1 ? 0.4 : 1 }}>
+            <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage === 1 ? "not-allowed" : "pointer", opacity: currentPage === 1 ? 0.4 : 1 }}>
               <IconChevronLeft size={14} />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 6).map((n) => (
@@ -627,7 +920,7 @@ export default function AdvanceCustomerPOPage() {
                 {n}
               </button>
             ))}
-            <button type="button" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage === totalPages ? "not-allowed" : "pointer", opacity: currentPage === totalPages ? 0.4 : 1 }}>
+            <button type="button" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage === totalPages ? "not-allowed" : "pointer", opacity: currentPage === totalPages ? 0.4 : 1 }}>
               <IconChevronRight size={14} />
             </button>
           </div>
@@ -640,103 +933,185 @@ export default function AdvanceCustomerPOPage() {
         </div>
       )}
 
-      {panelOpen && selected && (
+      {editDrawerRow && editDraft && (
         <>
-          <button
-            type="button"
-            aria-label="Close reservation details"
-            onClick={() => setPanelOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15,23,42,0.35)",
-              zIndex: 1040,
-              border: "none",
-              cursor: "pointer",
-            }}
-          />
-          <aside
-            style={{
-              position: "fixed",
-              top: 0,
-              right: 0,
-              width: "min(420px, 100vw)",
-              height: "100vh",
-              background: "#ffffff",
-              zIndex: 1050,
-              boxShadow: "-8px 0 40px rgba(0,0,0,0.2)",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            <div style={{ padding: "22px 22px 16px", background: "#1c2235", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+          <button onClick={closeEditDrawer} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 1200, border: "none", cursor: "pointer" }} aria-label="Close drawer" />
+          <aside style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "min(96vw, 440px)", background: "#fff", zIndex: 1201, display: "flex", flexDirection: "column", boxShadow: "-4px 0 32px rgba(0,0,0,0.18)" }}>
+            <div style={{ background: "#1c2235", padding: "18px 20px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Reservation Details</h2>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20, background: panelBadge.badgeBg, color: "#fff" }}>{selected.status.toUpperCase()}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ color: "#fff", fontWeight: 800, fontSize: 15 }}>Edit Reservation #{editDrawerRow.transNo}</div>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 20, background: (STATUS_STYLE[editDrawerRow.status] || STATUS_STYLE.Pending).badgeBg, color: "#fff", lineHeight: "16px" }}>
+                    {editDrawerRow.status.toUpperCase()}
+                  </span>
                 </div>
-                <p style={{ margin: "10px 0 0", fontSize: 13, color: "#9ca3af", fontWeight: 600 }}>DR No. {selected.drNo}</p>
+                <div style={{ color: "#93a3c7", fontSize: 11, marginTop: 2 }}>{editDrawerRow.tdtDr}</div>
               </div>
-              <button type="button" onClick={() => setPanelOpen(false)} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
-                <IconX size={18} />
-              </button>
+              <button onClick={closeEditDrawer} style={{ background: "none", border: "none", color: "#93a3c7", cursor: "pointer", padding: 4 }}><IconX size={18} /></button>
             </div>
-
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px 24px", background: "#ffffff" }}>
-              {panelLines.map((line) => (
-                <div key={line.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #f3f4f6" }}>
-                  <span style={{ fontSize: 13, color: "#6b7280", fontWeight: 600 }}>{line.label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", textAlign: "right" }}>{line.value}</span>
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>RESERVATION DATE</label>
+                    <input type="date" value={editDraft.resDate || ""} onChange={e => setEditDraft(d => ({ ...d, resDate: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>SO#/WO#</label>
+                    <input value={editDraft.soWo || ""} onChange={e => setEditDraft(d => ({ ...d, soWo: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
                 </div>
-              ))}
-
-              <p style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.06em", margin: "20px 0 10px" }}>RESERVED ITEMS</p>
-              <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e5e7eb" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: "#f3f4f6" }}>
-                      {["Item Code", "Item Description", "Reserved Qty", "Est. Ending Balance"].map((h) => (
-                        <th
-                          key={h}
-                          style={{
-                            padding: "10px 8px",
-                            textAlign: h.includes("Qty") || h.includes("Balance") ? "right" : "left",
-                            fontWeight: 700,
-                            color: "#111827",
-                            fontSize: 11,
-                          }}
-                        >
-                          {h}
-                        </th>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>TDT DR#</label>
+                  <input value={editDraft.tdtDr || ""} onChange={e => setEditDraft(d => ({ ...d, tdtDr: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>CUSTOMER NAME</label>
+                  <input value={editDraft.customer || ""} onChange={e => setEditDraft(d => ({ ...d, customer: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>PLACE OF DELIVERY</label>
+                  <input value={editDraft.place || ""} onChange={e => setEditDraft(d => ({ ...d, place: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>RESERVED QTY</label>
+                    <input type="number" min={0} value={editDraft.reservedQty ?? ""} onChange={e => setEditDraft(d => ({ ...d, reservedQty: parseFloat(e.target.value) || 0 }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>CURRENT STOCK</label>
+                    <input type="number" min={0} value={editDraft.currentStock ?? ""} onChange={e => setEditDraft(d => ({ ...d, currentStock: parseFloat(e.target.value) || 0 }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                <div style={{ background: "#f8f9fb", borderRadius: 8, padding: "10px 14px" }}>
+                  <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 700 }}>EST ENDING BALANCE (auto)</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: (Number(editDraft.currentStock)||0) - (Number(editDraft.reservedQty)||0) < 0 ? "#dc2626" : "#374151", marginTop: 2 }}>
+                    {(Number(editDraft.currentStock) || 0) - (Number(editDraft.reservedQty) || 0)}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>APPROVED BY</label>
+                    <input value={editDraft.approvedBy || ""} onChange={e => setEditDraft(d => ({ ...d, approvedBy: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>STATUS</label>
+                    <select value={editDraft.status || "Pending"} onChange={e => setEditDraft(d => ({ ...d, status: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "#fff" }}>
+                      {["Active", "Pending", "Completed", "Cancelled", "Closed", "Rejected"].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", display: "block", marginBottom: 4 }}>REMARKS</label>
+                  <input value={editDraft.remarks || ""} onChange={e => setEditDraft(d => ({ ...d, remarks: e.target.value }))} style={{ width: "100%", padding: "7px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                {editDrawerRow.lineItems?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.06em", marginBottom: 8 }}>RESERVED ITEMS</div>
+                    <Table columns={[
+                      { key: "code", label: "Code", align: "left" },
+                      { key: "desc", label: "Description", align: "left" },
+                      { key: "qty", label: "Qty", align: "right" },
+                      { key: "value", label: "Value", align: "right" },
+                    ]}>
+                      {editDrawerRow.lineItems.map((it, i) => (
+                        <tr key={i} className={`wis-tr ${i % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"}`}>
+                          <td className="wis-td wis-td-left wis-td-bold" style={{ color: "#111827" }}>{it.code}</td>
+                          <td className="wis-td wis-td-left">{it.desc}</td>
+                          <td className="wis-td wis-td-right wis-td-bold">{it.qty}</td>
+                          <td className="wis-td wis-td-right wis-td-accent wis-td-bold">{fmtPHP(it.qty * it.lineValue)}</td>
+                        </tr>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.lineItems.map((it, i) => (
-                      <tr key={i} style={{ borderTop: "1px solid #e5e7eb", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                        <td style={{ padding: "10px 8px", color: "#111827", fontWeight: 600 }}>{it.code}</td>
-                        <td style={{ padding: "10px 8px", color: "#374151" }}>{it.desc}</td>
-                        <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 700 }}>{it.qty}</td>
-                        <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>{fmtPHP(it.qty * it.lineValue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </Table>
+                    <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, color: "#6b7280" }}>Total Reserved Value</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#e87c27" }}>{fmtPHP(editDrawerRow.lineItems.reduce((s, l) => s + l.qty * l.lineValue, 0))}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb", display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 14, color: "#6b7280" }}>Total Qty (line items)</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{sumLineQty}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 14, color: "#6b7280" }}>Total Reserved Value</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#e87c27" }}>{fmtPHP(sumLineValue)}</span>
-                </div>
-              </div>
+            </div>
+            <div style={{ padding: "14px 20px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={closeEditDrawer} style={{ padding: "8px 18px", border: "1px solid #d1d5db", borderRadius: 7, background: "#fff", color: "#374151", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={handleSaveDrawer} style={{ padding: "8px 18px", border: "none", borderRadius: 7, background: "#e87c27", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit" }}>Save Changes</button>
             </div>
           </aside>
+        </>
+      )}
+
+      {showCreate && (
+        <>
+          <div onClick={() => setShowCreate(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1100 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1200, background: "#fff", borderRadius: 16, width: "min(560px,95vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>Create New Reservation</h2>
+                <p style={{ margin: "3px 0 0", fontSize: 12, color: "#6b7280" }}>Fill in the advance customer PO details below</p>
+              </div>
+              <button type="button" onClick={() => setShowCreate(false)} style={{ background: "#f3f4f6", border: "none", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#4b5563", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+            <div style={{ padding: "20px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px" }}>
+              {[
+                { label: "Reservation Date", key: "resDate", type: "date" },
+                { label: "SO / WO No.", key: "soWo", type: "text", placeholder: "e.g. SO-1234" },
+                { label: "TDT DR No.", key: "tdtDr", type: "text", placeholder: "e.g. DR26050" },
+                { label: "Customer Name", key: "customer", type: "text", placeholder: "e.g. RCM Builders", full: true },
+                { label: "SKU Code", key: "sku", type: "text", placeholder: "e.g. DRB052" },
+                { label: "Delivery Location", key: "place", type: "text", placeholder: "e.g. Manila" },
+                { label: "Reserved Qty", key: "reservedQty", type: "number", placeholder: "0" },
+                { label: "Current Stock", key: "currentStock", type: "number", placeholder: "0" },
+                { label: "Approved By", key: "approvedBy", type: "text", placeholder: "e.g. J. Santos" },
+              ].map(({ label, key, type, placeholder, full }) => (
+                <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4, gridColumn: full ? "1 / -1" : undefined }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</label>
+                  <input type={type} value={createForm[key]} onChange={e => setCreateForm(f => ({ ...f, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    {...modalInput()}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa" }}>
+              <button type="button" onClick={() => setShowCreate(false)} style={{ padding: "10px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151" }}>Cancel</button>
+              <button type="button" onClick={() => {
+                if (!createForm.resDate || !createForm.customer || !createForm.sku) {
+                  setToast({ msg: "Please fill in Date, Customer, and SKU.", type: "error" });
+                  setTimeout(() => setToast(null), 3000);
+                  return;
+                }
+                const qty = Number(createForm.reservedQty) || 0;
+                const stock = Number(createForm.currentStock) || 0;
+                const newRes = {
+                  id: reservations.length + 1,
+                  transNo: String(reservations.length + 1).padStart(3, "0"),
+                  resDate: createForm.resDate,
+                  soWo: createForm.soWo,
+                  tdtDr: createForm.tdtDr,
+                  customer: createForm.customer,
+                  place: createForm.place,
+                  sku: createForm.sku.toUpperCase(),
+                  reservedQty: qty,
+                  currentStock: stock,
+                  estEnding: stock - qty,
+                  approvedBy: createForm.approvedBy,
+                  status: "Pending",
+                  lineItems: [{ sku: createForm.sku.toUpperCase(), desc: "", qty, unitCost: 0, totalCost: 0 }],
+                };
+                api.create(newRes).then(() => {
+                  setShowCreate(false);
+                  setCreateForm({ resDate: "", soWo: "", tdtDr: "", customer: "", place: "", sku: "", reservedQty: "", currentStock: "", approvedBy: "" });
+                  setToast({ msg: "Reservation created. Pending approval.", type: "success" });
+                  setTimeout(() => setToast(null), 3000);
+                  onPendingCreated?.(newRes);
+                }).catch(() => {
+                  setToast({ msg: "Failed to create reservation.", type: "error" });
+                  setTimeout(() => setToast(null), 3000);
+                });
+              }} style={{ padding: "10px 20px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                Create Reservation
+              </button>
+            </div>
+          </div>
         </>
       )}
     </div>

@@ -10,6 +10,7 @@ import PurchasingOrderPage, { INITIAL_PURCHASE_ORDERS } from "./PurchasingOrderP
 import AdvanceCustomerPOPage from "./AdvanceCustomerPOPage";
 import BackloadInventoryPage from "./BackloadInventoryPage";
 import ReturnPage from "./ReturnPage";
+import ApprovalPage from "./ApprovalPage";
 import NotificationPanel from "./NotificationPanel";
 import { shouldShowLowStockPrompt, markLowStockPromptShown } from "./notificationPrompt";
 import Logo from "./assets/Untitled_design.svg";
@@ -17,6 +18,7 @@ import {
   getLowStockProducts,
   getUniqueStockAlerts,
   syncProductsStatus,
+  normalizeWarningLevel,
 } from "./productUtils";
 import { INITIAL_PRODUCTS } from "./initialProducts";
 import {
@@ -30,8 +32,10 @@ import {
   toDashboardStockIn,
   toDashboardStockOut,
 } from "./stockTransactionSeeds";
+import MetricCard from "./MetricCard";
+import SystemModal from "./SystemModal";
 
-/* ─── ICONS ─────────────────────────────────────────────── */
+/* --- ICONS ----------------------------------------------- */
 function IconHome({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -263,8 +267,17 @@ function IconShield({ size = 16 }) {
     </svg>
   );
 }
+function IconApproval({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+    </svg>
+  );
+}
 
-/* ─── CUSTOM TOOLTIP ─────────────────────────────────────── */
+/* --- CUSTOM TOOLTIP --------------------------------------- */
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -292,7 +305,7 @@ const stockSubItems = [
   { label: "Return",              Icon: IconReturn     },
 ];
 
-/* ─── TOOLTIP WRAPPER ────────────────────────────────────── */
+/* --- TOOLTIP WRAPPER -------------------------------------- */
 function NavTooltip({ label, children, show }) {
   const [visible, setVisible] = useState(false);
   if (!show) return children;
@@ -327,8 +340,7 @@ function NavTooltip({ label, children, show }) {
   );
 }
 
-/* ─── HELPERS ────────────────────────────────────────────── */
-// Build chart data from actual stock-in / stock-out transactions for Last 7 Days
+/* --- HELPERS ---------------------------------------------- */
 function buildLast7DaysChart(stockIn, stockOut) {
   const days = ["Sun","Mon","Tues","Wed","Thurs","Fri","Sat"];
   const today = new Date();
@@ -345,7 +357,23 @@ function buildLast7DaysChart(stockIn, stockOut) {
   return result;
 }
 
-// Aggregate stock-out qty by SKU, return top 5
+function buildLast30DaysChart(stockIn, stockOut) {
+  const today = new Date();
+  const result = [];
+  for (let i = 3; i >= 0; i--) {
+    const weekEnd = new Date(today);
+    weekEnd.setDate(today.getDate() - i * 7);
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekEnd.getDate() - 6);
+    const startStr = weekStart.toISOString().slice(0, 10);
+    const endStr = weekEnd.toISOString().slice(0, 10);
+    const inQty  = stockIn.filter(t => t.date >= startStr && t.date <= endStr).reduce((s, t) => s + (t.qty || 0), 0);
+    const outQty = stockOut.filter(t => t.date >= startStr && t.date <= endStr).reduce((s, t) => s + (t.qty || 0), 0);
+    result.push({ day: `Wk ${4 - i}`, stockIn: inQty, stockOut: outQty });
+  }
+  return result;
+}
+
 function buildTopReleasedItems(stockOut, products) {
   const totals = {};
   stockOut.forEach(t => {
@@ -356,80 +384,595 @@ function buildTopReleasedItems(stockOut, products) {
     .slice(0, 5);
   const maxQty = sorted[0]?.[1] || 1;
   return sorted.map(([sku, qty]) => {
-    const p = products.find(p => p.sku === sku);
-    // short name from description
-    const desc = p?.description || sku;
-    const shortName = desc.length > 22 ? desc.slice(0, 22) + "…" : desc;
     return {
       sku,
-      name: shortName,
+      name: sku,
       value: `${qty} pcs`,
       pct: Math.round((qty / maxQty) * 100),
     };
   });
 }
 
-// Recent stock-in + stock-out combined (dashboard shows 12 by default)
 function buildRecentActivity(stockIn, stockOut, limit = 12) {
-  const ins  = stockIn.map(t  => ({
-    text: `${t.sku} · ${t.description} — ${t.qty.toLocaleString()} pcs in (${t.vendor})`,
+  const ins  = stockIn.map(t => ({
+    id: t.id,
+    sku: t.sku,
+    text: `${t.description} – ${t.qty.toLocaleString()} units received`,
     time: t.date,
     type: "in",
   }));
   const outs = stockOut.map(t => ({
-    text: `${t.sku} · ${t.description} — ${t.qty.toLocaleString()} pcs out (${t.customer})`,
+    id: t.id,
+    sku: t.sku,
+    text: `${t.description} – ${t.qty.toLocaleString()} units released`,
     time: t.date,
     type: "out",
   }));
   return [...ins, ...outs]
     .sort((a, b) => b.time.localeCompare(a.time))
     .slice(0, limit)
-    .map(a => ({ ...a, time: new Date(a.time).toLocaleDateString("en-PH", { month: "short", day: "numeric" }) }));
+    .map(a => ({ ...a, time: new Date(a.time).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }) }));
 }
 
-const inventoryDataByRange = {
-  "Last 30 Days": [
-    { day: "Week 1", stockIn: 2240, stockOut: 1340 },
-    { day: "Week 2", stockIn: 2680, stockOut: 1820 },
-    { day: "Week 3", stockIn: 1950, stockOut: 1560 },
-    { day: "Week 4", stockIn: 2120, stockOut: 1680 },
-  ],
-  "Last 6 Months": [
-    { day: "Jan", stockIn: 8500, stockOut: 6200 },
-    { day: "Feb", stockIn: 7800, stockOut: 5900 },
-    { day: "Mar", stockIn: 9200, stockOut: 7100 },
-    { day: "Apr", stockIn: 8900, stockOut: 6800 },
-    { day: "May", stockIn: 9600, stockOut: 7400 },
-    { day: "Jun", stockIn: 8200, stockOut: 6500 },
-  ],
-  "Last 1 Year": [
-    { day: "Jan", stockIn: 8500, stockOut: 6200 },
-    { day: "Feb", stockIn: 7800, stockOut: 5900 },
-    { day: "Mar", stockIn: 9200, stockOut: 7100 },
-    { day: "Apr", stockIn: 8900, stockOut: 6800 },
-    { day: "May", stockIn: 9600, stockOut: 7400 },
-    { day: "Jun", stockIn: 8200, stockOut: 6500 },
-    { day: "Jul", stockIn: 9100, stockOut: 7200 },
-    { day: "Aug", stockIn: 8700, stockOut: 6900 },
-    { day: "Sep", stockIn: 9300, stockOut: 7500 },
-    { day: "Oct", stockIn: 8800, stockOut: 6700 },
-    { day: "Nov", stockIn: 9500, stockOut: 7600 },
-    { day: "Dec", stockIn: 9900, stockOut: 8000 },
-  ],
-  "Last 5 Years": [
-    { day: "2020", stockIn: 95000,  stockOut: 75000 },
-    { day: "2021", stockIn: 102000, stockOut: 81000 },
-    { day: "2022", stockIn: 115000, stockOut: 92000 },
-    { day: "2023", stockIn: 108000, stockOut: 86000 },
-    { day: "2024", stockIn: 120000, stockOut: 95000 },
-  ],
-};
+/* --- TRANSACTION DETAIL MODAL ----------------------------- */
+function TransactionDetailModal({ transaction, onClose, onViewInSheets }) {
+  if (!transaction) return null;
+  const isIn = transaction.type === "in";
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)" }} onClick={onClose}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: "32px 36px", minWidth: 420, maxWidth: 520, boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: "0 0 20px 0", color: "#111827", fontSize: 18, fontWeight: 700 }}>
+          {isIn ? "Stock In" : "Stock Out"} — {transaction.sku}
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "10px 16px", fontSize: 14, color: "#374151" }}>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Transaction No.</span><span>{transaction.transNo || transaction.id || "—"}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Description</span><span>{transaction.description}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Quantity</span><span>{transaction.qty.toLocaleString()}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Date</span><span>{transaction.date}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Vendor / Recipient</span><span>{transaction.vendor || transaction.recipient || "—"}</span>
+          <span style={{ fontWeight: 600, color: "#6b7280" }}>Type</span><span>{isIn ? "Receiving" : "Release"}</span>
+        </div>
+        <div style={{ marginTop: 24, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", color: "#374151", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Close</button>
+          <button onClick={onViewInSheets} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#3571b9", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>View in Stock Sheets</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-/* ─── MAIN DASHBOARD ─────────────────────────────────────── */
-export default function Dashboard() {
+/* --- PERIOD FILTER HELPERS --------------------------------- */
+function filterByPeriod(data, period) {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  let startDate;
+  switch (period) {
+    case "Today":
+      startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case "Weekly":
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 6);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case "Monthly":
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 29);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case "Yearly":
+      startDate = new Date(today);
+      startDate.setFullYear(today.getFullYear() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    default:
+      return data;
+  }
+  const startStr = startDate.toISOString().slice(0, 10);
+  const endStr = today.toISOString().slice(0, 10);
+  return data.filter((t) => t.date >= startStr && t.date <= endStr);
+}
+
+function buildChartData(stockIn, stockOut, period) {
+  if (period === "Today") {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const inQty  = stockIn.filter((t) => t.date === todayStr).reduce((s, t) => s + t.qty, 0);
+    const outQty = stockOut.filter((t) => t.date === todayStr).reduce((s, t) => s + t.qty, 0);
+    return [{ day: "Today", stockIn: inQty, stockOut: outQty }];
+  }
+  if (period === "Weekly") return buildLast7DaysChart(stockIn, stockOut);
+  if (period === "Monthly") return buildLast30DaysChart(stockIn, stockOut);
+  if (period === "Yearly") {
+    const today = new Date();
+    const result = [];
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const inQty  = stockIn.filter((t) => t.date.startsWith(monthStr)).reduce((s, t) => s + t.qty, 0);
+      const outQty = stockOut.filter((t) => t.date.startsWith(monthStr)).reduce((s, t) => s + t.qty, 0);
+      result.push({ day: monthNames[d.getMonth()], stockIn: inQty, stockOut: outQty });
+    }
+    return result;
+  }
+  return [];
+}
+
+/* --- PROFILE PAGE ----------------------------------------- */
+function ProfileField({ label, value, type = "text" }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
+      <label style={{
+        fontSize: 10, fontWeight: 700, color: "#b0b9c6",
+        textTransform: "uppercase", letterSpacing: "0.07em", textAlign: "left",
+      }}>
+        {label}
+      </label>
+      <p style={{
+        fontSize: 13, color: "#1e293b", fontWeight: 500,
+        padding: "8px 0 7px", borderBottom: "1px solid #f1f5f9", margin: 0,
+        textAlign: "left",
+      }}>
+        {value || "—"}
+      </p>
+    </div>
+  );
+}
+
+function ProfilePage({ profile, onClose }) {
+  const [form] = useState({ ...profile });
+  const loginTime = useState(() =>
+    new Date().toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })
+  )[0];
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9000,
+      background: "rgba(15,23,42,0.5)", backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+    }} onClick={onClose}>
+      <div style={{
+        background: "#fff", borderRadius: 20, width: "100%", maxWidth: 620,
+        maxHeight: "92vh", overflow: "hidden", display: "flex", flexDirection: "column",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.22)",
+        animation: "wisModalFrameIn 0.28s cubic-bezier(0.16,1,0.3,1)",
+      }} onClick={e => e.stopPropagation()}>
+
+        {/* ── Header ── */}
+        <div style={{
+          padding: "22px 28px 18px", borderBottom: "1px solid #f1f5f9",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "#fff", flexShrink: 0,
+        }}>
+ <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+  <div style={{ position: "relative", flexShrink: 0 }}>
+  <div style={{
+    width: 52, height: 52, borderRadius: "50%",
+    background: "#e87c27",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    color: "#fff", fontWeight: 700, fontSize: 20,
+  }}>
+    {(form.name || "?")[0].toUpperCase()}
+  </div>
+
+  {/* Camera overlay button */}
+  <button
+    type="button"
+    title="Change profile photo"
+    onClick={() => alert("Photo upload coming soon.")}
+    style={{
+      position: "absolute", bottom: -2, right: -2,
+      width: 22, height: 22, borderRadius: "50%",
+      background: "#1e293b", border: "2px solid #fff",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      cursor: "pointer", padding: 0,
+      transition: "background 0.15s",
+    }}
+    onMouseEnter={e => e.currentTarget.style.background = "#e87c27"}
+    onMouseLeave={e => e.currentTarget.style.background = "#1e293b"}
+  >
+    <svg width={12} height={11} viewBox="0 0 24 24" fill="none"
+      stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+      <circle cx="12" cy="13" r="4"/>
+    </svg>
+  </button>
+</div>
+  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+    <h2 style={{ margin: "0 0 4px 2px", fontSize: 18, fontWeight: 800, color: "#0f172a", lineHeight: "1.1", textAlign: "left" }}>
+      My Profile
+    </h2>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, textAlign: "left" }}>
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        fontSize: 11, fontWeight: 600, color: "#e87c27",
+        padding: "3px 10px", borderRadius: 20,
+        background: "#fff7ed", border: "1px solid #fde8cc",
+        lineHeight: "1",
+      }}>
+        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        {form.role}
+      </span>
+      <span style={{ fontSize: 11, color: "#94a3b8", lineHeight: "1" }}>{form.department}</span>
+    </div>
+  </div>
+</div>
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, border: "1px solid #e5e7eb", borderRadius: 8,
+              background: "#fafafa", color: "#9ca3af", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = "#f1f5f9";
+              e.currentTarget.style.color = "#374151";
+              e.currentTarget.style.borderColor = "#d1d5db";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "#fafafa";
+              e.currentTarget.style.color = "#9ca3af";
+              e.currentTarget.style.borderColor = "#e5e7eb";
+            }}
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* ── Body ── */}
+        <div style={{
+          padding: "20px 28px 4px", overflowY: "auto", flex: 1,
+          display: "flex", flexDirection: "column", gap: 16,
+        }}>
+
+          {/* Personal Information */}
+          <section style={{
+            background: "#fffdf9", borderRadius: 12, padding: "18px 20px",
+            border: "1px solid #fde8cc", borderLeft: "4px solid #e87c27",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 7,
+                background: "#e87c27",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#fff", flexShrink: 0,
+              }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+              </div>
+              <h3 style={{
+                margin: 0, fontSize: 11, fontWeight: 700, color: "#0f172a",
+                textTransform: "uppercase", letterSpacing: "0.07em",
+              }}>Personal Information</h3>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <ProfileField label="Full Name" value={form.name} />
+              <ProfileField label="Email Address" value={form.email} />
+              <ProfileField label="Contact Number" value={form.phone} />
+            </div>
+          </section>
+
+          {/* Work Information */}
+          <section style={{
+            background: "#fffdf9", borderRadius: 12, padding: "18px 20px",
+            border: "1px solid #fde8cc", borderLeft: "4px solid #e87c27",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 7,
+                background: "#e87c27",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#fff", flexShrink: 0,
+              }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+                </svg>
+              </div>
+              <h3 style={{
+                margin: 0, fontSize: 11, fontWeight: 700, color: "#0f172a",
+                textTransform: "uppercase", letterSpacing: "0.07em",
+              }}>Work Information</h3>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <ProfileField label="Role" value={form.role} />
+              <ProfileField label="Department" value={form.department} />
+              <ProfileField label="Location" value={form.location} />
+            </div>
+          </section>
+
+          {/* Account Info — neutral, read-only */}
+          <section style={{
+            background: "#fafbfc", borderRadius: 12, padding: "18px 20px",
+                       border: "1px solid #fde8cc", borderLeft: "4px solid #e87c27",
+
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 7,
+                background: "#f1f5f9",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#94a3b8", flexShrink: 0,
+              }}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </div>
+              <h3 style={{
+                margin: 0, fontSize: 11, fontWeight: 700, color: "#64748b",
+                textTransform: "uppercase", letterSpacing: "0.07em",
+              }}>Account Info</h3>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <ProfileField label="Username" value={form.email?.split("@")[0] || "admin"} />
+              <ProfileField label="Last Log In" value={loginTime} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
+                <label style={{
+                  fontSize: 10, fontWeight: 700, color: "#b0b9c6",
+                  textTransform: "uppercase", letterSpacing: "0.07em", textAlign: "left",
+                }}>Password</label>
+                <button
+                  type="button"
+                  style={{
+                    alignSelf: "flex-start", marginTop: 4,
+                    padding: "7px 16px", borderRadius: 8,
+                    border: "1.5px solid #e5e7eb",
+                    background: "#fff", color: "#64748b",
+                    fontSize: 11, fontWeight: 600,
+                    cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = "#e87c27";
+                    e.currentTarget.style.color = "#e87c27";
+                    e.currentTarget.style.background = "#fff7ed";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = "#e5e7eb";
+                    e.currentTarget.style.color = "#64748b";
+                    e.currentTarget.style.background = "#fff";
+                  }}
+                  onClick={() => alert("Password change flow coming soon.")}
+                >
+                  Change Password
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Info note */}
+          <div style={{
+            background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10,
+            padding: "12px 16px", fontSize: 12, color: "#92400e",
+            display: "flex", gap: 10, alignItems: "flex-start", lineHeight: 1.5,
+            marginBottom: 8,
+          }}>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>
+              <strong>Note:</strong> Profile information is read-only. Account Info fields (username, password, last login) are managed by your system administrator.
+            </span>
+          </div>
+        </div>
+
+        {/* ── Footer ── */}
+        <div style={{
+          padding: "16px 28px", borderTop: "1px solid #f1f5f9",
+          background: "#fafbfc", display: "flex", justifyContent: "flex-end", flexShrink: 0,
+        }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "9px 22px", borderRadius: 9, border: "none",
+              background: "#e87c27",
+              color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700,
+              fontFamily: "inherit",
+              boxShadow: "0 2px 8px rgba(232,124,39,0.25)",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = "#d07020";
+              e.currentTarget.style.boxShadow = "0 4px 14px rgba(232,124,39,0.35)";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "#e87c27";
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(232,124,39,0.25)";
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WarehouseDropdown({ selected, setSelected }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const options = ["All Warehouses", "Meycauayan", "Pampanga", "Marilao"];
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 160 }}>
+     <div
+  onClick={() => setOpen(!open)}
+  style={{
+    padding: "8px 12px",
+    fontSize: 13,
+    fontWeight: 600,
+    border: "1.5px solid #E0E0E0",
+    borderRadius: 20,
+    background: "#fff",
+    color: "#333",
+    cursor: "pointer",
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    boxShadow: "0px 2px 4px rgba(0,0,0,0.08)",
+    userSelect: "none",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",  // <-- space-between
+    gap: 4,
+  }}
+>
+  <span style={{ flex: 1 }}>{selected}</span>         {/* <-- flex:1 */}
+<span style={{ color: "#9E9E9E", display: "flex", alignItems: "center", flexShrink: 0, marginLeft: 9 }}>
+    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+      <path d="M19 9l-7 7-7-7"/>
+    </svg>
+  </span>
+</div>
+
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 6px)",
+          left: 0,
+          minWidth: "100%",
+          background: "#fff",
+          border: "1.5px solid #E0E0E0",
+          borderRadius: 12,
+          boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+          overflow: "hidden",
+          zIndex: 100,
+        }}>
+          {options.map(opt => (
+            <div
+              key={opt}
+              onClick={() => { setSelected(opt); setOpen(false); }}
+              style={{
+                padding: "10px 14px",
+                fontSize: 13,
+                cursor: "pointer",
+                color: opt === selected ? "#E87722" : "#333",
+                fontWeight: opt === selected ? 600 : 400,
+                background: opt === selected ? "#FFF5EE" : "#fff",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#FFF5EE"}
+              onMouseLeave={e => e.currentTarget.style.background = opt === selected ? "#FFF5EE" : "#fff"}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CalendarDropdown({ selected, setSelected }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const options = ["Today", "Weekly", "Monthly", "Yearly"];
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 140 }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          padding: "8px 12px",
+          fontSize: 13,
+          fontWeight: 600,
+          border: "1.5px solid #E0E0E0",
+          borderRadius: 20,
+          background: "#fff",
+          color: "#333",
+          cursor: "pointer",
+          fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+          boxShadow: "0px 2px 4px rgba(0,0,0,0.08)",
+          userSelect: "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 4,
+        }}
+      >
+        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" style={{ flexShrink: 0, color: "#e87c27" }}>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span style={{ flex: 1, marginLeft: 4 }}>{selected}</span>
+        <span style={{ color: "#9E9E9E", display: "flex", alignItems: "center", flexShrink: 0, marginLeft: 4 }}>
+          <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+            <path d="M19 9l-7 7-7-7"/>
+          </svg>
+        </span>
+      </div>
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 6px)",
+          left: 0,
+          minWidth: "100%",
+          background: "#fff",
+          border: "1.5px solid #E0E0E0",
+          borderRadius: 12,
+          boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+          overflow: "hidden",
+          zIndex: 100,
+        }}>
+          {options.map(opt => (
+            <div
+              key={opt}
+              onClick={() => { setSelected(opt); setOpen(false); }}
+              style={{
+                padding: "10px 14px",
+                fontSize: 13,
+                cursor: "pointer",
+                color: opt === selected ? "#E87722" : "#333",
+                fontWeight: opt === selected ? 600 : 400,
+                background: opt === selected ? "#FFF5EE" : "#fff",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#FFF5EE"}
+              onMouseLeave={e => e.currentTarget.style.background = opt === selected ? "#FFF5EE" : "#fff"}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Dashboard({ onLogout, userName, navigateTarget, onNavigated }) {
   const [activeNav, setActiveNav]         = useState("Home");
+
+  useEffect(() => {
+    if (navigateTarget) {
+      setActiveNav(navigateTarget);
+      onNavigated?.();
+    }
+  }, [navigateTarget, onNavigated]);
   const [stockExpanded, setStockExpanded] = useState(false);
-  const [dateRange, setDateRange]         = useState("Last 7 Days");
+  const [dashboardPeriod, setDashboardPeriod] = useState("Weekly");
   const [sidebarOpen, setSidebarOpen]     = useState(true);
   const [productStatusFilter, setProductStatusFilter] = useState("All Status");
   const [poStatusFilter, setPoStatusFilter]           = useState("All Status");
@@ -439,12 +982,20 @@ export default function Dashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
-  const [drbLimit, setDrbLimit] = useState(10);
+  const [showProfilePage, setShowProfilePage] = useState(false);
+  const [selectedWarehouse, setSelectedWarehouse] = useState("All Warehouses");
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [stockSheetsSku, setStockSheetsSku] = useState(null);
+  const [userProfile, setUserProfile] = useState({
+    name: userName || "Admin User",
+    email: "chelsea.lopez@tdt.com",
+    phone: "+63 917 123 4567",
+    role: "Warehouse Administrator",
+    department: "Operations",
+    location: "Marilao Warehouse",
+  });
   const sidebarRef = useRef(null);
   const profileRef = useRef(null);
-  const [pileLimit, setPileLimit] = useState(5);
-  const [plateLimit, setPlateLimit] = useState(8);
-  const [faqExpanded, setFaqExpanded] = useState({});
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -452,8 +1003,41 @@ export default function Dashboard() {
   };
   const lowStockPromptChecked = useRef(false);
 
-  // ── Shared data lifted here ──────────────────────────────
-  const [products, setProducts]   = useState(() => syncProductsStatus(INITIAL_PRODUCTS));
+  // ── Approval flow ──────────────────────────────────────────
+  const [pendingApprovals, setPendingApprovals] = useState([
+    { id: 3, transNo: "013", resDate: "2026-05-03", soWo: "SO-88488", tdtDr: "DR1589722", customer: "Prime Builders Corp.", place: "Cebu", reservedQty: 18, currentStock: 200, estEnding: 182, approvedBy: "A. Reyes", status: "Pending", summarySku: "WF10833", summaryItem: "Wide Flange, 10 x 8 x 33# x 6M" },
+    { id: 8, transNo: "018", resDate: "2026-05-08", soWo: "SO-88550", tdtDr: "DR1590220", customer: "Brencon Developers Phils.", place: "Manila", reservedQty: 28, currentStock: 500, estEnding: 472, approvedBy: "A. Reyes", status: "Pending", summarySku: "GP3302", summaryItem: "GI pipe 1\"" },
+  ]);
+  const [acpoStatusUpdates, setAcpoStatusUpdates] = useState([]);
+
+  const handlePendingCreated = (item) => {
+    setPendingApprovals(prev => [...prev, item]);
+  };
+  const handleApprovalAction = (id, newStatus) => {
+    const item = pendingApprovals.find(p => p.id === id);
+    setPendingApprovals(prev => prev.filter(p => p.id !== id));
+    setAcpoStatusUpdates(prev => [...prev, { id, status: newStatus }]);
+    showToast(
+      newStatus === "Active"
+        ? `Reservation #${item?.transNo} approved.`
+        : `Reservation #${item?.transNo} rejected.`,
+      newStatus === "Active" ? "success" : "error"
+    );
+  };
+ const displayName = userProfile.name || "Admin User";
+const firstName = (userName || displayName).split(" ")[0];
+
+
+  const [products, setProducts] = useState(() =>
+    syncProductsStatus(INITIAL_PRODUCTS).map((p) => ({
+      ...p,
+      warningLevel: normalizeWarningLevel(p.warningLevel),
+      targetMax: Math.max(
+        normalizeWarningLevel(p.warningLevel),
+        Number(p.targetMax) || normalizeWarningLevel(p.warningLevel) * 4
+      ),
+    }))
+  );
   const [stockInRows, setStockInRows] = useState(SEED_STOCK_IN);
   const [stockOutRows, setStockOutRows] = useState(SEED_STOCK_OUT);
   const stockIn = useMemo(() => toDashboardStockIn(stockInRows), [stockInRows]);
@@ -472,10 +1056,7 @@ export default function Dashboard() {
     () => sumEndingInventoryValue(endingInventory),
     [endingInventory],
   );
-  const transactionsToday = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return stockIn.filter((t) => t.date === today).length + stockOut.filter((t) => t.date === today).length;
-  }, [stockIn, stockOut]);
+  const isMarilaoOnly = selectedWarehouse === "All Warehouses" || selectedWarehouse === "Marilao";
 
   const goToPendingDeliveries = () => {
     setPoStatusFilter("Pending");
@@ -485,20 +1066,53 @@ export default function Dashboard() {
     setStockExpanded(true);
     setActiveNav("Ending Inventory");
   };
-  const goToStockSheets = () => setActiveNav("Stock Sheets");
+  const goToStockSheets = () => setActiveNav("Stock Card");
+  const handleActivityClick = (a) => {
+    const allRows = [...stockInRows.map(r => ({ ...r, type: "in" })), ...stockOutRows.map(r => ({ ...r, type: "out" }))];
+    const full = allRows.find(r => r.id === a.id);
+    setSelectedTransaction(full || null);
+  };
+  const handleViewInSheets = () => {
+    if (selectedTransaction) {
+      setStockSheetsSku(selectedTransaction.sku);
+      setSelectedTransaction(null);
+      setActiveNav("Stock Card");
+    }
+  };
 
-  // ── Derived dashboard data ───────────────────────────────
   const lowStockAll      = getLowStockProducts(products);
   const stockAlerts      = getUniqueStockAlerts(products);
-  const topReleasedItems = buildTopReleasedItems(stockOut, products);
-  const recentActivity        = buildRecentActivity(stockIn, stockOut, 30);
   const notificationActivity  = buildRecentActivity(stockIn, stockOut, 20);
   const notificationCount     = stockAlerts.length + notificationActivity.length;
-  const chartData = dateRange === "Last 7 Days"
-    ? buildLast7DaysChart(stockIn, stockOut)
-    : inventoryDataByRange[dateRange] || [];
+
+  const filteredStockIn = useMemo(
+    () => (isMarilaoOnly ? filterByPeriod(stockIn, dashboardPeriod) : []),
+    [stockIn, dashboardPeriod, isMarilaoOnly]
+  );
+  const filteredStockOut = useMemo(
+    () => (isMarilaoOnly ? filterByPeriod(stockOut, dashboardPeriod) : []),
+    [stockOut, dashboardPeriod, isMarilaoOnly]
+  );
+
+  const transactionsInPeriod = useMemo(
+    () => filteredStockIn.length + filteredStockOut.length,
+    [filteredStockIn, filteredStockOut]
+  );
+  const topReleasedItems = useMemo(
+    () => buildTopReleasedItems(filteredStockOut, products),
+    [filteredStockOut, products]
+  );
+  const recentActivity = useMemo(
+    () => buildRecentActivity(filteredStockIn, filteredStockOut, 30),
+    [filteredStockIn, filteredStockOut]
+  );
+  const chartData = useMemo(
+    () => buildChartData(filteredStockIn, filteredStockOut, dashboardPeriod),
+    [filteredStockIn, filteredStockOut, dashboardPeriod]
+  );
   const chartYMax = (() => {
     const peak = chartData.reduce((m, d) => Math.max(m, d.stockIn || 0, d.stockOut || 0), 0);
+    if (!isMarilaoOnly) return 100;
     if (peak <= 0) return 100;
     const padded = peak * 1.25;
     const step = padded <= 120 ? 25 : padded <= 600 ? 50 : 100;
@@ -515,14 +1129,11 @@ export default function Dashboard() {
     setNotificationsOpen(false);
   }, [activeNav]);
 
-  // Auto-open low-stock notifications once per login (once ever while guest / no auth)
   useEffect(() => {
     if (lowStockPromptChecked.current || stockAlerts.length === 0) return;
     lowStockPromptChecked.current = true;
-
-    const userId = null; // TODO: set from auth after login is implemented
+    const userId = null;
     if (!shouldShowLowStockPrompt(userId)) return;
-
     setNotificationTab("stock");
     setNotificationsOpen(true);
     markLowStockPromptShown(userId);
@@ -534,7 +1145,6 @@ export default function Dashboard() {
         if (profileMenuOpen) setProfileMenuOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleDocumentClick);
     return () => document.removeEventListener("mousedown", handleDocumentClick);
   }, [profileMenuOpen]);
@@ -548,7 +1158,7 @@ export default function Dashboard() {
     { label: "Product",          Icon: IconCart,   hasChildren: false },
     { label: "Stock Management", Icon: IconStock,  hasChildren: true  },
     { label: "Purchasing Order", Icon: IconPO,     hasChildren: false },
-    { label: "Stock Sheets",     Icon: IconSheets, hasChildren: false },
+    { label: "Stock Card",     Icon: IconSheets, hasChildren: false },
   ];
 
   const isAnyStockSubActive = stockSubItems.some(s => s.label === activeNav);
@@ -561,6 +1171,8 @@ export default function Dashboard() {
         html, body, #root { width: 100%; height: 100%; overflow: hidden; }
         body { font-family: 'Poppins', sans-serif; background: #f5f6fa; }
         #root { max-width: 100% !important; width: 100% !important; border: none !important; }
+        aside nav::-webkit-scrollbar { display: none; }
+
         #scroll-area::-webkit-scrollbar { width: 4px; }
         #scroll-area::-webkit-scrollbar-track { background: #f1f1f1; }
         #scroll-area::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
@@ -625,39 +1237,38 @@ export default function Dashboard() {
 
         .alert-row {
           display: flex; align-items: center; justify-content: space-between;
-          padding: 12px 16px; background: #fafafa;
-          border-radius: 10; border: 1px solid #f3f4f6;
+          padding: 14px 16px;
+          text-align: left;
+          border-bottom: 1px solid #f3f4f6;
           cursor: pointer;
-          transition: background 0.15s ease, box-shadow 0.15s ease;
-          border-radius: 10px;
+          transition: background 0.15s ease;
         }
-        .alert-row:hover {
-          background: #fff7ed;
-          box-shadow: 0 2px 8px rgba(232,124,39,0.12);
-          border-color: #fde68a;
-        }
+        .alert-row:last-child { border-bottom: none; }
+        .alert-row:hover { background: #fffbf5; }
         .alert-row:hover .alert-arrow { opacity: 1; transform: translateX(2px); }
         .alert-arrow {
           opacity: 0;
           transition: opacity 0.15s ease, transform 0.15s ease;
           color: #e87c27;
-          display: flex;
-          align-items: center;
+          display: flex; align-items: center;
         }
 
+        .activity-row {
+          display: flex; align-items: center; gap: 14px;
+          padding: 13px 0;
+          border-bottom: 1px solid #f3f4f6;
+          cursor: pointer;
+          transition: background 0.12s;
+          text-align: left;
+        }
+        .activity-row:last-child { border-bottom: none; }
+        .activity-row:hover { background: #fafafa; }
+
         .dashboard-scroll-panel {
-          max-height: 320px;
-          overflow-y: auto;
-          overflow-x: hidden;
-          padding-right: 4px;
-          margin-right: -4px;
+          flex: 1; overflow-y: auto; overflow-x: hidden;
         }
-        .dashboard-scroll-panel::-webkit-scrollbar { width: 6px; }
-        .dashboard-scroll-panel::-webkit-scrollbar-thumb {
-          background: #d1d5db;
-          border-radius: 3px;
-        }
-        .dashboard-scroll-panel::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .dashboard-scroll-panel::-webkit-scrollbar { width: 4px; }
+        .dashboard-scroll-panel::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 2px; }
         .dashboard-scroll-panel::-webkit-scrollbar-track { background: transparent; }
 
         .dashboard-pair-card {
@@ -777,37 +1388,40 @@ export default function Dashboard() {
           transition: background 0.15s ease;
         }
         .notif-item-btn:hover { background: #fff7ed; }
-        .notif-item-static {
-          display: flex; align-items: center; gap: 12px;
-          padding: 12px 16px; border-bottom: 1px solid #f3f4f6;
-        }
         .notif-footer-btn {
           display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-          padding: 10px 14px; border-radius: 8px; border: none; cursor: pointer;
+          padding: 10px 14px; border-radius: 8px; cursor: pointer;
           font-size: 11px; font-weight: 700; font-family: inherit;
-          transition: opacity 0.15s ease;
-        }
-        .notif-footer-btn:hover { opacity: 0.9; }
-        .notif-footer-primary {
-          flex: 1; background: #e87c27; color: #fff;
-        }
-        .notif-footer-secondary {
           flex: 1; background: #fff; color: #374151; border: 1px solid #e5e7eb;
+          transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        }
+        .notif-footer-btn:hover,
+        .notif-footer-btn:focus-visible {
+          background: #fff7ed; color: #e87c27; border-color: #fed7aa;
+        }
+        .notif-footer-btn:active {
+          background: #ffedd5; color: #d07020; border-color: #fdba74;
         }
 
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-6px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+
         @keyframes metricPulse {
-          0%, 100% { transform: scale(1); opacity: 0.12; }
-          50% { transform: scale(1.1); opacity: 0.18; }
+          0%, 100% { transform: scale(1); opacity: 0.15; }
+          50% { transform: scale(1.15); opacity: 0.25; }
+        }
+
+        @keyframes wisModalFrameIn {
+          from { opacity: 0; transform: scale(0.97) translateY(8px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
         }
       `}</style>
 
       <div style={{ display: "flex", width: "100vw", height: "100vh", overflow: "hidden" }}>
 
-        {/* ── SIDEBAR ── */}
+        {/* -- SIDEBAR -- */}
         <aside
           ref={sidebarRef}
           className="sidebar-transition"
@@ -824,7 +1438,7 @@ export default function Dashboard() {
           }}>
             {sidebarOpen && (
               <img src={Logo} alt="TDT PowerSteel Logo"
-                style={{ width: "170px", height: "auto", display: "block", flexShrink: 0 }} />
+                style={{ width: "195px", height: "auto", display: "block", flexShrink: 0 }} />
             )}
             <button className="toggle-btn" onClick={() => {
                 setSidebarOpen(v => {
@@ -847,10 +1461,10 @@ export default function Dashboard() {
             }}>Menu</p>
           )}
 
-          <nav style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 20 }}>
+<nav style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 20, scrollbarWidth: "none", msOverflowStyle: "none" }}>
             {menuItems.map(({ label, Icon, hasChildren }) => {
-              const isActive      = activeNav === label;
-              const isItemActive  = isActive;
+              const isActive     = activeNav === label;
+              const isItemActive = isActive;
 
               return (
                 <div key={label}>
@@ -914,6 +1528,49 @@ export default function Dashboard() {
                 fontSize: 12, fontWeight: 700, color: "#3d4f63",
                 letterSpacing: "0.12em", textTransform: "uppercase",
                 padding: "12px 20px 8px",
+              }}>APPROVALS</p>
+            )}
+
+            <NavTooltip label={`Pending Approvals${pendingApprovals.length > 0 ? ` (${pendingApprovals.length})` : ""}`} show={!sidebarOpen}>
+              <button
+                className={`nav-btn ${sidebarOpen ? "expanded" : ""} ${activeNav === "Pending Approvals" ? "active" : ""}`}
+                onClick={() => setActiveNav("Pending Approvals")}
+              >
+                <span style={{ position: "relative", flexShrink: 0, display: "flex" }}>
+                  <IconApproval size={22} />
+                  {!sidebarOpen && pendingApprovals.length > 0 && (
+                    <span style={{
+                      position: "absolute", top: -3, right: -3,
+                      width: 9, height: 9, borderRadius: "50%",
+                      background: "#dc2626", border: "1.5px solid #141C25",
+                    }} />
+                  )}
+                </span>
+                {sidebarOpen && (
+                  <>
+                    <span style={{ flex: 1 }}>Pending Approvals</span>
+                    {pendingApprovals.length > 0 && (
+                      <span style={{
+                        background: "#dc2626", color: "#fff",
+                        borderRadius: 10, padding: "2px 8px",
+                        fontSize: 11, fontWeight: 700, lineHeight: "16px",
+                        minWidth: 20, textAlign: "center",
+                      }}>
+                        {pendingApprovals.length}
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+            </NavTooltip>
+
+            <div style={{ height: 1, background: "#1e2a38", margin: "12px 14px 0" }} />
+
+            {sidebarOpen && (
+              <p style={{
+                fontSize: 12, fontWeight: 700, color: "#3d4f63",
+                letterSpacing: "0.12em", textTransform: "uppercase",
+                padding: "12px 20px 8px",
               }}>GENERAL</p>
             )}
 
@@ -952,21 +1609,15 @@ export default function Dashboard() {
                 <div>
                   <button type="button"
                     className={`sub-btn ${activeNav === "user-management" ? "active" : ""}`}
-                    onClick={() => {
-                      setActiveNav("user-management");
-                      setActiveModal("user-management");
-                    }}>
+                    onClick={() => { setActiveNav("user-management"); setActiveModal("user-management"); }}>
                     <IconUser size={15} />
-                    User management
+                    User Management
                   </button>
                   <button type="button"
                     className={`sub-btn ${activeNav === "stock-limits" ? "active" : ""}`}
-                    onClick={() => {
-                      setActiveNav("stock-limits");
-                      setActiveModal("stock-limits");
-                    }}>
+                    onClick={() => { setActiveNav("stock-limits"); setActiveModal("stock-limits"); }}>
                     <IconShield size={15} />
-                    Stock limits
+                    Stock Limits
                   </button>
                 </div>
               )}
@@ -1007,46 +1658,33 @@ export default function Dashboard() {
                 <div>
                   <button type="button"
                     className={`sub-btn ${activeNav === "user-guide" ? "active" : ""}`}
-                    onClick={() => {
-                      setActiveNav("user-guide");
-                      setActiveModal("user-guide");
-                    }}>
-                    User guide
+                    onClick={() => { setActiveNav("user-guide"); setActiveModal("user-guide"); }}>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+                    User Guide
                   </button>
                   <button type="button"
                     className={`sub-btn ${activeNav === "faqs" ? "active" : ""}`}
-                    onClick={() => {
-                      setActiveNav("faqs");
-                      setActiveModal("faqs");
-                    }}>
+                    onClick={() => { setActiveNav("faqs"); setActiveModal("faqs"); }}>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     FAQs
                   </button>
                   <button type="button"
                     className={`sub-btn ${activeNav === "about" ? "active" : ""}`}
-                    onClick={() => {
-                      setActiveNav("about");
-                      setActiveModal("about");
-                    }}>
-                    About system
+                    onClick={() => { setActiveNav("about"); setActiveModal("about"); }}>
+                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    About
                   </button>
-                  <button type="button"
-                    className={`sub-btn ${activeNav === "contact" ? "active" : ""}`}
-                    onClick={() => {
-                      setActiveNav("contact");
-                      setActiveModal("contact");
-                    }}>
-                    Contact support
-                  </button>
+
                 </div>
               )}
             </div>
           </nav>
         </aside>
 
-        {/* ── MAIN COLUMN ── */}
+        {/* -- MAIN COLUMN -- */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100vh", overflow: "hidden" }}>
 
-          {/* ── Header ── */}
+          {/* -- Header -- */}
           <header style={{
             minHeight: 80, background: "#fff",
             borderBottom: "1px solid #e9ecef",
@@ -1055,34 +1693,43 @@ export default function Dashboard() {
             flexShrink: 0,
           }}>
             <div>
-              <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0 }}>
-                {activeNav === "Product"              ? "List of SKU"
-                  : activeNav === "Ending Inventory"  ? "Ending Inventory"
-                  : activeNav === "Stock Sheets"      ? "Stock Sheets"
-                  : activeNav === "Purchasing Order"  ? "Purchasing Orders"
-                  : activeNav === "Backload Inventory"? "Backload Inventory"
-                  : activeNav === "Advance Customer PO"?"Advance Customer PO"
-                  : activeNav === "Return"            ? "Returns"
-                  : "Welcome Back, Chelsea!"}
+              <h1 style={{ fontSize: 26, fontWeight: 900, color: "#111827", letterSpacing: "-0.5px", margin: 0, textAlign: "left" }}>
+                {activeNav === "Product"               ? "List of SKU"
+                  : activeNav === "Ending Inventory"   ? "Ending Inventory"
+                  : activeNav === "Stock Card"       ? "Stock Card"
+                  : activeNav === "Purchasing Order"   ? "Purchasing Orders"
+                  : activeNav === "Backload Inventory" ? "Backload Inventory"
+                  : activeNav === "Advance Customer PO"? "Advance Customer PO"
+                  : activeNav === "Return"             ? "Returns"
+                  : activeNav === "Pending Approvals"  ? "Pending Approvals"
+                  : `Welcome Back, ${firstName}!`}
               </h1>
-              {activeNav === "Product"               && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
-              {activeNav === "Ending Inventory"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Monthly Warehouse Inventory</p>}
-              {activeNav === "Stock Sheets"          && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>}
-              {activeNav === "Purchasing Order"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>}
-              {activeNav === "Backload Inventory"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Track backloaded inventory</p>}
-              {activeNav === "Advance Customer PO"   && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Advance customer purchase orders</p>}
-              {activeNav === "Return"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
+              {activeNav === "Product"                && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Master list of all Stock Keeping Units</p>}
+              {activeNav === "Ending Inventory"       && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Monthly Warehouse Inventory</p>}
+              {activeNav === "Stock Card"           && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Stock transaction records</p>}
+              {activeNav === "Purchasing Order"       && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage purchase orders from suppliers</p>}
+              {activeNav === "Backload Inventory"     && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Track backloaded inventory</p>}
+              {activeNav === "Advance Customer PO"    && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0", textAlign: "left" }}>Advance customer purchase orders</p>}
+              {activeNav === "Return"                 && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Manage returned items</p>}
+              {activeNav === "Pending Approvals"      && <p style={{ fontSize: 12, color: "#6b7280", margin: "2px 0 0" }}>Review and act on pending reservation requests</p>}
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              {/* Bell — notification panel */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <WarehouseDropdown
+  selected={selectedWarehouse}
+  setSelected={setSelectedWarehouse}
+/>
+              {activeNav === "Home" && (
+                <CalendarDropdown
+                  selected={dashboardPeriod}
+                  setSelected={setDashboardPeriod}
+                />
+              )}
+  
               <div style={{ position: "relative", zIndex: notificationsOpen ? 2001 : undefined }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    setNotificationTab("all");
-                    setNotificationsOpen((v) => !v);
-                  }}
+                  onClick={() => { setNotificationTab("all"); setNotificationsOpen((v) => !v); }}
                   title="Notifications"
                   aria-expanded={notificationsOpen}
                   aria-haspopup="dialog"
@@ -1113,12 +1760,10 @@ export default function Dashboard() {
                   lowStockRowCount={lowStockAll.length}
                   recentActivity={notificationActivity}
                   onViewLowStock={goToLowStock}
-                  onViewStockSheets={() => {
-                    setNotificationsOpen(false);
-                    goToStockSheets();
-                  }}
+                  onViewStockSheets={() => { setNotificationsOpen(false); goToStockSheets(); }}
                 />
               </div>
+
               <div
                 ref={profileRef}
                 onClick={() => setProfileMenuOpen(v => !v)}
@@ -1126,24 +1771,41 @@ export default function Dashboard() {
               >
                 <div style={{
                   width: 42, height: 42, borderRadius: "50%",
-                  overflow: "hidden", border: "2px solid #e5e7eb", flexShrink: 0,
+                  overflow: "hidden", border: "2px solid #ffffff", flexShrink: 0,
                 }}>
                   <img
-                    src="https://ui-avatars.com/api/?name=Chelsea+Lopez&background=d1d5db&color=374151&size=42"
-                    alt="CL"
+src={`https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=e87c27&color=ffffff&size=42`}
+                    alt="avatar"
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={e => { e.target.style.display = "none"; }}
                   />
                 </div>
-                <span style={{ fontSize: 15, fontWeight: 600, color: "#374151" }}>Chelsea Lopez</span>
-                <span style={{ color: "#9ca3af", display: "flex", transform: profileMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><IconChevronDown size={15} /></span>
+                <span style={{ fontSize: 15, fontWeight: 600, color: "#374151" }}>{displayName}</span>
+                <span style={{ color: "#9ca3af", display: "flex", transform: profileMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                  <IconChevronDown size={15} />
+                </span>
 
                 {profileMenuOpen && (
                   <div className="profile-dropdown" onClick={e => e.stopPropagation()}>
                     <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6" }}>
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#111827" }}>Chelsea Lopez</p>
-                      <p style={{ margin: "2px 0 0", fontSize: 11, color: "#6b7280" }}>chelsea.lopez@tdt.com</p>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#111827" }}>{displayName}</p>
+                      <p style={{ margin: "2px 0 0", fontSize: 11, color: "#6b7280" }}>{userProfile.email}</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => { setProfileMenuOpen(false); setShowProfilePage(true); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8, padding: "10px 16px",
+                        border: "none", background: "none", width: "100%", textAlign: "left",
+                        cursor: "pointer", fontSize: 13, color: "#374151", fontWeight: 600,
+                        transition: "background 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                      onMouseLeave={e => e.currentTarget.style.background = "none"}
+                    >
+                      <IconUser size={16} />
+                      My Profile
+                    </button>
                     <button
                       type="button"
                       onClick={() => { setProfileMenuOpen(false); setActiveModal("logout"); }}
@@ -1151,7 +1813,7 @@ export default function Dashboard() {
                         display: "flex", alignItems: "center", gap: 8, padding: "10px 16px",
                         border: "none", background: "none", width: "100%", textAlign: "left",
                         cursor: "pointer", fontSize: 13, color: "#ef4444", fontWeight: 600,
-                        transition: "background 0.15s"
+                        transition: "background 0.15s", borderTop: "1px solid #f3f4f6",
                       }}
                       onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
                       onMouseLeave={e => e.currentTarget.style.background = "none"}
@@ -1165,7 +1827,7 @@ export default function Dashboard() {
             </div>
           </header>
 
-          {/* ── Scrollable Content ── */}
+          {/* -- Scrollable Content -- */}
           <main id="scroll-area" style={{
             flex: 1, overflowY: "auto",
             background: "#f0f2f5",
@@ -1175,6 +1837,8 @@ export default function Dashboard() {
               <ProductPage
                 products={products}
                 setProducts={setProducts}
+                stockInRows={stockInRows}
+                stockOutRows={stockOutRows}
                 initialStatusFilter={productStatusFilter}
               />
             ) : activeNav === "Ending Inventory" ? (
@@ -1182,12 +1846,14 @@ export default function Dashboard() {
                 inventoryData={endingInventory}
                 setInventoryData={setEndingInventory}
               />
-            ) : activeNav === "Stock Sheets" ? (
+            ) : activeNav === "Stock Card" ? (
               <StockSheetsPage
                 stockInData={stockInRows}
                 setStockInData={setStockInRows}
                 stockOutData={stockOutRows}
                 setStockOutData={setStockOutRows}
+                defaultSku={stockSheetsSku}
+                onConsumeDefaultSku={() => setStockSheetsSku(null)}
               />
             ) : activeNav === "Purchasing Order" ? (
               <PurchasingOrderPage
@@ -1198,7 +1864,16 @@ export default function Dashboard() {
             ) : activeNav === "Backload Inventory" ? (
               <BackloadInventoryPage />
             ) : activeNav === "Advance Customer PO" ? (
-              <AdvanceCustomerPOPage />
+              <AdvanceCustomerPOPage
+                onPendingCreated={handlePendingCreated}
+                statusUpdates={acpoStatusUpdates}
+              />
+            ) : activeNav === "Pending Approvals" ? (
+              <ApprovalPage
+                items={pendingApprovals}
+                onApprove={(id) => handleApprovalAction(id, "Active")}
+                onReject={(id) => handleApprovalAction(id, "Rejected")}
+              />
             ) : activeNav === "Return" ? (
               <ReturnPage />
             ) : (
@@ -1206,71 +1881,69 @@ export default function Dashboard() {
               <div style={{ padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
 
                 {/* Metric Cards */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
-                  <MetricCard
-                    icon={<IconBox size={34} />} iconBg="#f0f4ff" iconColor="#000000"
-                    label="Total List of SKU" value={products.length.toString()}
-                    badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
-                    onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
-                  />
-                  <MetricCard
-                    icon={<IconTruck size={32} />} iconBg="#fff7ed" iconColor="#000000"
-                    label="Total Pending Deliveries" value={String(pendingDeliveryCount)}
-                    badge={{
-                      text: pendingDeliveryCount > 0
-                        ? `${pendingDeliveryCount} pending order${pendingDeliveryCount === 1 ? "" : "s"}`
-                        : "No pending orders",
-                      color: "#d97706",
-                      bg: pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
-                      icon: pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
-                    }}
-                    onClick={goToPendingDeliveries}
-                  />
-                  <MetricCard
-                    icon={<IconBarChart size={32} />} iconBg="#f0fdf4" iconColor="#000000"
-                    label="Total Inventory Value" value={formatCompactPHP(totalInventoryValue)}
-                    badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
-                    onClick={goToEndingInventory}
-                  />
-                  <MetricCard
-                    icon={<IconBag size={32} />} iconBg="#fdf4ff" iconColor="#000000"
-                    label="Transactions Today" value={String(transactionsToday)}
-                    badge={{
-                      text: transactionsToday > 0 ? "View in Stock Sheets" : "No transactions yet",
-                      color: transactionsToday > 0 ? "#e87c27" : "#6b7280",
-                      bg: "transparent",
-                    }}
-                    onClick={goToStockSheets}
-                  />
-                </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
+                    <MetricCard
+                      icon={<IconBox size={34} />} iconBg="#F95B02" iconColor="#ffffff"
+                      label="Total List of SKU" value={products.length.toString()}
+                      badge={{ text: "100% Tag in", color: "#16a34a", bg: "#dcfce7" }}
+                      onClick={() => { setProductStatusFilter("All Status"); setActiveNav("Product"); }}
+                    />
+                    <MetricCard
+                      icon={<IconTruck size={28} />} iconBg="#F95B02" iconColor="#ffffff"
+                      label="Total Pending Deliveries" value={String(isMarilaoOnly ? pendingDeliveryCount : 0)}
+                      badge={{
+                        text: isMarilaoOnly && pendingDeliveryCount > 0
+                          ? `${pendingDeliveryCount} pending order${pendingDeliveryCount === 1 ? "" : "s"}`
+                          : "No pending orders",
+                        color: "#d97706",
+                        bg: isMarilaoOnly && pendingDeliveryCount > 0 ? "#fef3c7" : "transparent",
+                        icon: isMarilaoOnly && pendingDeliveryCount > 0 ? <IconWarning size={12} /> : undefined,
+                      }}
+                      onClick={goToPendingDeliveries}
+                    />
+                    <MetricCard
+                      icon={<IconBarChart size={30} />} iconBg="#F95B02" iconColor="#ffffff"
+                      label="Total Inventory Value" value={isMarilaoOnly ? formatCompactPHP(totalInventoryValue) : "₱0"}
+                      badge={{ text: "WIS ending inventory total", color: "#16a34a", bg: "#dcfce7" }}
+                      onClick={goToEndingInventory}
+                    />
+                    <MetricCard
+                      icon={<IconBag size={30} />} iconBg="#F95B02" iconColor="#ffffff"
+                      label={`Transactions (${dashboardPeriod})`} value={String(transactionsInPeriod)}
+                      badge={{
+                        text: transactionsInPeriod > 0 ? "View in Stock Card" : "No transactions",
+                        color: transactionsInPeriod > 0 ? "#e87c27" : "#6b7280",
+                        bg: "transparent",
+                      }}
+                      onClick={goToStockSheets}
+                    />
+                  </div>
 
-                {/* Chart + Top Released Items */}
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(300px, 34%)", gap: 18, alignItems: "stretch" }}>
-                  <div className="dashboard-pair-card">
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Inventory Movement – {dateRange}</p>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {/* Date range selector */}
-                        {["Last 7 Days"].map(r => (
-                          <button key={r} onClick={() => setDateRange(r)} style={{
-                            padding: "4px 10px", fontSize: 11, fontWeight: 600,
-                            borderRadius: 6, cursor: "pointer",
-                            border: dateRange === r ? "1px solid #e87c27" : "1px solid #e5e7eb",
-                            background: dateRange === r ? "#fff7ed" : "#fff",
-                            color: dateRange === r ? "#e87c27" : "#6b7280",
-                          }}>{r.replace("Last ", "")}</button>
-                        ))}
+                {/* Row 2: Chart + Top Released Items */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 18, alignItems: "stretch" }}>
+
+                  {/* Inventory Movement Chart */}
+                  <div style={{
+                    background: "#fff", borderRadius: 16, padding: "22px 24px 18px",
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
+                    display: "flex", flexDirection: "column",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "#111827", margin: 0 }}>
+                          Inventory Movement – {dashboardPeriod}
+                        </p>
+                        <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+                          {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
+                            <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
+                              <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
+                              {l}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 16, marginBottom: 10, flexShrink: 0 }}>
-                      {[["#e87c27", "Stock in"], ["#52c4b0", "Stock out"]].map(([c, l]) => (
-                        <div key={l} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#6b7280" }}>
-                          <div style={{ width: 12, height: 12, borderRadius: 3, background: c }} />
-                          {l}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="dashboard-pair-chart">
+                    <div style={{ flex: 1, minHeight: 260 }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={chartData}
@@ -1282,17 +1955,21 @@ export default function Dashboard() {
                           <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                           <YAxis domain={[0, chartYMax]} tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickCount={6} width={38} />
                           <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
-                          <Bar dataKey="stockIn"  fill="#e87c27" radius={0} maxBarSize={40} />
-                          <Bar dataKey="stockOut" fill="#52c4b0" radius={0} maxBarSize={40} />
+                          <Bar dataKey="stockIn"  fill="#e87c27" radius={[3, 3, 0, 0]} maxBarSize={36} />
+                          <Bar dataKey="stockOut" fill="#52c4b0" radius={[3, 3, 0, 0]} maxBarSize={36} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
-                  {/* Top Released Items — from real stock-out data */}
-                  <div className="dashboard-pair-card">
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexShrink: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>Top Released Items</p>
+                  {/* Top Released Items */}
+                  <div style={{
+                    background: "#fff", borderRadius: 16, padding: "22px 24px",
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
+                    display: "flex", flexDirection: "column",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: "#111827", margin: 0 }}>Top Released Items</p>
                       <button onClick={goToStockSheets} style={{
                         fontSize: 11, color: "#e87c27", background: "none", border: "none",
                         cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
@@ -1303,28 +1980,21 @@ export default function Dashboard() {
                     {topReleasedItems.length === 0 ? (
                       <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No stock-out data yet</p>
                     ) : (
-                      <div className="dashboard-pair-list">
+                      <div style={{ display: "flex", flexDirection: "column", gap: 18, flex: 1, justifyContent: "space-between" }}>
                         {topReleasedItems.map((item, i) => (
-                          <div key={i} className="dashboard-pair-list-row">
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <div key={i}>
+                            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>
                                 {item.name}
                               </p>
-                              <p style={{ fontSize: 10, color: "#9ca3af", marginBottom: 6 }}>{item.sku}</p>
-                              <div className="dashboard-pair-bar-track">
-                                <div
-                                  className="dashboard-pair-bar-fill"
-                                  style={{
-                                    width: `${item.pct}%`,
-                                    background: i % 2 === 0 ? "#e87c27" : "#1a1f2e",
-                                    minWidth: item.pct > 0 ? 4 : 0,
-                                  }}
-                                />
-                              </div>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: "#111827", flexShrink: 0, marginLeft: 12 }}>
+                                {item.value}
+                              </span>
                             </div>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "#111827", flexShrink: 0, minWidth: 52, textAlign: "right" }}>
-                              {item.value}
-                            </span>
+                            <div style={{ display: "flex", height: 9, overflow: "hidden" }}>
+                              <div style={{ width: `${item.pct}%`, height: "100%", background: "#e87c27", flexShrink: 0 }} />
+<div style={{ flex: 1, height: "100%", background: "#edeff3" }} />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1332,90 +2002,70 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Alerts + Activity */}
+                {/* Row 3: Stock Alerts + Recent Activity */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
 
-                  {/* ── Stock Alerts — from real low-stock products ── */}
+                  {/* Stock Alerts */}
                   <div style={{
-                    background: "#fff", borderRadius: 14, padding: "24px",
-                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
-                    display: "flex", flexDirection: "column", minHeight: 0,
+                    background: "#fff", borderRadius: 16,
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
+                    display: "flex", flexDirection: "column", overflow: "hidden",
                   }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>
+                    <div style={{ padding: "20px 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>
                         Stock Alerts
                         {lowStockAll.length > 0 && (
                           <span style={{
                             marginLeft: 8, fontSize: 11, fontWeight: 700,
                             background: "#fef3c7", color: "#d97706",
                             padding: "2px 8px", borderRadius: 20,
-                          }} title={lowStockAll.length !== stockAlerts.length ? `${lowStockAll.length} rows, ${stockAlerts.length} unique SKUs` : undefined}>
+                          }}>
                             {stockAlerts.length}
                             {lowStockAll.length !== stockAlerts.length ? ` (${lowStockAll.length} rows)` : ""}
                           </span>
                         )}
                       </p>
-                      <button onClick={goToLowStock} style={{
-                        fontSize: 11, color: "#e87c27", background: "none", border: "none",
-                        cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
-                      }}>
-                        View all <IconArrowRight size={12} />
-                      </button>
                     </div>
-
                     {stockAlerts.length === 0 ? (
-                      <div style={{ textAlign: "center", padding: "24px 0" }}>
+                      <div style={{ textAlign: "center", padding: "32px 24px" }}>
                         <p style={{ fontSize: 13, color: "#9ca3af" }}>✓ All items are well-stocked</p>
                       </div>
                     ) : (
-                      <div className="dashboard-scroll-panel" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div className="dashboard-scroll-panel" style={{ maxHeight: 320 }}>
                         {stockAlerts.map((a) => (
-                          <div
-                            key={a.sku}
-                            className="alert-row"
-                            onClick={goToLowStock}
-                            title={`Click to view ${a.sku} in Product page`}
-                          >
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {a.description.length > 36 ? a.description.slice(0, 36) + "…" : a.description}
+                          <div key={a.sku} className="alert-row" onClick={goToLowStock}>
+                            <div style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {a.description.length > 30 ? a.description.slice(0, 30) + "…" : a.description}
                               </p>
-                              <p style={{ fontSize: 11, color: "#9ca3af" }}>
-                                SKU: {a.sku} — {a.stock} unit{a.stock !== 1 ? "s" : ""} left
+                              <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>
+                                SKU: {a.sku} · {a.stock} unit{a.stock !== 1 ? "s" : ""} left
                               </p>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 10 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 12 }}>
                               <span style={{
-                                fontSize: 10.5, fontWeight: 600, padding: "4px 12px", borderRadius: 20,
-                                background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a",
+                                fontSize: 11, fontWeight: 700, padding: "5px 14px", borderRadius: 20,
+                                background: "#fff7ed", color: "#e87c27",
+                                border: "1.5px solid #fcd9b0",
                               }}>
                                 Low stock
                               </span>
-                              <span className="alert-arrow">
-                                <IconArrowRight size={14} />
-                              </span>
+                              <span className="alert-arrow"><IconArrowRight size={13} /></span>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
-
-                    {/* hint text */}
-                    {stockAlerts.length > 0 && (
-                      <p style={{ fontSize: 10, color: "#d97706", marginTop: 12, flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                        <span>↑</span> Click any alert to go to Product page
-                      </p>
-                    )}
                   </div>
 
-                  {/* ── Recent Activity — from real stock transactions ── */}
+                  {/* Recent Activity */}
                   <div style={{
-                    background: "#fff", borderRadius: 14, padding: "24px",
-                    boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
-                    display: "flex", flexDirection: "column", minHeight: 0,
+                    background: "#fff", borderRadius: 16,
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.06)", border: "1px solid #f0f0f0",
+                    display: "flex", flexDirection: "column", overflow: "hidden",
                   }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexShrink: 0 }}>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151" }}>Recent Activity</p>
+                    <div style={{ padding: "20px 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>Recent Activity</p>
                       <button onClick={goToStockSheets} style={{
                         fontSize: 11, color: "#e87c27", background: "none", border: "none",
                         cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4,
@@ -1424,38 +2074,22 @@ export default function Dashboard() {
                       </button>
                     </div>
                     {recentActivity.length === 0 ? (
-                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "20px 0" }}>No recent transactions</p>
+                      <p style={{ fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "32px 24px" }}>No recent transactions</p>
                     ) : (
-                      <div className="dashboard-scroll-panel">
+                      <div className="dashboard-scroll-panel" style={{ maxHeight: 320, paddingLeft: 24, paddingRight: 24 }}>
                         {recentActivity.map((a, i) => (
-                        <div
-                          key={i}
-                          role="button"
-                          tabIndex={0}
-                          onClick={goToStockSheets}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") goToStockSheets(); }}
-                          style={{
-                          display: "flex", alignItems: "center", gap: 12,
-                          padding: "11px 0",
-                          borderBottom: i < recentActivity.length - 1 ? "1px solid #f3f4f6" : "none",
-                          cursor: "pointer",
-                        }}>
-                          <div style={{
-                            width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
-                            background: a.type === "in" ? "#22c55e" : "#ef4444",
-                          }} />
-                          <span style={{ fontSize: 12, color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {a.text}
-                          </span>
-                          <span style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0 }}>{a.time}</span>
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6, flexShrink: 0,
-                            background: a.type === "in" ? "#dcfce7" : "#fee2e2",
-                            color: a.type === "in" ? "#16a34a" : "#dc2626",
-                          }}>
-                            {a.type === "in" ? "IN" : "OUT"}
-                          </span>
-                        </div>
+                          <div key={i} className="activity-row" onClick={() => handleActivityClick(a)}>
+                            <div style={{
+                              width: 10, height: 10, borderRadius: "50%", flexShrink: 0,
+                              background: a.type === "in" ? "#22c55e" : "#ef4444",
+                            }} />
+                            <span style={{ fontSize: 12.5, color: "#374151", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
+                              {a.text}
+                            </span>
+                            <span style={{ fontSize: 12, color: "#9ca3af", flexShrink: 0, marginLeft: 8 }}>
+                              {a.time}
+                            </span>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -1468,23 +2102,34 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Backdrops */}
-      {/* Dropdown menus are closed by clicking outside via document listener; no full-screen backdrop needed. */}
-
       {/* Custom Modal */}
       {activeModal && (
         <SystemModal
           type={activeModal}
           onClose={() => setActiveModal(null)}
-          onAction={(msg, type) => showToast(msg, type)}
-          drbLimit={drbLimit}
-          setDrbLimit={setDrbLimit}
-          pileLimit={pileLimit}
-          setPileLimit={setPileLimit}
-          plateLimit={plateLimit}
-          setPlateLimit={setPlateLimit}
-          faqExpanded={faqExpanded}
-          setFaqExpanded={setFaqExpanded}
+          onAction={(msg, type) => {
+            if (msg === "Logged out successfully!") { setActiveModal(null); setTimeout(() => onLogout?.(), 100); return; }
+            showToast(msg, type);
+          }}
+          products={products}
+          setProducts={setProducts}
+        />
+      )}
+
+      {/* Profile Page Modal */}
+      {showProfilePage && (
+        <ProfilePage
+          profile={userProfile}
+          onClose={() => setShowProfilePage(false)}
+        />
+      )}
+
+      {/* Transaction Detail Modal */}
+      {selectedTransaction && (
+        <TransactionDetailModal
+          transaction={selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
+          onViewInSheets={handleViewInSheets}
         />
       )}
 
@@ -1501,756 +2146,5 @@ export default function Dashboard() {
         </div>
       )}
     </>
-  );
-}
-
-/* ── METRIC CARD ─────────────────────────────────────────── */
-function MetricCard({ icon, iconBg, iconColor, label, value, badge, onClick }) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        position: "relative",
-        background: "#fff",
-        borderRadius: 18,
-        padding: "20px 22px 16px",
-        minHeight: 188,
-        overflow: "hidden",
-        boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
-        display: "flex", flexDirection: "column", justifyContent: "space-between",
-        cursor: onClick ? "pointer" : "default",
-        transition: "transform 0.4s cubic-bezier(0.15, 0.83, 0.66, 1)",
-      }}
-      onMouseEnter={e => { setHovered(true);  e.currentTarget.style.transform = "scale(1.03)"; }}
-      onMouseLeave={e => { setHovered(false); e.currentTarget.style.transform = "scale(1)"; }}
-    >
-      <div style={{
-        position: "absolute", inset: 0, borderRadius: 16,
-        background: `radial-gradient(ellipse at 80% 110%, ${iconBg} 0%, rgba(255,255,255,0) 65%)`,
-        opacity: 0.7, pointerEvents: "none",
-      }} />
-      <div style={{
-        position: "absolute", right: -18, top: -22,
-        width: 100, height: 100, borderRadius: "50%",
-        background: iconColor,
-        opacity: hovered ? 0.12 : 0,
-        animation: hovered ? "metricPulse 3s ease-in-out infinite" : "none",
-        transition: "opacity 0.3s ease",
-        pointerEvents: "none",
-      }} />
-      <div style={{
-        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-        gap: 10, position: "relative", zIndex: 2,
-      }}>
-        <p style={{ fontSize: 15, fontWeight: 700, color: "#6b7280", lineHeight: 1.35, flex: 1, paddingRight: 4 }}>
-          {label}
-        </p>
-        <div style={{
-          width: 48, height: 48, borderRadius: 12,
-          background: iconBg,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: iconColor, flexShrink: 0,
-        }}>
-          {icon}
-        </div>
-      </div>
-      <p style={{
-        fontSize: 42, fontWeight: 800, color: "#111827", letterSpacing: "-1px",
-        lineHeight: 1, position: "relative", zIndex: 2, margin: "14px 0 8px",
-      }}>
-        {value}
-      </p>
-      {badge && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4, position: "relative", zIndex: 2 }}>
-          {badge.icon && (
-            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: "50%", background: "#f59e0b" }}>
-              {badge.icon}
-            </span>
-          )}
-          <span style={{
-            fontSize: 12, fontWeight: 600, color: badge.color,
-            background: badge.bg !== "transparent" ? badge.bg : "transparent",
-            padding: badge.bg !== "transparent" ? "2px 8px" : "0",
-            borderRadius: 20,
-          }}>
-            {badge.text}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── SYSTEM MODAL ────────────────────────────────────────── */
-function SystemModal({
-  type,
-  onClose,
-  onAction,
-  drbLimit,
-  setDrbLimit,
-  pileLimit,
-  setPileLimit,
-  plateLimit,
-  setPlateLimit,
-  faqExpanded,
-  setFaqExpanded
-}) {
-  // Local state for interactive elements
-  // 1. User Management State
-  const [users, setUsers] = useState([
-    { id: 1, name: "Francis Pechon", email: "francis@wis.com", role: "Administrator", status: "Active" },
-    { id: 2, name: "Chelsea Lopez", email: "chelsea.lopez@tdt.com", role: "Warehouse Manager", status: "Active" },
-    { id: 3, name: "Jane Smith", email: "jane@wis.com", role: "Staff", status: "Active" },
-    { id: 4, name: "Alex Jones", email: "alex.jones@wis.com", role: "Staff", status: "Inactive" },
-  ]);
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [newUserName, setNewUserName] = useState("");
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserRole, setNewUserRole] = useState("Staff");
-
-  // 2. Stock Limits State
-  const [localDrb, setLocalDrb] = useState(drbLimit);
-  const [localPile, setLocalPile] = useState(pileLimit);
-  const [localPlate, setLocalPlate] = useState(plateLimit);
-
-  // 3. User Guide State
-  const [guideTab, setGuideTab] = useState("getting-started");
-
-  // 4. FAQ State (Local)
-  const [localFaqs, setLocalFaqs] = useState({});
-
-  // 5. Contact Support State
-  const [contactName, setContactName] = useState("Chelsea Lopez");
-  const [contactEmail, setContactEmail] = useState("chelsea.lopez@tdt.com");
-  const [contactTopic, setContactTopic] = useState("Question");
-  const [contactMessage, setContactMessage] = useState("");
-
-  const handleAddUser = (e) => {
-    e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) {
-      onAction("Please fill in all fields", "error");
-      return;
-    }
-    const newUser = {
-      id: users.length + 1,
-      name: newUserName,
-      email: newUserEmail,
-      role: newUserRole,
-      status: "Active"
-    };
-    setUsers([...users, newUser]);
-    setNewUserName("");
-    setNewUserEmail("");
-    setNewUserRole("Staff");
-    setShowAddUser(false);
-    onAction(`User ${newUserName} added successfully!`, "success");
-  };
-
-  const toggleUserStatus = (id) => {
-    setUsers(users.map(u => u.id === id ? { ...u, status: u.status === "Active" ? "Inactive" : "Active" } : u));
-    onAction("User status updated!", "success");
-  };
-
-  const deleteUser = (id, name) => {
-    setUsers(users.filter(u => u.id !== id));
-    onAction(`User ${name} deleted successfully!`, "success");
-  };
-
-  const changeUserRole = (id, newRole) => {
-    setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u));
-    onAction("User role updated!", "success");
-  };
-
-  const handleSaveLimits = () => {
-    setDrbLimit(Number(localDrb));
-    setPileLimit(Number(localPile));
-    setPlateLimit(Number(localPlate));
-    onAction("Stock limits saved successfully!", "success");
-    onClose();
-  };
-
-  const handleContactSubmit = (e) => {
-    e.preventDefault();
-    if (!contactMessage.trim()) {
-      onAction("Please type a message before submitting.", "error");
-      return;
-    }
-    onAction("Support ticket sent! We'll reply within 24 hours.", "success");
-    onClose();
-  };
-
-  const toggleFaq = (index) => {
-    setLocalFaqs(prev => ({ ...prev, [index]: !prev[index] }));
-  };
-
-  // Determine width based on type
-  let modalWidth = 460;
-  if (type === "user-management") modalWidth = 720;
-  if (type === "user-guide") modalWidth = 820;
-  if (type === "faqs") modalWidth = 660;
-
-  return (
-    <div style={{
-      position: "fixed",
-      inset: 0,
-      background: "rgba(17, 24, 39, 0.45)",
-      backdropFilter: "blur(6px)",
-      zIndex: 9999,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 20,
-    }} onClick={onClose}>
-      <div style={{
-        background: "#ffffff",
-        borderRadius: 16,
-        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.18)",
-        border: "1px solid #e5e7eb",
-        width: "100%",
-        maxWidth: modalWidth,
-        maxHeight: "88vh",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        animation: "modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-      }} onClick={e => e.stopPropagation()}>
-        {/* Style block for animations */}
-        <style>{`
-          @keyframes modalFadeIn {
-            from { opacity: 0; transform: translateY(12px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-          }
-          .modal-tab-btn {
-            display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px;
-            border: none; background: none; border-radius: 8px; cursor: pointer; text-align: left;
-            font-size: 13px; font-weight: 600; color: #4b5563; transition: all 0.2s;
-          }
-          .modal-tab-btn.active {
-            background: #fff; color: #e87c27; box-shadow: 0 4px 12px rgba(232, 124, 39, 0.1);
-          }
-          .modal-input {
-            width: 100%; padding: 10px 12px; font-size: 13px; font-weight: 500; border: 1px solid #d1d5db;
-            border-radius: 8px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box;
-          }
-          .modal-input:focus {
-            border-color: #e87c27; box-shadow: 0 0 0 3px rgba(232, 124, 39, 0.18);
-          }
-          .modal-btn-sec {
-            padding: 9px 18px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff;
-            color: #374151; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; transition: background 0.15s;
-          }
-          .modal-btn-sec:hover { background: #f9fafb; }
-          .modal-btn-pri {
-            padding: 9px 18px; border: none; border-radius: 8px; background: #e87c27;
-            color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit; transition: opacity 0.15s;
-          }
-          .modal-btn-pri:hover { opacity: 0.9; }
-          .modal-btn-danger {
-            padding: 9px 18px; border: none; border-radius: 8px; background: #dc2626;
-            color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; font-family: inherit; transition: opacity 0.15s;
-          }
-          .modal-btn-danger:hover { opacity: 0.9; }
-        `}</style>
-
-        {/* Modal Header */}
-        <div style={{
-          padding: "20px 24px",
-          borderBottom: "1px solid #f3f4f6",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexShrink: 0,
-        }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
-              {type === "logout" && "Confirm Logout"}
-              {type === "user-management" && "User Management"}
-              {type === "stock-limits" && "Configure Stock Thresholds"}
-              {type === "user-guide" && "WIS Platform User Guide"}
-              {type === "faqs" && "Frequently Asked Questions"}
-              {type === "about" && "About WIS Platform"}
-              {type === "contact" && "Contact Customer Support"}
-            </h3>
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6b7280" }}>
-              {type === "logout" && "Securely exit your active session"}
-              {type === "user-management" && "Manage system administrators and operators"}
-              {type === "stock-limits" && "Set minimum stock alert level warnings per category"}
-              {type === "user-guide" && "Step-by-step instructions for utilizing the system"}
-              {type === "faqs" && "Answers to typical issues and questions"}
-              {type === "about" && "Technical details and software information"}
-              {type === "contact" && "Send a ticket to support engineers"}
-            </p>
-          </div>
-          <button onClick={onClose} style={{
-            background: "#f3f4f6", border: "none", borderRadius: "50%",
-            width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "#4b5563", transition: "background 0.2s"
-          }} onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"} onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
-            ✕
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div style={{ padding: "24px", overflowY: "auto", flex: 1, minHeight: 0 }}>
-          {/* 1. CONFIRM LOGOUT */}
-          {type === "logout" && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: "50%", background: "#fee2e2",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#dc2626", margin: "0 auto 16px"
-              }}>
-                <IconLogOut size={26} />
-              </div>
-              <p style={{ margin: "0 0 24px", fontSize: 14, color: "#4b5563", lineHeight: 1.5 }}>
-                Are you sure you want to log out? Any unsaved edits or pending drafts might be discarded. You will be redirected to the secure login prompt.
-              </p>
-              <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
-                <button className="modal-btn-sec" onClick={onClose}>Cancel</button>
-                <button className="modal-btn-danger" onClick={() => { onAction("Logged out successfully!", "success"); onClose(); }}>
-                  Yes, Log Out
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 2. USER MANAGEMENT */}
-          {type === "user-management" && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#374151" }}>
-                  Active System Accounts ({users.length})
-                </p>
-                <button className="modal-btn-pri" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setShowAddUser(!showAddUser)}>
-                  {showAddUser ? "Cancel" : "+ Add User"}
-                </button>
-              </div>
-
-              {/* Add User Form */}
-              {showAddUser && (
-                <form onSubmit={handleAddUser} style={{
-                  background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10,
-                  padding: 16, marginBottom: 18, animation: "modalFadeIn 0.2s ease"
-                }}>
-                  <p style={{ margin: "0 0 12px 0", fontSize: 13, fontWeight: 700, color: "#111827" }}>Register New Account</p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Full Name</label>
-                      <input type="text" className="modal-input" placeholder="Francis Pechon" value={newUserName} onChange={e => setNewUserName(e.target.value)} required />
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Email Address</label>
-                      <input type="email" className="modal-input" placeholder="name@wis.com" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} required />
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                    <div style={{ width: "170px" }}>
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Access Role</label>
-                      <select className="modal-input" style={{ padding: "8px 10px" }} value={newUserRole} onChange={e => setNewUserRole(e.target.value)}>
-                        <option value="Administrator">Administrator</option>
-                        <option value="Warehouse Manager">Warehouse Manager</option>
-                        <option value="Staff">Staff</option>
-                      </select>
-                    </div>
-                    <button type="submit" className="modal-btn-pri">Register User</button>
-                  </div>
-                </form>
-              )}
-
-              {/* Users Table */}
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
-                  <thead>
-                    <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                      <th style={{ padding: "10px 12px", color: "#6b7280", fontWeight: 600 }}>Name / Email</th>
-                      <th style={{ padding: "10px 12px", color: "#6b7280", fontWeight: 600 }}>Role</th>
-                      <th style={{ padding: "10px 12px", color: "#6b7280", fontWeight: 600 }}>Status</th>
-                      <th style={{ padding: "10px 12px", color: "#6b7280", fontWeight: 600, textAlign: "right" }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map(u => (
-                      <tr key={u.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                        <td style={{ padding: "12px" }}>
-                          <p style={{ margin: 0, fontWeight: 600, color: "#111827" }}>{u.name}</p>
-                          <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>{u.email}</p>
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <select
-                            value={u.role}
-                            onChange={e => changeUserRole(u.id, e.target.value)}
-                            style={{
-                              border: "none", background: "none", fontSize: 12, fontWeight: 600,
-                              color: "#374151", cursor: "pointer", outline: "none"
-                            }}
-                          >
-                            <option value="Administrator">Admin</option>
-                            <option value="Warehouse Manager">Manager</option>
-                            <option value="Staff">Staff</option>
-                          </select>
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <span
-                            onClick={() => toggleUserStatus(u.id)}
-                            style={{
-                              fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
-                              background: u.status === "Active" ? "#dcfce7" : "#fee2e2",
-                              color: u.status === "Active" ? "#16a34a" : "#dc2626",
-                              cursor: "pointer", display: "inline-block"
-                            }}
-                          >
-                            {u.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: "12px", textAlign: "right" }}>
-                          <button
-                            disabled={u.id === 1}
-                            onClick={() => deleteUser(u.id, u.name)}
-                            style={{
-                              border: "none", background: "none", color: u.id === 1 ? "#d1d5db" : "#dc2626",
-                              fontSize: 11, fontWeight: 600, cursor: u.id === 1 ? "not-allowed" : "pointer"
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* 3. STOCK LIMITS */}
-          {type === "stock-limits" && (
-            <div>
-              <p style={{ margin: "0 0 20px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.45 }}>
-                Configure low-stock alert thresholds. When the on-hand stock for a product falls at or below these quantities, low stock warning badges will appear.
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 26 }}>
-                {/* Limit Item 1 */}
-                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Deformed Rebars (DRB)</span>
-                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Standard reinforcing bars</p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalDrb(Math.max(0, localDrb - 1))}>-</button>
-                      <input
-                        type="number"
-                        className="modal-input"
-                        style={{ width: 52, textAlign: "center", padding: "6px" }}
-                        value={localDrb}
-                        onChange={e => setLocalDrb(Math.max(0, parseInt(e.target.value) || 0))}
-                      />
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalDrb(localDrb + 1)}>+</button>
-                    </div>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
-                    value={localDrb}
-                    onChange={e => setLocalDrb(parseInt(e.target.value))}
-                  />
-                </div>
-
-                {/* Limit Item 2 */}
-                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Steel Piles (Pile)</span>
-                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Structural steel support piles</p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPile(Math.max(0, localPile - 1))}>-</button>
-                      <input
-                        type="number"
-                        className="modal-input"
-                        style={{ width: 52, textAlign: "center", padding: "6px" }}
-                        value={localPile}
-                        onChange={e => setLocalPile(Math.max(0, parseInt(e.target.value) || 0))}
-                      />
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPile(localPile + 1)}>+</button>
-                    </div>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
-                    value={localPile}
-                    onChange={e => setLocalPile(parseInt(e.target.value))}
-                  />
-                </div>
-
-                {/* Limit Item 3 */}
-                <div style={{ background: "#f9fafb", padding: 16, borderRadius: 12, border: "1px solid #e5e7eb" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Steel Plates (Plate)</span>
-                      <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#6b7280" }}>Heavy duty structural steel plates</p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPlate(Math.max(0, localPlate - 1))}>-</button>
-                      <input
-                        type="number"
-                        className="modal-input"
-                        style={{ width: 52, textAlign: "center", padding: "6px" }}
-                        value={localPlate}
-                        onChange={e => setLocalPlate(Math.max(0, parseInt(e.target.value) || 0))}
-                      />
-                      <button className="modal-btn-sec" style={{ padding: "4px 8px" }} onClick={() => setLocalPlate(localPlate + 1)}>+</button>
-                    </div>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    style={{ width: "100%", accentColor: "#e87c27", cursor: "pointer" }}
-                    value={localPlate}
-                    onChange={e => setLocalPlate(parseInt(e.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                <button className="modal-btn-sec" onClick={onClose}>Cancel</button>
-                <button className="modal-btn-pri" onClick={handleSaveLimits}>Save Thresholds</button>
-              </div>
-            </div>
-          )}
-
-          {/* 4. USER GUIDE */}
-          {type === "user-guide" && (
-            <div style={{ display: "flex", gap: 20 }}>
-              {/* Sidebar Tabs */}
-              <div style={{ width: 200, display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                <button className={`modal-tab-btn ${guideTab === "getting-started" ? "active" : ""}`} onClick={() => setGuideTab("getting-started")}>
-                  🚀 Getting Started
-                </button>
-                <button className={`modal-tab-btn ${guideTab === "stock" ? "active" : ""}`} onClick={() => setGuideTab("stock")}>
-                  📋 Stock Sheets
-                </button>
-                <button className={`modal-tab-btn ${guideTab === "ending" ? "active" : ""}`} onClick={() => setGuideTab("ending")}>
-                  📦 Ending Inventory
-                </button>
-                <button className={`modal-tab-btn ${guideTab === "po" ? "active" : ""}`} onClick={() => setGuideTab("po")}>
-                  🛒 Purchase Orders
-                </button>
-              </div>
-
-              {/* Guide Content */}
-              <div style={{ flex: 1, background: "#f9fafb", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20 }}>
-                {guideTab === "getting-started" && (
-                  <div>
-                    <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>System Introduction</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      The Warehouse Inventory System (WIS) is designed to give you instant tracking capability over all steel products, incoming stock-in pipelines, and outbound stock-out deliveries.
-                    </p>
-                    <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Workflow Steps:</h5>
-                    <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Check Dashboard Alerts:</strong> Monitor indicators at home for stock alert warnings.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Log Orders:</strong> Use Purchase Orders to draft, place, and approve supplier steel deliveries.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Update Stock Sheets:</strong> Run entries on Stock Sheets to log real-time additions and releases.</li>
-                    </ol>
-                  </div>
-                )}
-                {guideTab === "stock" && (
-                  <div>
-                    <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Managing Stock Sheets</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      Stock Sheets store the permanent record of transactional movements. Entries are separated into **Stock In** (replenishing) and **Stock Out** (releasing).
-                    </p>
-                    <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Key Capabilities:</h5>
-                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Table Footer Navigation:</strong> Use the pagination menu at the bottom-right of each table card to navigate entries.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Search Filter:</strong> Instantly lookup a delivery by typing in descriptions or SKU query strings.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Bulk Export:</strong> Convert sheets into clean spreadsheets or excel import format.</li>
-                    </ul>
-                  </div>
-                )}
-                {guideTab === "ending" && (
-                  <div>
-                    <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Ending Inventory</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      Ending Inventory provides an overview of currently available stock on-hand. All counts are generated programmatically and checked against configured category limits.
-                    </p>
-                    <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Active Tools:</h5>
-                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Return Entry:</strong> Handle customer returns by recording a dynamic return card which injects the items back to active shelf count.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Backload Tracking:</strong> Keep record of surplus project backloads for reference.</li>
-                    </ul>
-                  </div>
-                )}
-                {guideTab === "po" && (
-                  <div>
-                    <h4 style={{ margin: "0 0 10px 0", color: "#111827", fontSize: 15, fontWeight: 700 }}>Purchase Order Logistics</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      Track supplier procurements in the pipeline. Status states include **Draft**, **Pending Approval**, **Shipped**, and **Delivered**.
-                    </p>
-                    <h5 style={{ margin: "14px 0 6px 0", color: "#374151", fontSize: 13, fontWeight: 700 }}>Logistics Actions:</h5>
-                    <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "#4b5563", lineHeight: 1.6 }}>
-                      <li style={{ marginBottom: 4 }}><strong>Create PO Drafts:</strong> Add details, products, and target supplier coordinates.</li>
-                      <li style={{ marginBottom: 4 }}><strong>Approve Shipped Orders:</strong> Upon arrival at warehouse gates, mark orders as delivered to automatically increment Ending Inventory levels.</li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 5. FAQs */}
-          {type === "faqs" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                {
-                  q: "How are stock alert levels determined?",
-                  a: "Stock alerts are triggered when the quantity of a product falls below the threshold set in Settings -> Stock Limits. These limits are updated dynamically in real-time."
-                },
-                {
-                  q: "Can I undo a Stock Out transaction?",
-                  a: "Yes. You can record a corrective entry in the Stock Sheets to balance the ledger, or register it as a customer Return using the dedicated Returns inventory panel."
-                },
-                {
-                  q: "How do I add new system operator accounts?",
-                  a: "Administrators can navigate to Settings -> User Management, click 'Add User', and fill out the name, email and role. The operator is immediately added to the list."
-                },
-                {
-                  q: "Where do I track pending supplier deliveries?",
-                  a: "Go to the Purchasing Order page or check the home dashboard metrics widget, where clicking 'Pending Deliveries' filters the list automatically."
-                },
-                {
-                  q: "Is there an auto-backup feature enabled?",
-                  a: "Yes. The Warehouse Inventory System performs continuous cloud sync and writes local state backups every 24 hours to secure local data."
-                }
-              ].map((faq, i) => (
-                <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-                  <button
-                    onClick={() => toggleFaq(i)}
-                    style={{
-                      width: "100%", padding: "14px 18px", background: "#f9fafb", border: "none",
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 700, color: "#374151"
-                    }}
-                  >
-                    <span>{faq.q}</span>
-                    <span style={{ color: "#9ca3af", transform: localFaqs[i] ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
-                  </button>
-                  {localFaqs[i] && (
-                    <div style={{ padding: "14px 18px", background: "#fff", borderTop: "1px solid #e5e7eb", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* 6. ABOUT SYSTEM */}
-          {type === "about" && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{
-                width: 68, height: 68, borderRadius: "50%", background: "linear-gradient(135deg, #e87c27 0%, #1a1f2e 100%)",
-                margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#fff", fontSize: 24, fontWeight: 800, boxShadow: "0 8px 24px rgba(232,124,39,0.25)"
-              }}>
-                WIS
-              </div>
-              <h4 style={{ margin: "0 0 4px 0", fontSize: 16, color: "#111827", fontWeight: 800 }}>Warehouse Inventory System (WIS)</h4>
-              <p style={{ margin: "0 0 16px 0", fontSize: 12, color: "#e87c27", fontWeight: 700 }}>Version 2.4.0 (Enterprise Premium)</p>
-
-              <div style={{
-                background: "#f9fafb", borderRadius: 12, border: "1px solid #e5e7eb",
-                padding: 16, textAlign: "left", fontSize: 12, display: "flex", flexDirection: "column", gap: 10,
-                marginBottom: 20
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Developer Partner:</span>
-                  <span style={{ color: "#111827", fontWeight: 600 }}>TDT Steel Corp. Engineering</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Technical Platform:</span>
-                  <span style={{ color: "#111827", fontWeight: 600 }}>React 19.0 + Vite 8 + ES Modules</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Database Status:</span>
-                  <span style={{ color: "#16a34a", fontWeight: 700 }}>● SECURE & SYNCED</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ color: "#6b7280", fontWeight: 500 }}>Build Stamp:</span>
-                  <span style={{ color: "#111827", fontWeight: 600 }}>2026-05-21-PRM</span>
-                </div>
-              </div>
-
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: "#dcfce7", color: "#15803d", padding: "6px 12px",
-                borderRadius: 20, fontSize: 11, fontWeight: 700
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a" }} />
-                ALL SYSTEMS OPERATIONAL
-              </div>
-            </div>
-          )}
-
-          {/* 7. CONTACT SUPPORT */}
-          {type === "contact" && (
-            <form onSubmit={handleContactSubmit}>
-              <p style={{ margin: "0 0 16px 0", fontSize: 13, color: "#4b5563", lineHeight: 1.45 }}>
-                Experiencing technical difficulties or need system adjustments? Submit a help ticket below, and our development engineers will respond shortly.
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Your Name</label>
-                    <input type="text" className="modal-input" value={contactName} onChange={e => setContactName(e.target.value)} required />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Email Address</label>
-                    <input type="email" className="modal-input" value={contactEmail} onChange={e => setContactEmail(e.target.value)} required />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Inquiry Category</label>
-                  <select className="modal-input" style={{ padding: "8px 10px" }} value={contactTopic} onChange={e => setContactTopic(e.target.value)}>
-                    <option value="Question">General Question</option>
-                    <option value="Bug">Technical Bug Report</option>
-                    <option value="Feature">Feature Customization Request</option>
-                    <option value="Other">Other Topic</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#4b5563", marginBottom: 4 }}>Inquiry / Issue Message</label>
-                  <textarea
-                    className="modal-input"
-                    rows={4}
-                    style={{ fontFamily: "inherit", resize: "none" }}
-                    placeholder="Provide a detailed description of your issue or request..."
-                    value={contactMessage}
-                    onChange={e => setContactMessage(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                <button type="button" className="modal-btn-sec" onClick={onClose}>Cancel</button>
-                <button type="submit" className="modal-btn-pri">Submit Support Ticket</button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }

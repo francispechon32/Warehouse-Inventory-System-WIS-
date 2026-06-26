@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import Table from "./Table";
 import {
   cellStr,
   cellNum,
@@ -17,9 +19,24 @@ import {
   syncProductsStatus,
   normalizeStock,
 } from "./productUtils";
-import { INITIAL_PRODUCTS } from "./initialProducts";
-
-const sampleProducts = INITIAL_PRODUCTS;
+import useSort from "./useSort";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
+import { MOCK_PRODUCTS } from "./api/mockData";
+import {
+  modalOverlayStyle,
+  modalPanelStyle,
+  modalHeaderStyle,
+  modalFooterStyle,
+  modalTitleStyle,
+  modalSubtitleStyle,
+  modalCloseBtnStyle,
+  modalLabelStyle,
+  modalBtnSecondary,
+  modalBtnPrimary,
+  modalInput,
+  modalCellInput,
+} from "./modalFormStyles";
 
 /* ─── ICONS ─────────────────────────────────────────────── */
 function IconSearch({ size = 16 }) {
@@ -52,23 +69,59 @@ function IconWarning({ size = 14 }) {
   );
 }
 
+function IconEdit({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+}
+function IconSave({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
+}
+function IconX({ size = 14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>; }
+function IconGear({ size = 14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>; }
+
+const PROD_COLDEFS = [
+  { key: "sku",         label: "SKU CODE",      sticky: true, alwaysVisible: true },
+  { key: "description", label: "PRODUCT DESC",  alwaysVisible: true },
+  { key: "category",    label: "CATEGORY",      hideable: true },
+  { key: "unit",        label: "UNIT",          hideable: true },
+  { key: "beginning",   label: "BEGINNING",     hideable: true },
+  { key: "stockIn",     label: "STOCK IN",      hideable: true },
+  { key: "stockOut",    label: "STOCK OUT",     hideable: true },
+  { key: "stock",       label: "CURRENT STOCK", alwaysVisible: true },
+  { key: "avgCost",     label: "AVG COST",      hideable: true },
+  { key: "totalValue",  label: "TOTAL VALUE",   hideable: true },
+  { key: "status",      label: "STATUS",        alwaysVisible: true },
+];
+
+/* ─── SEARCH HIGHLIGHT ───────────────────────────────────── */
+function HighlightText({ text, query }) {
+  if (!query || !text) return <>{text}</>;
+  const str = String(text);
+  const idx = str.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{str}</>;
+  return (
+    <>
+      {str.slice(0, idx)}
+      <mark style={{
+        background: "#fef08a",
+        color: "#78350f",
+        borderRadius: 3,
+        padding: "0 1px",
+        fontWeight: 700,
+      }}>
+        {str.slice(idx, idx + query.length)}
+      </mark>
+      {str.slice(idx + query.length)}
+    </>
+  );
+}
+
 /* ─── SHEETJS LOADER ─────────────────────────────────────── */
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 /* ─── EXPORT ─────────────────────────────────────────────── */
 function exportProducts(rows) {
-  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
-  const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
   const headers = [
     ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
@@ -76,16 +129,16 @@ function exportProducts(rows) {
     ["LOCATION:", "MARILAO WAREHOUSE"],
     ["AS OF:", new Date().toLocaleString()],
     [],
-    ["NO.", "SKU CODE", "PRODUCT DESCRIPTION", "CATEGORY", "UNIT", "CURRENT STOCK", "AVG COST", "TOTAL VALUE", "STATUS"],
+    ["NO.", "SKU CODE", "PRODUCT DESCRIPTION", "CATEGORY", "UNIT", "BEGINNING INVENTORY", "STOCK IN", "STOCK OUT", "CURRENT STOCK", "AVG COST", "TOTAL VALUE", "STATUS"],
   ];
   const dataRows = rows.map((r, i) => [
-    i + 1, r.sku, r.description, r.category, r.unit, r.stock, r.avgCost, r.totalValue,
+    i + 1, r.sku, r.description, r.category, r.unit, (r.beginningDisplay ?? r.beginningInventory) || 0, r.stockIn || 0, r.stockOut || 0, r.stock, r.avgCost, r.totalValue,
     deriveProductStatus(r.stock),
   ]);
   const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:5},{wch:12},{wch:55},{wch:22},{wch:6},{wch:14},{wch:12},{wch:14},{wch:10}];
+  ws["!cols"] = [{wch:12},{wch:20},{wch:55},{wch:22},{wch:8},{wch:20},{wch:12},{wch:12},{wch:16},{wch:14},{wch:16},{wch:12}];
   const hStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { patternType: "solid", fgColor: { rgb: "1C2235" } }, alignment: { horizontal: "center" } };
-  ["A6","B6","C6","D6","E6","F6","G6","H6","I6"].forEach(c => {
+  ["A6","B6","C6","D6","E6","F6","G6","H6","I6","J6","K6","L6"].forEach(c => {
     if (!ws[c]) ws[c] = { v: "" };
     ws[c].s = hStyle;
   });
@@ -123,6 +176,7 @@ async function importProducts(file, onDone, onError) {
         description,
         category: cellStr(pickCol(r, headers, ["CATEGORY"], 3)) || "Uncategorized",
         unit: cellStr(pickCol(r, headers, ["UNIT"], 4)) || "pcs",
+        beginningInventory: normalizeStock(cellNum(pickCol(r, headers, ["BEGINNING INVENTORY"], 5))) || stock,
         stock,
         avgCost,
         totalValue,
@@ -137,6 +191,148 @@ async function importProducts(file, onDone, onError) {
   }
 }
 
+/* ─── ADD ITEM MODAL ─────────────────────────────────────── */
+const EMPTY_ITEM = { sku: "", description: "", category: "", unit: "pcs", beginningInventory: "", stock: "", avgCost: "" };
+
+function AddItemModal({ categories, onClose, onSave }) {
+  const [form, setForm] = useState(EMPTY_ITEM);
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = () => {
+    if (!form.sku.trim()) { setError("SKU Code is required."); return; }
+    if (!form.description.trim()) { setError("Product Description is required."); return; }
+    const stock = parseFloat(form.stock) || 0;
+    const avgCost = parseFloat(form.avgCost) || 0;
+    onSave({
+      sku: form.sku.trim().toUpperCase(),
+      description: form.description.trim(),
+      category: form.category.trim() || "Uncategorized",
+      unit: form.unit.trim() || "pcs",
+      beginningInventory: parseFloat(form.beginningInventory) || 0,
+      stock,
+      avgCost,
+      totalValue: stock * avgCost,
+      status: deriveProductStatus(stock),
+    });
+  };
+
+  return (
+    <div style={modalOverlayStyle} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ ...modalPanelStyle, width: "min(96vw, 540px)" }}>
+        <div style={modalHeaderStyle}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={modalTitleStyle}>Add New Item</h2>
+            <p style={{ ...modalSubtitleStyle, margin: "4px 0 0" }}>Add a new product to the inventory. Fields marked with * are required.</p>
+          </div>
+          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close"
+            onMouseEnter={e => e.currentTarget.style.background = "#e5e7eb"}
+            onMouseLeave={e => e.currentTarget.style.background = "#f3f4f6"}>
+            <IconX size={18} />
+          </button>
+        </div>
+        <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+          {error && <div style={{ background: "#fee2e2", color: "#991b1b", padding: "10px 14px", borderRadius: 8, fontSize: 12, marginBottom: 16, fontWeight: 600 }}>{error}</div>}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div><label style={modalLabelStyle}>SKU Code *</label><input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="e.g. DRB007" {...modalInput()} /></div>
+            <div><label style={modalLabelStyle}>Unit</label><input value={form.unit} onChange={e => set("unit", e.target.value)} placeholder="pcs / kgs / m" {...modalInput()} /></div>
+            <div style={{ gridColumn: "1/-1" }}><label style={modalLabelStyle}>Product Description *</label><input value={form.description} onChange={e => set("description", e.target.value)} placeholder="e.g. Deformed Round Bar, 10mm x 6M" {...modalInput()} /></div>
+            <div>
+              <label style={modalLabelStyle}>Category</label>
+              <input value={form.category} onChange={e => set("category", e.target.value)} list="cat-list" placeholder="e.g. Steel Bars" {...modalInput()} />
+              <datalist id="cat-list">{categories.filter(c => c !== "All Categories").map(c => <option key={c} value={c} />)}</datalist>
+            </div>
+            <div><label style={modalLabelStyle}>Warning Level (stock)</label><input type="number" min={1} value={form.warningLevel || 50} onChange={e => set("warningLevel", e.target.value)} {...modalInput()} /></div>
+            <div><label style={modalLabelStyle}>Beginning Inventory</label><input type="number" min={0} value={form.beginningInventory} onChange={e => set("beginningInventory", e.target.value)} placeholder="0" {...modalInput()} /></div>
+            <div><label style={modalLabelStyle}>Current Stock</label><input type="number" min={0} value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="0" {...modalInput()} /></div>
+            <div><label style={modalLabelStyle}>Avg Cost (₱)</label><input type="number" min={0} step="0.01" value={form.avgCost} onChange={e => set("avgCost", e.target.value)} placeholder="0.00" {...modalInput()} /></div>
+          </div>
+        </div>
+        <div style={modalFooterStyle}>
+          <button type="button" onClick={onClose} style={modalBtnSecondary}>Cancel</button>
+          <button type="button" onClick={handleSave} style={modalBtnPrimary}>
+            <IconPlus size={15} /> Add Item
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── INLINE EDIT ROW ─────────────────────────────────────── */
+const selectSt = {
+  padding: "10px 30px 10px 12px",
+  fontSize: 14,
+  border: "2px solid #F95B02",
+  borderRadius: 15,
+  background: "#ffffff",
+  color: "#F95B02",
+  cursor: "pointer",
+  fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+  appearance: "none",
+  WebkitAppearance: "none",
+  fontWeight: 700,
+  outline: "none",
+  boxShadow: "0px 8px 16px 0px rgba(0,0,0,0.2)",
+};
+
+function ProductInlineEditRow({ product, onSave, onCancel }) {
+  const [draft, setDraft] = useState({ ...product });
+  const set = (k, v) => setDraft(d => {
+    const next = { ...d, [k]: v };
+    const bi = parseFloat(next.beginningInventory) || 0;
+    const si = parseFloat(next.stockIn) || 0;
+    const so = parseFloat(next.stockOut) || 0;
+    next.stock = bi + si - so;
+    next.totalValue = (next.stock) * (parseFloat(next.avgCost)||0);
+    return next;
+  });
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding: "6px 20px" }}>
+        <input value={draft.sku || ""} onChange={e => set("sku", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "6px 16px" }}>
+        <input value={draft.description || ""} onChange={e => set("description", e.target.value)} {...modalCellInput({ width: 200 })} />
+      </td>
+      <td style={{ padding: "4px 16px" }}>
+        <input value={draft.category || ""} onChange={e => set("category", e.target.value)} {...modalCellInput({ width: 110 })} />
+      </td>
+      <td style={{ padding: "4px 16px" }}>
+        <select value={draft.unit} onChange={e => set("unit", e.target.value)} style={{ ...selectSt, padding: "5px 22px 5px 8px", fontSize: 11, width: 80 }}>
+          <option value="pcs">pcs</option>
+          <option value="kg">kg</option>
+          <option value="m">m</option>
+          <option value="L">L</option>
+        </select>
+      </td>
+      <td style={{ padding: "6px 16px", textAlign: "right" }}>
+        <input type="number" min={0} value={draft.beginningInventory ?? ""} onChange={e => set("beginningInventory", parseInt(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "14px 20px", textAlign: "center", color: "#6b7280" }}>{draft.stockIn?.toLocaleString() || 0}</td>
+      <td style={{ padding: "14px 20px", textAlign: "center", color: "#6b7280" }}>{draft.stockOut?.toLocaleString() || 0}</td>
+      <td style={{ padding: "6px 16px", textAlign: "right" }}>
+        <input type="number" min={0} value={draft.stock ?? ""} onChange={e => set("stock", parseInt(e.target.value) || 0)} {...modalCellInput({ width: 80, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "6px 16px", textAlign: "right" }}>
+        <input type="number" min={0} step="0.01" value={draft.avgCost ?? ""} onChange={e => set("avgCost", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 90, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "16px 20px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>₱{draft.totalValue.toFixed(2)}</td>
+      <td style={{ padding: "16px 20px", textAlign: "center" }}>
+        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: draft.stock > 10 ? "#d1fae5" : "#fef3c7", color: draft.stock > 10 ? "#065f46" : "#d97706" }}>
+          {draft.stock > 10 ? "Active" : "Low Stock"}
+        </span>
+      </td>
+      <td style={{ padding: "6px 8px", textAlign: "center" }}>
+        <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+          <button onClick={() => onSave(draft)} title="Save" style={{ padding: "5px 8px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={13} /></button>
+          <button onClick={onCancel} title="Cancel" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={13} /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 /* ─── PRODUCT PAGE ───────────────────────────────────────── */
 /**
  * Props:
@@ -144,56 +340,156 @@ async function importProducts(file, onDone, onError) {
  *   setProducts – setter for shared product list (optional)
  *   initialStatusFilter – pre-select status filter, e.g. "Low Stock" (optional)
  */
-export default function ProductPage({ products: propProducts, setProducts: propSetProducts, initialStatusFilter = "All Status" }) {
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+export default function ProductPage({ products: propProducts, setProducts: propSetProducts, stockInRows: propStockInRows, stockOutRows: propStockOutRows, initialStatusFilter = "All Status" }) {
   const xlsxReady = useSheetJS();
 
-  // If no props passed (standalone use), manage local state
-  const [localProducts, setLocalProducts] = useState(() => syncProductsStatus(sampleProducts));
-  const products    = propProducts    ?? localProducts;
-  const setProducts = propSetProducts ?? setLocalProducts;
+  const api = useApi(ENDPOINTS.products, MOCK_PRODUCTS);
+
+  // Prefer props (Dashboard integration) over internal API data
+  const products    = propProducts    ?? api.data;
+  const setProducts = propSetProducts ?? null; // mutations go through api when no prop setter
+
+  const stockInRows  = propStockInRows  ?? [];
+  const stockOutRows = propStockOutRows ?? [];
+
+  useEffect(() => { if (!propProducts) api.getAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [selectedPeriod, setSelectedPeriod] = useState("All Time");
+
+  const periodOptions = useMemo(() => {
+    const dates = new Set();
+    stockInRows.forEach(t => { if (t.date) dates.add(t.date.slice(0, 7)); });
+    stockOutRows.forEach(t => { if (t.dispatchDate) dates.add(t.dispatchDate.slice(0, 7)); });
+    const sorted = [...dates].sort().reverse();
+    return ["All Time", ...sorted.map(m => {
+      const [y, mo] = m.split("-");
+      return `${MONTH_NAMES[parseInt(mo) - 1]} ${y}`;
+    })];
+  }, [stockInRows, stockOutRows]);
+
+  const periodPrefix = useMemo(() => {
+    if (selectedPeriod === "All Time") return null;
+    const [m, y] = selectedPeriod.split(" ");
+    const mo = String(MONTH_NAMES.indexOf(m) + 1).padStart(2, "0");
+    return `${y}-${mo}`;
+  }, [selectedPeriod]);
+
+  // Enrich products with period-aware stock in/out from transaction data
+  const enriched = useMemo(() => {
+    if (!stockInRows.length && !stockOutRows.length) return products;
+    return (products || []).map(p => {
+      const skuMatch = t => t.sku === p.sku;
+      const inRows = stockInRows.filter(skuMatch);
+      const outRows = stockOutRows.filter(skuMatch);
+
+      let preIn = 0, preOut = 0, periodIn = 0, periodOut = 0;
+
+      if (periodPrefix) {
+        periodIn = inRows.filter(t => t.date && t.date.startsWith(periodPrefix))
+          .reduce((s, t) => s + (t.qty || 0), 0);
+        periodOut = outRows.filter(t => t.dispatchDate && t.dispatchDate.startsWith(periodPrefix))
+          .reduce((s, t) => s + (t.qtyOut || 0), 0);
+        preIn = inRows.filter(t => t.date && t.date < periodPrefix)
+          .reduce((s, t) => s + (t.qty || 0), 0);
+        preOut = outRows.filter(t => t.dispatchDate && t.dispatchDate < periodPrefix)
+          .reduce((s, t) => s + (t.qtyOut || 0), 0);
+      } else {
+        periodIn = inRows.reduce((s, t) => s + (t.qty || 0), 0);
+        periodOut = outRows.reduce((s, t) => s + (t.qtyOut || 0), 0);
+      }
+
+      const bi = p.beginningInventory || 0;
+      const beginningDisplay = periodPrefix ? bi + preIn - preOut : bi;
+      const currentStock = beginningDisplay + periodIn - periodOut;
+
+      return {
+        ...p,
+        stockIn: periodIn,
+        stockOut: periodOut,
+        stock: currentStock,
+        beginningDisplay,
+      };
+    });
+  }, [products, stockInRows, stockOutRows, periodPrefix]);
 
   const [searchQuery, setSearchQuery]     = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [skuFilter, setSkuFilter]         = useState("All SKUs");
   const [statusFilter, setStatusFilter]   = useState(initialStatusFilter);
   const [currentPage, setCurrentPage]     = useState(1);
   const [importing, setImporting]         = useState(false);
   const [toast, setToast]                 = useState(null);
+  const [showAddModal, setShowAddModal]   = useState(false);
   const fileInputRef = useRef(null);
   const itemsPerPage = 8;
+  const { sortBy, setSortBy, applySort } = useSort("id", "description");
+  const [sortOpen, setSortOpen] = useState(false);
 
-  // If navigated here with a pre-set filter, apply it on mount
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
     setCurrentPage(1);
   }, [initialStatusFilter]);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+  /* ── column visibility ── */
+  const [hiddenCols, setHiddenCols] = useState(new Set());
+  const [colVisOpen, setColVisOpen] = useState(false);
+  const colVisRef = useRef(null);
 
-  const filtered = products.filter(p => {
+  useEffect(() => {
+    if (!colVisOpen) return;
+    const handler = (e) => { if (colVisRef.current && !colVisRef.current.contains(e.target)) setColVisOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [colVisOpen]);
+
+  const toggleCol = (key) => setHiddenCols(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const visibleProdCols = PROD_COLDEFS.filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
+
+  const filtered = (enriched || []).filter(p => {
     const q = searchQuery.toLowerCase();
     const matchSearch = !q || p.sku.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
     const matchCat    = categoryFilter === "All Categories" || p.category === categoryFilter;
+    const matchSku    = skuFilter === "All SKUs" || p.sku === skuFilter;
     const matchSt     = statusFilter === "All Status"
       || (statusFilter === "Low Stock" ? isLowStock(p) : statusFilter === "Active" ? !isLowStock(p) : p.status === statusFilter);
-    return matchSearch && matchCat && matchSt;
+    return matchSearch && matchCat && matchSku && matchSt;
   });
 
-  const totalPages    = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const sorted = useMemo(() => applySort(filtered), [filtered, sortBy]);
+  const totalPages    = Math.max(1, Math.ceil(sorted.length / itemsPerPage));
   const startIdx      = (currentPage - 1) * itemsPerPage;
-  const paginatedItems = filtered.slice(startIdx, startIdx + itemsPerPage);
+  const paginatedItems = sorted.slice(startIdx, startIdx + itemsPerPage);
   const categories    = ["All Categories", ...new Set(products.map(p => p.category))];
+  const skuOptions    = useMemo(() => {
+    if (categoryFilter === "All Categories") return [];
+    return [...new Set(products.filter(p => p.category === categoryFilter).map(p => p.sku))];
+  }, [products, categoryFilter]);
 
   // Count low-stock items for the banner
-  const lowStockCount = getLowStockProducts(products).length;
+  const lowStockCount = getLowStockProducts(enriched).length;
   const duplicateSkuCount = products.length - new Set(products.map((p) => (p.sku || "").trim().toUpperCase()).filter(Boolean)).size;
 
   const handleImport = (e) => {
     const file = e.target.files[0]; if (!file) return;
     setImporting(true);
-    importProducts(file, (parsed) => {
-      setImporting(false); setProducts(parsed); setCurrentPage(1);
-      showToast(`✓ Imported ${parsed.length} SKUs successfully.`);
-      e.target.value = "";
+    importProducts(file, async (parsed) => {
+      try {
+        if (setProducts) {
+          setProducts(parsed);
+        } else {
+          await api.bulkReplace(parsed);
+        }
+        setCurrentPage(1);
+        showToast(`✓ Imported ${parsed.length} SKUs successfully.`);
+      } catch {
+        showToast("❌ Import succeeded but failed to save.", "error");
+      } finally {
+        setImporting(false);
+        e.target.value = "";
+      }
     }, (err) => {
       setImporting(false);
       showToast(`❌ Import failed: ${err}`, "error");
@@ -237,10 +533,15 @@ export default function ProductPage({ products: propProducts, setProducts: propS
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "category", value: categoryFilter, onChange: (v) => { setCategoryFilter(v); setCurrentPage(1); }, options: categories, minWidth: 160 },
-          { key: "status",   value: statusFilter,   onChange: (v) => { setStatusFilter(v);   setCurrentPage(1); }, options: ["All Status", "Active", "Low Stock"], minWidth: 140 },
+          { key: "period", value: selectedPeriod, onChange: (v) => { setSelectedPeriod(v); setCurrentPage(1); }, options: periodOptions, minWidth: 110 },
+          { key: "category", value: categoryFilter, onChange: (v) => { setCategoryFilter(v); setSkuFilter("All SKUs"); setCurrentPage(1); }, options: categories, minWidth: 140 },
+          ...(categoryFilter !== "All Categories" ? [{
+            key: "sku", value: skuFilter, onChange: (v) => { setSkuFilter(v); setCurrentPage(1); },
+            options: ["All SKUs", ...skuOptions], minWidth: 120,
+          }] : []),
+          { key: "status",   value: statusFilter,   onChange: (v) => { setStatusFilter(v);   setCurrentPage(1); }, options: ["All Status", "Active", "Low Stock"], minWidth: 120 },
         ]}
-        primaryAction={{ label: "Add Item", onClick: () => {} }}
+        primaryAction={{ label: "Add Item", onClick: () => setShowAddModal(true) }}
         showDateRange={false}
         importExport={{
           fileInputRef,
@@ -251,84 +552,156 @@ export default function ProductPage({ products: propProducts, setProducts: propS
         }}
       />
 
-      <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {["SKU CODE","PRODUCT DESCRIPTION","CATEGORY","UNIT","CURRENT STOCK","AVG COST","TOTAL VALUE","STATUS"].map(h => (
-                  <th key={h} style={{
-                    padding: "16px 20px",
-                    textAlign: ["CURRENT STOCK","AVG COST","TOTAL VALUE"].includes(h) ? "right" : "left",
-                    color: "#fff", fontWeight: 700, fontSize: 12,
-                  }}>{h}</th>
+      <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", background: "#f8f9fb", borderBottom: "1px solid #e5e7eb" }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+              </svg>
+            </button>
+            {sortOpen && (
+              <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+                {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                  <div key={val} onClick={() => { setSortBy(val); setCurrentPage(1); setSortOpen(false); }}
+                    style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                    onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
+                  >
+                    <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                    <span>{text}</span>
+                    {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                  </div>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedItems.length === 0 ? (
-                <tr>
-                  <td colSpan={8} style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
-                    No items match your search or filter.
-                  </td>
-                </tr>
-              ) : paginatedItems.map((product, idx) => {
-                const low = isLowStock(product);
-                const displayStatus = deriveProductStatus(product.stock);
-                return (
-                <tr
-                  key={product.id}
-                  style={{
-                    borderBottom: "1px solid #f3f4f6",
-                    background: low
-                      ? (idx % 2 === 0 ? "#fffdf5" : "#fffbeb")
-                      : (idx % 2 === 0 ? "#fff" : "#fafafa"),
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#f5f9ff"}
-                  onMouseLeave={(e) => e.currentTarget.style.background =
-                    low
-                      ? (idx % 2 === 0 ? "#fffdf5" : "#fffbeb")
-                      : (idx % 2 === 0 ? "#fff" : "#fafafa")
-                  }
-                >
-                  <td style={{ padding: "14px 20px", color: "#374151", fontWeight: 600 }}>{product.sku}</td>
-                  <td style={{ padding: "14px 20px", color: "#374151", fontSize: 12 }}>{product.description}</td>
-                  <td style={{ padding: "14px 20px", color: "#6b7280", fontSize: 12 }}>{product.category}</td>
-                  <td style={{ padding: "14px 20px", color: "#374151" }}>{product.unit}</td>
-                  <td style={{
-                    padding: "14px 20px", textAlign: "right",
-                    color: low ? "#d97706" : "#374151",
-                    fontWeight: low ? 700 : 400,
-                  }}>
-                    {product.stock.toLocaleString()}
-                    {low && (
-                      <span style={{ marginLeft: 6, color: "#d97706" }}><IconWarning size={12} /></span>
-                    )}
-                  </td>
-                  <td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>₱{product.avgCost.toFixed(2)}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "right", color: "#374151" }}>₱{product.totalValue.toFixed(2)}</td>
-                  <td style={{ padding: "14px 20px", textAlign: "center" }}>
-                    <span style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      whiteSpace: "nowrap",
-                      padding: "4px 12px",
-                      borderRadius: 12,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      lineHeight: 1.2,
-                      background: displayStatus === "Active" ? "#dcfce7" : "#fef3c7",
-                      color: displayStatus === "Active" ? "#16a34a" : "#d97706",
-                    }}>
-                      {displayStatus}
-                    </span>
-                  </td>
-                </tr>
-              );})}
-            </tbody>
-          </table>
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+            {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+          </span>
+          {/* ── column visibility toggle ── */}
+          <div ref={colVisRef} style={{ marginLeft: "auto", position: "relative" }}>
+            <button onClick={() => setColVisOpen(o => !o)} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: colVisOpen ? "#f3f4f6" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+              <IconGear size={13} /> Columns
+            </button>
+            {colVisOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: 160, padding: "6px 0" }}>
+                {PROD_COLDEFS.filter(c => c.hideable).map(c => (
+                  <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, color: "#374151", fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => toggleCol(c.key)} style={{ cursor: "pointer" }} />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+        <Table
+          columns={visibleProdCols.map(c => ({
+            ...c,
+            label: c.key === "beginning" ? (periodPrefix ? `BEGIN (${selectedPeriod})` : "BEGINNING")
+                 : c.key === "stockIn"   ? (periodPrefix ? `IN (${selectedPeriod})` : "STOCK IN")
+                 : c.key === "stockOut"  ? (periodPrefix ? `OUT (${selectedPeriod})` : "STOCK OUT")
+                 : c.label,
+            align: c.key === "description" ? "left" : (c.key === "avgCost" || c.key === "totalValue") ? "right" : "center",
+          }))}
+          emptyIcon={false}
+        >
+          {paginatedItems.length === 0 ? (
+            <tr>
+              <td colSpan={visibleProdCols.length} className="wis-empty">
+                <svg className="wis-empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+                <p className="wis-empty-title">
+                  {searchQuery ? `No products matching "${searchQuery}"` : statusFilter !== "All Status" ? `No ${statusFilter.toLowerCase()} items found` : "No items found"}
+                </p>
+                <p className="wis-empty-sub">
+                  {searchQuery ? "Try a different search term or clear the filters" : "Adjust your filters or import a product list"}
+                </p>
+                {searchQuery && (
+                  <button className="wis-empty-btn" onClick={() => { setSearchQuery(""); setCurrentPage(1); }}>
+                    Clear search
+                  </button>
+                )}
+              </td>
+            </tr>
+          ) : paginatedItems.map((product, idx) => {
+            const low = isLowStock(product);
+            const displayStatus = deriveProductStatus(product.stock);
+            const isEven = idx % 2 === 0;
+            const rowBg = low ? (isEven ? "#fffdf5" : "#fffbeb") : (isEven ? "#fff" : "#fafbfc");
+            return (
+              <tr key={product.id}
+                className={`wis-tr ${isEven ? "wis-tr-even" : "wis-tr-odd"}`}
+                style={{ background: rowBg }}
+                onMouseEnter={(e) => e.currentTarget.style.background = low ? "#fff8e1" : "#f5f9ff"}
+                onMouseLeave={(e) => e.currentTarget.style.background = rowBg}
+              >
+                {visibleProdCols.map(c => {
+                  if (c.key === "sku") return (
+                    <td key="sku" title={product.sku}
+                      className="wis-td wis-td-center wis-td-bold wis-td-sticky"
+                      style={{ background: rowBg }}>
+                      <HighlightText text={product.sku} query={searchQuery} />
+                    </td>
+                  );
+                  if (c.key === "description") return (
+                    <td key="description" title={product.description}
+                      className="wis-td wis-td-left"
+                      style={{ maxWidth: 220 }}>
+                      <HighlightText text={product.description} query={searchQuery} />
+                    </td>
+                  );
+                  if (c.key === "category") return (
+                    <td key="category" title={product.category}
+                      className="wis-td wis-td-center wis-td-muted"
+                      style={{ maxWidth: 120 }}>
+                      <HighlightText text={product.category} query={searchQuery} />
+                    </td>
+                  );
+                  if (c.key === "unit") return (
+                    <td key="unit" className="wis-td wis-td-center">{product.unit}</td>
+                  );
+                  if (c.key === "beginning") return (
+                    <td key="beginning" className="wis-td wis-td-center">{(product.beginningDisplay ?? product.beginningInventory) || 0}</td>
+                  );
+                  if (c.key === "stockIn") return (
+                    <td key="stockIn" className="wis-td wis-td-center">{product.stockIn?.toLocaleString() || 0}</td>
+                  );
+                  if (c.key === "stockOut") return (
+                    <td key="stockOut" className="wis-td wis-td-center">{product.stockOut?.toLocaleString() || 0}</td>
+                  );
+                  if (c.key === "stock") return (
+                    <td key="stock" className={`wis-td wis-td-center${low ? " wis-td-bold" : ""}`}
+                      style={{ color: low ? "#d97706" : undefined }}>
+                      {product.stock.toLocaleString()}
+                      {low && <span style={{ marginLeft: 4, color: "#d97706" }}><IconWarning size={11} /></span>}
+                    </td>
+                  );
+                  if (c.key === "avgCost") return (
+                    <td key="avgCost" className="wis-td wis-td-right">₱{product.avgCost.toFixed(2)}</td>
+                  );
+                  if (c.key === "totalValue") return (
+                    <td key="totalValue" className="wis-td wis-td-right">₱{product.totalValue.toFixed(2)}</td>
+                  );
+                  if (c.key === "status") return (
+                    <td key="status" className="wis-td wis-td-center">
+                      <span className={`wis-badge ${displayStatus === "Active" ? "wis-badge-green" : "wis-badge-yellow"}`}>
+                        {displayStatus}
+                      </span>
+                    </td>
+                  );
+                  return null;
+                })}
+              </tr>
+            );
+          })}
+        </Table>
 
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -336,7 +709,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
           background: "#fafafa", flexWrap: "wrap", gap: 10,
         }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {filtered.length === 0 ? 0 : startIdx + 1} to {Math.min(startIdx + itemsPerPage, filtered.length)} of {filtered.length} SKUs
+            Showing {sorted.length === 0 ? 0 : startIdx + 1} to {Math.min(startIdx + itemsPerPage, sorted.length)} of {sorted.length} SKUs
             {statusFilter === "Low Stock" && (
               <span style={{ marginLeft: 8, color: "#d97706", fontWeight: 600 }}>· {lowStockCount} Low Stock</span>
             )}
@@ -345,7 +718,7 @@ export default function ProductPage({ products: propProducts, setProducts: propS
             <button
               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
-              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===1?"not-allowed":"pointer", opacity: currentPage===1?0.5:1 }}
+              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage===1?"not-allowed":"pointer", opacity: currentPage===1?0.5:1 }}
             >
               <IconChevronLeft size={16} />
             </button>
@@ -365,13 +738,48 @@ export default function ProductPage({ products: propProducts, setProducts: propS
             <button
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.5:1 }}
+              style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.5:1 }}
             >
               <IconChevronRight size={16} />
             </button>
           </div>
         </div>
       </div>
+
+      {showAddModal && (
+        <AddItemModal
+          categories={categories}
+          onClose={() => setShowAddModal(false)}
+          onSave={async (newItem) => {
+            try {
+              if (setProducts) {
+                const newId = Math.max(0, ...products.map(p => p.id || 0)) + 1;
+                setProducts(prev => [...prev, { id: newId, ...newItem }]);
+              } else {
+                await api.create(newItem);
+              }
+              setShowAddModal(false);
+              showToast(`✓ "${newItem.sku}" added successfully.`);
+            } catch {
+              showToast(`❌ Failed to add "${newItem.sku}".`, "error");
+            }
+          }}
+        />
+      )}
+
+      {api.loading && !importing && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(255,255,255,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9998,
+        }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: "20px 32px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", fontSize: 14, fontWeight: 600, color: "#374151", display: "flex", alignItems: "center", gap: 12 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e87c27" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 0.8s linear infinite" }}>
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            Saving…
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div style={{
