@@ -14,6 +14,7 @@ import {
   readWorkbookSheet,
 } from "./excelImportUtils";
 import { modalCellInput, modalInput } from "./modalFormStyles";
+import Table from "./Table";
 
 function Highlight({ text, query }) {
   if (!query || !text) return <>{String(text)}</>;
@@ -824,84 +825,72 @@ export default function AdvanceCustomerPOPage({ onPendingCreated, statusUpdates 
             )}
           </div>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {visibleACPOCols.map(c => (
-                  <th key={c.key} style={{
-                    padding: "12px 10px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.04em",
-                    ...(c.sticky ? { position: "sticky", left: 0, zIndex: 2, background: "#1c2235", boxShadow: "3px 0 5px rgba(0,0,0,0.15)" } : {}),
-                  }}>{c.label}</th>
-                ))}
+        <Table columns={visibleACPOCols.map(c => ({
+          ...c,
+          align: c.key === "reservedQty" || c.key === "currentStock" || c.key === "estEnding" ? "center" : "left",
+        }))}>
+          {paged.length === 0 && (
+            <tr>
+              <td colSpan={visibleACPOCols.length} className="wis-td wis-td-center wis-td-light" style={{ padding: "48px 20px", fontSize: 14 }}>
+                No results found for <strong style={{ color: "#374151" }}>"{searchSku || "your filters"}"</strong>
+              </td>
+            </tr>
+          )}
+          {paged.map((row, idx) => {
+            const rowBg = selectedId === row.id ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
+            return (
+              <tr
+                key={row.id}
+                className={`wis-tr ${idx % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"} ${selectedId === row.id ? "wis-tr-selected" : ""}`}
+                onClick={() => openEditDrawer(row)}
+                style={{ cursor: "pointer" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                onMouseLeave={e => e.currentTarget.style.background = rowBg}
+              >
+                {visibleACPOCols.map(c => {
+                  if (c.key === "transNo") return (
+                    <td key="transNo" className="wis-td wis-td-bold wis-td-sticky" style={{ background: rowBg }}><Highlight text={row.transNo} query={searchSku} /></td>
+                  );
+                  if (c.key === "resDate") return (
+                    <td key="resDate" className="wis-td" style={{ whiteSpace: "nowrap" }}><Highlight text={row.resDate} query={searchSku} /></td>
+                  );
+                  if (c.key === "soWo") return (
+                    <td key="soWo" className="wis-td"><Highlight text={row.soWo} query={searchSku} /></td>
+                  );
+                  if (c.key === "tdtDr") return (
+                    <td key="tdtDr" className="wis-td wis-td-accent wis-td-bold"><Highlight text={row.tdtDr} query={searchSku} /></td>
+                  );
+                  if (c.key === "customer") return (
+                    <td key="customer" title={row.customer} className="wis-td wis-td-bold" style={{ maxWidth: 150, minWidth: 110 }}><Highlight text={row.customer} query={searchSku} /></td>
+                  );
+                  if (c.key === "place") return (
+                    <td key="place" className="wis-td wis-td-muted"><Highlight text={row.place} query={searchSku} /></td>
+                  );
+                  if (c.key === "reservedQty") return (
+                    <td key="reservedQty" className="wis-td wis-td-center wis-td-bold"><Highlight text={row.reservedQty} query={searchSku} /></td>
+                  );
+                  if (c.key === "currentStock") return (
+                    <td key="currentStock" className="wis-td wis-td-center"><Highlight text={row.currentStock} query={searchSku} /></td>
+                  );
+                  if (c.key === "estEnding") return (
+                    <td key="estEnding" className="wis-td wis-td-center wis-td-bold"><Highlight text={row.estEnding} query={searchSku} /></td>
+                  );
+                  if (c.key === "approvedBy") return (
+                    <td key="approvedBy" className="wis-td wis-td-muted"><Highlight text={row.approvedBy} query={searchSku} /></td>
+                  );
+                  if (c.key === "status") return (
+                    <td key="status" className="wis-td wis-td-center">
+                      <span className={`wis-badge wis-badge-${row.status === "Active" ? "green" : row.status === "Pending" ? "yellow" : row.status === "Closed" ? "gray" : row.status === "Rejected" ? "red" : "blue"}`}>
+                        {row.status}
+                      </span>
+                    </td>
+                  );
+                  return null;
+                })}
               </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 && (
-                <tr>
-                  <td colSpan={visibleACPOCols.length} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af", fontSize: 14 }}>
-                    No results found for <strong style={{ color: "#374151" }}>"{searchSku || "your filters"}"</strong>
-                  </td>
-                </tr>
-              )}
-              {paged.map((row, idx) => {
-                const rowBg = selectedId === row.id ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
-                const st = STATUS_STYLE[row.status] || STATUS_STYLE.Pending;
-                return (
-                  <tr
-                    key={row.id}
-                    onClick={() => openEditDrawer(row)}
-                    style={{ borderBottom: "1px solid #f5f5f6", background: rowBg, cursor: "pointer", boxShadow: selectedId === row.id ? "inset 3px 0 0 #e87c27" : "none" }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
-                    onMouseLeave={e => e.currentTarget.style.background = rowBg}
-                  >
-                    {visibleACPOCols.map(c => {
-                      if (c.key === "transNo") return (
-                        <td key="transNo" style={{ padding: "14px 10px", color: "#6b7280", fontWeight: 600, position: "sticky", left: 0, zIndex: 1, background: rowBg, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}><Highlight text={row.transNo} query={searchSku} /></td>
-                      );
-                      if (c.key === "resDate") return (
-                        <td key="resDate" style={{ padding: "14px 10px", color: "#374151", whiteSpace: "nowrap" }}><Highlight text={row.resDate} query={searchSku} /></td>
-                      );
-                      if (c.key === "soWo") return (
-                        <td key="soWo" style={{ padding: "14px 10px", color: "#374151" }}><Highlight text={row.soWo} query={searchSku} /></td>
-                      );
-                      if (c.key === "tdtDr") return (
-                        <td key="tdtDr" style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700 }}><Highlight text={row.tdtDr} query={searchSku} /></td>
-                      );
-                      if (c.key === "customer") return (
-                        <td key="customer" title={row.customer} style={{ padding: "14px 10px", color: "#111827", fontWeight: 600, maxWidth: 150, minWidth: 110, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><Highlight text={row.customer} query={searchSku} /></td>
-                      );
-                      if (c.key === "place") return (
-                        <td key="place" style={{ padding: "14px 10px", color: "#6b7280" }}><Highlight text={row.place} query={searchSku} /></td>
-                      );
-                      if (c.key === "reservedQty") return (
-                        <td key="reservedQty" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 700 }}><Highlight text={row.reservedQty} query={searchSku} /></td>
-                      );
-                      if (c.key === "currentStock") return (
-                        <td key="currentStock" style={{ padding: "14px 10px", textAlign: "center" }}><Highlight text={row.currentStock} query={searchSku} /></td>
-                      );
-                      if (c.key === "estEnding") return (
-                        <td key="estEnding" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 600 }}><Highlight text={row.estEnding} query={searchSku} /></td>
-                      );
-                      if (c.key === "approvedBy") return (
-                        <td key="approvedBy" style={{ padding: "14px 10px", color: "#6b7280" }}><Highlight text={row.approvedBy} query={searchSku} /></td>
-                      );
-                      if (c.key === "status") return (
-                        <td key="status" style={{ padding: "14px 10px" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>
-                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.badgeBg, display: "inline-block", flexShrink: 0 }} />
-                            {row.status}
-                          </span>
-                        </td>
-                      );
-                      return null;
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            );
+          })}
+        </Table>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
@@ -1019,27 +1008,21 @@ export default function AdvanceCustomerPOPage({ onPendingCreated, statusUpdates 
                 {editDrawerRow.lineItems?.length > 0 && (
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.06em", marginBottom: 8 }}>RESERVED ITEMS</div>
-                    <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-                        <thead>
-                          <tr style={{ background: "#f3f4f6" }}>
-                            {["Code", "Description", "Qty", "Value"].map(h => (
-                              <th key={h} style={{ padding: "7px 8px", textAlign: h === "Qty" || h === "Value" ? "right" : "left", fontWeight: 700, color: "#374151", fontSize: 10 }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {editDrawerRow.lineItems.map((it, i) => (
-                            <tr key={i} style={{ borderTop: "1px solid #e5e7eb", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                              <td style={{ padding: "7px 8px", color: "#111827", fontWeight: 600 }}>{it.code}</td>
-                              <td style={{ padding: "7px 8px", color: "#374151" }}>{it.desc}</td>
-                              <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{it.qty}</td>
-                              <td style={{ padding: "7px 8px", textAlign: "right", color: "#e87c27", fontWeight: 600 }}>{fmtPHP(it.qty * it.lineValue)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <Table columns={[
+                      { key: "code", label: "Code", align: "left" },
+                      { key: "desc", label: "Description", align: "left" },
+                      { key: "qty", label: "Qty", align: "right" },
+                      { key: "value", label: "Value", align: "right" },
+                    ]}>
+                      {editDrawerRow.lineItems.map((it, i) => (
+                        <tr key={i} className={`wis-tr ${i % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"}`}>
+                          <td className="wis-td wis-td-left wis-td-bold" style={{ color: "#111827" }}>{it.code}</td>
+                          <td className="wis-td wis-td-left">{it.desc}</td>
+                          <td className="wis-td wis-td-right wis-td-bold">{it.qty}</td>
+                          <td className="wis-td wis-td-right wis-td-accent wis-td-bold">{fmtPHP(it.qty * it.lineValue)}</td>
+                        </tr>
+                      ))}
+                    </Table>
                     <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between" }}>
                       <span style={{ fontSize: 12, color: "#6b7280" }}>Total Reserved Value</span>
                       <span style={{ fontSize: 13, fontWeight: 800, color: "#e87c27" }}>{fmtPHP(editDrawerRow.lineItems.reduce((s, l) => s + l.qty * l.lineValue, 0))}</span>

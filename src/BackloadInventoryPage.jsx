@@ -31,6 +31,7 @@ import {
 import { formatCompactPHP } from "./inventoryUtils";
 import MetricCard from "./MetricCard";
 import { IconBox, IconTruck, IconBarChart, IconBag } from "./metricIcons";
+import Table from "./Table";
 
 /* ─── SEED DATA from Excel BACKLOAD INVENTORY sheet ── */
 const SEED_BACKLOAD = [
@@ -813,91 +814,77 @@ const COLS = [
             )}
           </div>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {visibleBLCols.map(c => (
-                  <th key={c.key} style={{
-                    padding: "12px 10px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.04em",
-                    ...(c.sticky ? { position: "sticky", left: 0, zIndex: 2, background: "#1c2235", boxShadow: "3px 0 5px rgba(0,0,0,0.15)" } : {}),
-                  }}>{c.label}</th>
-                ))}
+        <Table columns={visibleBLCols.map(c => ({ ...c, align: ["item", "customerName", "remarks"].includes(c.key) ? "left" : "center" }))}>
+          {paged.length === 0 && (
+            <tr><td colSpan={visibleBLCols.length} className="wis-empty" style={{ padding: 48 }}>No backload entries found.</td></tr>
+          )}
+          {paged.map((row, idx) => {
+            const rowBg = idx % 2 === 0 ? "#fff" : "#fafbfc";
+            const totalCost = row.qty * row.unitCost;
+            const rowTotalQtyOut = qtyOutTotals[row.id] || 0;
+            const qtyBalance = row.qty - rowTotalQtyOut;
+            const amtBalance = row.unitCost * qtyBalance;
+            return (
+              <tr key={row.id}
+                onClick={() => openEditDrawer(row)}
+                style={{ background: rowBg, cursor: "pointer" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                onMouseLeave={e => e.currentTarget.style.background = rowBg}
+              >
+                {visibleBLCols.map(c => {
+                  if (c.key === "id") return (
+                    <td key="id" className="wis-td wis-td-center wis-td-light wis-td-sticky" style={{ fontSize: 11, background: rowBg }}>{row.id}</td>
+                  );
+                  if (c.key === "date") return (
+                    <td key="date" className="wis-td wis-td-center wis-td-muted">{formatBackloadExportDate(row.date)}</td>
+                  );
+                  if (c.key === "drNo") return (
+                    <td key="drNo" className="wis-td wis-td-center wis-td-accent wis-td-bold"><Highlight text={row.drNo || "—"} query={searchQuery} /></td>
+                  );
+                  if (c.key === "sku") return (
+                    <td key="sku" className="wis-td wis-td-center"><Highlight text={row.sku || "—"} query={searchQuery} /></td>
+                  );
+                  if (c.key === "item") return (
+                    <td key="item" title={row.item} className="wis-td wis-td-left" style={{ maxWidth: 200, minWidth: 150 }}>
+                      <Highlight text={row.item} query={searchQuery} />
+                    </td>
+                  );
+                  if (c.key === "qty") return (
+                    <td key="qty" className="wis-td wis-td-center wis-td-bold">{row.qty}</td>
+                  );
+                  if (c.key === "unitCost") return (
+                    <td key="unitCost" className="wis-td wis-td-center">{fmtPHP(row.unitCost)}</td>
+                  );
+                  if (c.key === "totalCost") return (
+                    <td key="totalCost" className="wis-td wis-td-center wis-td-bold">{fmtPHP(totalCost)}</td>
+                  );
+                  if (c.key === "customerName") return (
+                    <td key="customerName" title={row.customerName} className="wis-td wis-td-left" style={{ maxWidth: 150, minWidth: 110 }}>
+                      <Highlight text={row.customerName} query={searchQuery} />
+                    </td>
+                  );
+                  if (c.key === "totalQtyOut") return (
+                    <td key="totalQtyOut" className="wis-td wis-td-center" style={{ fontWeight: rowTotalQtyOut > 0 ? 700 : 400, color: rowTotalQtyOut > 0 ? "#dc2626" : "#9ca3af" }}>{rowTotalQtyOut > 0 ? rowTotalQtyOut : "0"}</td>
+                  );
+                  if (c.key === "qtyBalance") return (
+                    <td key="qtyBalance" className="wis-td wis-td-center">
+                      <span className={`wis-badge ${qtyBalance > 0 ? "wis-badge-yellow" : "wis-badge-green"}`}>{qtyBalance}</span>
+                    </td>
+                  );
+                  if (c.key === "amtBalance") return (
+                    <td key="amtBalance" className="wis-td wis-td-center wis-td-bold">{fmtPHP(amtBalance)}</td>
+                  );
+                  if (c.key === "remarks") return (
+                    <td key="remarks" title={row.remarks || ""} className="wis-td wis-td-left wis-td-muted" style={{ fontSize: 10, maxWidth: 140, minWidth: 90 }}>
+                      {row.remarks || "—"}
+                    </td>
+                  );
+                  return null;
+                })}
               </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 && (
-                <tr><td colSpan={visibleBLCols.length} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No backload entries found.</td></tr>
-              )}
-              {paged.map((row, idx) => {
-                const rowBg = idx % 2 === 0 ? "#fff" : "#fafafa";
-                const totalCost = row.qty * row.unitCost;
-                const rowTotalQtyOut = qtyOutTotals[row.id] || 0;
-                const qtyBalance = row.qty - rowTotalQtyOut;
-                const amtBalance = row.unitCost * qtyBalance;
-                return (
-                  <tr key={row.id}
-                    onClick={() => openEditDrawer(row)}
-                    style={{ borderBottom: "1px solid #f5f5f6", background: rowBg, cursor: "pointer" }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
-                    onMouseLeave={e => e.currentTarget.style.background = rowBg}
-                  >
-                    {visibleBLCols.map(c => {
-                      if (c.key === "id") return (
-                        <td key="id" style={{ padding: "14px 10px", color: "#9ca3af", fontSize: 11, textAlign: "center", position: "sticky", left: 0, zIndex: 1, background: rowBg, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>{row.id}</td>
-                      );
-                      if (c.key === "date") return (
-                        <td key="date" style={{ padding: "14px 10px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{formatBackloadExportDate(row.date)}</td>
-                      );
-                      if (c.key === "drNo") return (
-                        <td key="drNo" style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo || "—"} query={searchQuery} /></td>
-                      );
-                      if (c.key === "sku") return (
-                        <td key="sku" style={{ padding: "14px 10px", color: "#374151", textAlign: "center" }}><Highlight text={row.sku || "—"} query={searchQuery} /></td>
-                      );
-                      if (c.key === "item") return (
-                        <td key="item" title={row.item} style={{ padding: "14px 10px", color: "#374151", maxWidth: 200, minWidth: 150, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          <Highlight text={row.item} query={searchQuery} />
-                        </td>
-                      );
-                      if (c.key === "qty") return (
-                        <td key="qty" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 700 }}>{row.qty}</td>
-                      );
-                      if (c.key === "unitCost") return (
-                        <td key="unitCost" style={{ padding: "14px 10px", textAlign: "center" }}>{fmtPHP(row.unitCost)}</td>
-                      );
-                      if (c.key === "totalCost") return (
-                        <td key="totalCost" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(totalCost)}</td>
-                      );
-                      if (c.key === "customerName") return (
-                        <td key="customerName" title={row.customerName} style={{ padding: "14px 10px", color: "#374151", maxWidth: 150, minWidth: 110, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          <Highlight text={row.customerName} query={searchQuery} />
-                        </td>
-                      );
-                      if (c.key === "totalQtyOut") return (
-                        <td key="totalQtyOut" style={{ padding: "14px 10px", textAlign: "center", fontWeight: rowTotalQtyOut > 0 ? 700 : 400, color: rowTotalQtyOut > 0 ? "#dc2626" : "#9ca3af" }}>{rowTotalQtyOut > 0 ? rowTotalQtyOut : "0"}</td>
-                      );
-                      if (c.key === "qtyBalance") return (
-                        <td key="qtyBalance" style={{ padding: "14px 10px", textAlign: "center" }}>
-                          <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: qtyBalance > 0 ? "#fef3c7" : "#d1fae5", color: qtyBalance > 0 ? "#d97706" : "#065f46" }}>{qtyBalance}</span>
-                        </td>
-                      );
-                      if (c.key === "amtBalance") return (
-                        <td key="amtBalance" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(amtBalance)}</td>
-                      );
-                      if (c.key === "remarks") return (
-                        <td key="remarks" title={row.remarks || ""} style={{ padding: "14px 10px", color: "#6b7280", maxWidth: 140, minWidth: 90, fontSize: 10, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {row.remarks || "—"}
-                        </td>
-                      );
-                      return null;
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            );
+          })}
+        </Table>
 
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
@@ -947,41 +934,42 @@ const COLS = [
                     <button onClick={() => setQtyOutSlotCount(s => Math.max(1, s - 1))} title="Remove last QTY-OUT/DATE column pair" disabled={qtyOutSlotCount <= 1} style={{ padding: "4px 10px", border: "1px solid #ef4444", borderRadius: 5, background: "#fef2f2", cursor: qtyOutSlotCount <= 1 ? "not-allowed" : "pointer", fontSize: 13, color: "#ef4444", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4, opacity: qtyOutSlotCount <= 1 ? 0.4 : 1 }}>− Remove Pair</button>
                   </div>
                 </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: "#1c2235" }}>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>ITEM</th>
-                        <th colSpan={slots * 2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, textAlign: "center", borderBottom: "1px solid #2a3450" }}>QTY-OUT / DATE RECORDS</th>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 90 }}>TOTAL QTY OUT</th>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 60 }}>ACTION</th>
+                <div className="wis-table-scroll">
+                  <table className="wis-table">
+                    <thead className="wis-thead">
+                      <tr className="wis-tr">
+                        <th rowSpan={2} className="wis-th wis-th-left" style={{ borderRight: "1px solid #2a3450" }}>ITEM</th>
+                        <th colSpan={slots * 2} className="wis-th" style={{ borderBottom: "1px solid #2a3450" }}>QTY-OUT / DATE RECORDS</th>
+                        <th rowSpan={2} className="wis-th" style={{ borderLeft: "1px solid #2a3450", minWidth: 90 }}>TOTAL QTY OUT</th>
+                        <th rowSpan={2} className="wis-th" style={{ borderLeft: "1px solid #2a3450", minWidth: 60 }}>ACTION</th>
                       </tr>
-                      <tr style={{ background: "#1c2235" }}>
+                      <tr className="wis-tr">
                         {Array.from({ length: slots }, (_, i) => (
                           <Fragment key={i}>
-                            <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>QTY-OUT</th>
-                            <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center" }}>DATE</th>
+                            <th className="wis-th" style={{ fontSize: 10, color: "#93a3c7", borderRight: "1px solid #2a3450" }}>QTY-OUT</th>
+                            <th className="wis-th" style={{ fontSize: 10, color: "#93a3c7" }}>DATE</th>
                           </Fragment>
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="wis-tbody">
                       {itemEntries.map((g, gi) => {
                         const isEditing = editingQtyOutItem === g.item.id;
                         return (
                           <tr key={g.item.id}
-                            style={{ borderBottom: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : gi % 2 === 0 ? "#fff" : "#fafafa" }}
+                            className={`wis-tr ${gi % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"}`}
+                            style={{ background: isEditing ? "#fffbf7" : undefined }}
                           >
-                            <td style={{ padding: "10px 14px", color: "#111827", fontWeight: 600, fontSize: 12, textAlign: "left", borderRight: "1px solid #f3f4f6", maxWidth: 240, minWidth: 180 }}>{g.item.item}</td>
+                            <td className="wis-td wis-td-left wis-td-bold" style={{ maxWidth: 240, minWidth: 180, borderRight: "1px solid #f3f4f6" }}>{g.item.item}</td>
                             {Array.from({ length: slots }, (_, slotIdx) => {
                               const entry = g.entries[slotIdx];
                               if (isEditing) {
                                 return (
                                   <Fragment key={slotIdx}>
-                                    <td style={{ padding: "4px 6px", borderRight: "1px solid #f3f4f6" }}>
+                                    <td className="wis-td" style={{ padding: "4px 6px", borderRight: "1px solid #f3f4f6" }}>
                                       <input type="number" min={0} value={qtyOutDraft[`${g.item.id}-${slotIdx}-qty`] ?? entry?.qty ?? ""} onChange={e => setQtyOutDraft(d => ({ ...d, [`${g.item.id}-${slotIdx}-qty`]: parseFloat(e.target.value) || "" }))} placeholder="Qty" {...modalCellInput({ width: 65, textAlign: "right" })} />
                                     </td>
-                                    <td style={{ padding: "4px 6px" }}>
+                                    <td className="wis-td" style={{ padding: "4px 6px" }}>
                                       <input type="date" value={qtyOutDraft[`${g.item.id}-${slotIdx}-date`] ?? entry?.date ?? ""} onChange={e => setQtyOutDraft(d => ({ ...d, [`${g.item.id}-${slotIdx}-date`]: e.target.value }))} {...modalCellInput({ width: 120 })} />
                                     </td>
                                   </Fragment>
@@ -989,13 +977,13 @@ const COLS = [
                               }
                               return (
                                 <Fragment key={slotIdx}>
-                                  <td style={{ padding: "10px 10px", color: entry ? "#e87c27" : "#e5e7eb", fontWeight: entry ? 700 : 400, fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6", whiteSpace: "nowrap", minWidth: 100 }}>{entry ? entry.qty.toLocaleString() : "—"}</td>
-                                  <td style={{ padding: "10px 10px", color: entry ? "#111827" : "#e5e7eb", fontWeight: entry ? 700 : 400, fontSize: 12, textAlign: "center", minWidth: 60 }}>{entry ? formatBackloadExportDate(entry.date) : "—"}</td>
+                                  <td className={`wis-td wis-td-center${entry ? " wis-td-bold wis-td-accent" : ""}`} style={{ color: entry ? undefined : "#e5e7eb", borderRight: "1px solid #f3f4f6", minWidth: 100 }}>{entry ? entry.qty.toLocaleString() : "—"}</td>
+                                  <td className={`wis-td wis-td-center${entry ? " wis-td-bold" : ""}`} style={{ color: entry ? "#111827" : "#e5e7eb", minWidth: 60 }}>{entry ? formatBackloadExportDate(entry.date) : "—"}</td>
                                 </Fragment>
                               );
                             })}
-                            <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 800, color: "#e87c27", fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.entries.reduce((s, e) => s + e.qty, 0).toLocaleString()}</td>
-                            <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                            <td className="wis-td wis-td-center wis-td-bold wis-td-accent" style={{ fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.entries.reduce((s, e) => s + e.qty, 0).toLocaleString()}</td>
+                            <td className="wis-td wis-td-center" style={{ padding: "8px 8px" }}>
                               {isEditing ? (
                                 <div style={{ display: "flex", gap: 3, flexDirection: "column", alignItems: "center" }}>
                                   <button onClick={() => {
@@ -1032,13 +1020,13 @@ const COLS = [
                         );
                       })}
                       <tr style={{ background: "#1c2235" }}>
-                        <td style={{ padding: "12px 14px", fontWeight: 800, color: "#fff", fontSize: 12, textAlign: "left", borderRight: "1px solid #2a3450" }}>GRAND TOTAL</td>
-                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#93a3c7", fontSize: 11, textAlign: "center", borderRight: "1px solid #2a3450" }}>{itemEntries.length} item(s)</td>
+                        <td className="wis-td wis-td-left wis-td-bold" style={{ padding: "12px 14px", color: "#fff", fontSize: 12, borderRight: "1px solid #2a3450" }}>GRAND TOTAL</td>
+                        <td className="wis-td wis-td-center wis-td-bold" style={{ padding: "12px 14px", color: "#93a3c7", fontSize: 11, borderRight: "1px solid #2a3450" }}>{itemEntries.length} item(s)</td>
                         {Array.from({ length: slots * 2 }, (_, ci) => (
-                          <td key={ci} style={{ padding: "10px", textAlign: "center", color: "#93a3c7", fontSize: 11, borderRight: ci < slots * 2 - 1 ? "1px solid #2a3450" : "none" }}></td>
+                          <td key={ci} className="wis-td wis-td-center" style={{ padding: "10px", color: "#93a3c7", fontSize: 11, borderRight: ci < slots * 2 - 1 ? "1px solid #2a3450" : "none" }}></td>
                         ))}
-                        <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#fca5a5", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotalQtyOut.toLocaleString()}</td>
-                        <td style={{ padding: "12px 14px", borderLeft: "1px solid #2a3450" }}></td>
+                        <td className="wis-td wis-td-center wis-td-bold" style={{ padding: "12px 14px", color: "#fca5a5", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotalQtyOut.toLocaleString()}</td>
+                        <td className="wis-td" style={{ padding: "12px 14px", borderLeft: "1px solid #2a3450" }}></td>
                       </tr>
                     </tbody>
                   </table>

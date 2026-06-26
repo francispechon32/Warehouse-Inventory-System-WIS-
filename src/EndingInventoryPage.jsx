@@ -19,6 +19,7 @@ import {
   formatCompactPHP,
 } from "./inventoryUtils";
 import MetricCard from "./MetricCard";
+import Table from "./Table";
 import { IconBox, IconStock, IconWarning, IconBarChart } from "./metricIcons";
 import {
   modalOverlayStyle,
@@ -830,112 +831,120 @@ const [statusFilter, setStatusFilter] = useState("All Remarks");
 </div>
       {/* Table */}
       <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", marginTop: 0 }}>
-        {/* Column visibility button */}
-        <div ref={colVisRef} style={{ position: "absolute", top: 10, right: 16, zIndex: 10 }}>
-          <button onClick={() => setColVisOpen(o => !o)} style={{ padding: "5px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: colVisOpen ? "#f3f4f6" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
-            <IconGear size={13} /> Columns
-          </button>
-          {colVisOpen && (
-            <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200, minWidth: 180, padding: "6px 0" }}>
-              {(activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.hideable).map(c => (
-                <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", cursor: "pointer", fontSize: 12, color: "#374151", fontFamily: "inherit" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#f9fafb"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                >
-                  <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => toggleCol(c.key)} style={{ cursor: "pointer" }} />
-                  {c.label}
-                </label>
-              ))}
-            </div>
-          )}
+        {/* Toolbar row */}
+        <div className="wis-toolbar-row">
+          <div ref={colVisRef} style={{ position: "relative", marginLeft: "auto" }}>
+            <button onClick={() => setColVisOpen(o => !o)}
+              className={`wis-colvis-btn ${colVisOpen ? "wis-colvis-btn-active" : ""}`}>
+              <IconGear size={13} /> Columns
+            </button>
+            {colVisOpen && (
+              <div className="wis-colvis-dropdown">
+                {(activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.hideable).map(c => (
+                  <label key={c.key} className="wis-colvis-option">
+                    <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => toggleCol(c.key)} />
+                    {c.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ overflowX: "auto" }}>
+        <Table
+          columns={(() => {
+            const coldefs = (activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
+            return coldefs.map(c => ({
+              ...c,
+              align: c.key === "productDescription" ? "left" : ["totalUnitCost","avgUnitCost","varianceAmount","cogsAvgUnitCost","cogsTotal"].includes(c.key) ? "right" : "center",
+            }));
+          })()}
+        >
           {(() => {
             const coldefs = (activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
-            return (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: "#1c2235" }}>
-                    {coldefs.map(c => (
-                      <th key={c.key} style={{
-                        padding: "12px 10px", whiteSpace: "nowrap",
-                        textAlign: c.key === "productDescription" ? "left" : ["totalUnitCost","avgUnitCost","varianceAmount","cogsAvgUnitCost","cogsTotal"].includes(c.key) ? "right" : "center",
-                        color: "#fff", fontWeight: 700, fontSize: 10, letterSpacing: "0.04em",
-                        ...(c.sticky ? { position: "sticky", left: 0, zIndex: 3, background: "#1c2235", boxShadow: "3px 0 5px rgba(0,0,0,0.07)" } : {}),
-                      }}>{c.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {paged.length === 0 && <tr><td colSpan={coldefs.length} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No items found.</td></tr>}
-                  {paged.map((item, idx) => {
-                    const cogsTotal = (item.cogsQty ?? 0) * (item.cogsAvgUnitCost ?? 0);
-                    const rowBg = idx % 2 === 0 ? "#fff" : "#fafafa";
-                    return (
-                      <tr key={item.id ?? item.sku}
-                        style={{ borderBottom: "1px solid #f5f5f6", background: rowBg, cursor: "pointer" }}
-                        onClick={() => openEditDrawer(item)}
-                        onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
-                        onMouseLeave={e => e.currentTarget.style.background = rowBg}
-                      >
-                        {coldefs.map(c => {
-                          const base = { padding: "14px 10px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-                          if (c.key === "no") return (
-                            <td key="no" style={{ ...base, color: "#9ca3af", textAlign: "center", position: "sticky", left: 0, zIndex: 1, background: rowBg, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>{item.no}</td>
-                          );
-                          if (c.key === "productDescription") return (
-                            <td key="productDescription" title={item.productDescription} style={{ ...base, color: "#374151", textAlign: "left", maxWidth: 240 }}><Highlight text={item.productDescription} query={searchQuery} /></td>
-                          );
-                          if (c.key === "sku") return (
-                            <td key="sku" style={{ ...base, color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={item.sku} query={searchQuery} /></td>
-                          );
-                          if (c.key === "lastAcceptanceDate") return (
-                            <td key="lastAcceptanceDate" style={{ ...base, color: "#6b7280", textAlign: "center" }}>{item.lastAcceptanceDate || "—"}</td>
-                          );
-                          if (c.key === "qtyAsPerWis") return (
-                            <td key="qtyAsPerWis" style={{ ...base, textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
-                          );
-                          if (c.key === "totalUnitCost") return (
-                            <td key="totalUnitCost" style={{ ...base, textAlign: "right" }}>{fmtPHP(item.totalUnitCost)}</td>
-                          );
-                          if (c.key === "avgUnitCost") return (
-                            <td key="avgUnitCost" style={{ ...base, textAlign: "right" }}>{fmtPHP(item.avgUnitCost)}</td>
-                          );
-                          if (c.key === "qtyAsPerCounting") return (
-                            <td key="qtyAsPerCounting" style={{ ...base, textAlign: "center", fontWeight: 700 }}>{item.qtyAsPerCounting.toLocaleString()}</td>
-                          );
-                          if (c.key === "varianceQty") return (
-                            <td key="varianceQty" style={{ ...base, textAlign: "center" }}>
-                              <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceQty===0?"#d1fae5":"#fee2e2", color: item.varianceQty===0?"#065f46":"#991b1b" }}>{item.varianceQty}</span>
-                            </td>
-                          );
-                          if (c.key === "varianceAmount") return (
-                            <td key="varianceAmount" style={{ ...base, textAlign: "right" }}>
-                              <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceAmount===0?"#d1fae5":"#fee2e2", color: item.varianceAmount===0?"#065f46":"#991b1b" }}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
-                            </td>
-                          );
-                          if (c.key === "remarks") return (
-                            <td key="remarks" title={item.remarks || ""} style={{ ...base, color: "#6b7280", textAlign: "center", maxWidth: 140 }}>{item.remarks || "—"}</td>
-                          );
-                          if (c.key === "cogsQty") return (
-                            <td key="cogsQty" style={{ ...base, textAlign: "center", fontWeight: 700 }}>{(item.cogsQty ?? 0).toLocaleString()}</td>
-                          );
-                          if (c.key === "cogsAvgUnitCost") return (
-                            <td key="cogsAvgUnitCost" style={{ ...base, textAlign: "right" }}>{item.cogsAvgUnitCost > 0 ? fmtPHP(item.cogsAvgUnitCost) : "—"}</td>
-                          );
-                          if (c.key === "cogsTotal") return (
-                            <td key="cogsTotal" style={{ ...base, textAlign: "right", fontWeight: 700, color: cogsTotal > 0 ? "#065f46" : "#9ca3af" }}>{cogsTotal > 0 ? fmtPHP(cogsTotal) : "—"}</td>
-                          );
-                          return null;
-                        })}
-                      </tr>
+            return paged.length === 0 ? (
+              <tr><td colSpan={coldefs.length} className="wis-empty" style={{ padding: 48, fontSize: 14 }}>No items found.</td></tr>
+            ) : paged.map((item, idx) => {
+              const cogsTotal = (item.cogsQty ?? 0) * (item.cogsAvgUnitCost ?? 0);
+              const isEven = idx % 2 === 0;
+              const rowBg = isEven ? "#fff" : "#fafbfc";
+              return (
+                <tr key={item.id ?? item.sku}
+                  className={`wis-tr ${isEven ? "wis-tr-even" : "wis-tr-odd"}`}
+                  style={{ background: rowBg, cursor: "pointer" }}
+                  onClick={() => openEditDrawer(item)}
+                  onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                  onMouseLeave={e => e.currentTarget.style.background = rowBg}
+                >
+                  {coldefs.map(c => {
+                    if (c.key === "no") return (
+                      <td key="no"
+                        className="wis-td wis-td-center wis-td-light wis-td-sticky"
+                        style={{ background: rowBg }}>{item.no}</td>
                     );
+                    if (c.key === "productDescription") return (
+                      <td key="productDescription" title={item.productDescription}
+                        className="wis-td wis-td-left"
+                        style={{ maxWidth: 240 }}><Highlight text={item.productDescription} query={searchQuery} /></td>
+                    );
+                    if (c.key === "sku") return (
+                      <td key="sku"
+                        className="wis-td wis-td-center wis-td-accent wis-td-bold"><Highlight text={item.sku} query={searchQuery} /></td>
+                    );
+                    if (c.key === "lastAcceptanceDate") return (
+                      <td key="lastAcceptanceDate"
+                        className="wis-td wis-td-center wis-td-muted">{item.lastAcceptanceDate || "—"}</td>
+                    );
+                    if (c.key === "qtyAsPerWis") return (
+                      <td key="qtyAsPerWis"
+                        className="wis-td wis-td-center wis-td-bold">{item.qtyAsPerWis.toLocaleString()}</td>
+                    );
+                    if (c.key === "totalUnitCost") return (
+                      <td key="totalUnitCost"
+                        className="wis-td wis-td-right">{fmtPHP(item.totalUnitCost)}</td>
+                    );
+                    if (c.key === "avgUnitCost") return (
+                      <td key="avgUnitCost"
+                        className="wis-td wis-td-right">{fmtPHP(item.avgUnitCost)}</td>
+                    );
+                    if (c.key === "qtyAsPerCounting") return (
+                      <td key="qtyAsPerCounting"
+                        className="wis-td wis-td-center wis-td-bold">{item.qtyAsPerCounting.toLocaleString()}</td>
+                    );
+                    if (c.key === "varianceQty") return (
+                      <td key="varianceQty" className="wis-td wis-td-center">
+                        <span className={`wis-badge ${item.varianceQty===0?"wis-badge-green":"wis-badge-red"}`}>{item.varianceQty}</span>
+                      </td>
+                    );
+                    if (c.key === "varianceAmount") return (
+                      <td key="varianceAmount" className="wis-td wis-td-right">
+                        <span className={`wis-badge ${item.varianceAmount===0?"wis-badge-green":"wis-badge-red"}`}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
+                      </td>
+                    );
+                    if (c.key === "remarks") return (
+                      <td key="remarks" title={item.remarks || ""}
+                        className="wis-td wis-td-center wis-td-muted"
+                        style={{ maxWidth: 140 }}>{item.remarks || "—"}</td>
+                    );
+                    if (c.key === "cogsQty") return (
+                      <td key="cogsQty"
+                        className="wis-td wis-td-center wis-td-bold">{(item.cogsQty ?? 0).toLocaleString()}</td>
+                    );
+                    if (c.key === "cogsAvgUnitCost") return (
+                      <td key="cogsAvgUnitCost"
+                        className="wis-td wis-td-right">{item.cogsAvgUnitCost > 0 ? fmtPHP(item.cogsAvgUnitCost) : "—"}</td>
+                    );
+                    if (c.key === "cogsTotal") return (
+                      <td key="cogsTotal"
+                        className="wis-td wis-td-right wis-td-bold"
+                        style={{ color: cogsTotal > 0 ? "#065f46" : "#9ca3af" }}>{cogsTotal > 0 ? fmtPHP(cogsTotal) : "—"}</td>
+                    );
+                    return null;
                   })}
-                </tbody>
-              </table>
-            );
+                </tr>
+              );
+            });
           })()}
-        </div>
+        </Table>
 
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
 import useSort from "./useSort";
+import Table from "./Table";
 import useApi from "./hooks/useApi";
 import { ENDPOINTS } from "./api/apiConfig";
 import {
@@ -1325,119 +1326,98 @@ export default function PurchasingOrderPage({
         </div>
 
         {/* ── Compact Table ── */}
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", fontSize: 12, width: "max-content", minWidth: "100%" }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {visiblePurchCols.map((col) => (
-                  <th key={col.key} style={{
-                    padding: "12px 10px",
-                    textAlign: "center",
-                    color: "#fff",
-                    fontWeight: 700,
-                    fontSize: 10,
-                    whiteSpace: "nowrap",
-                    letterSpacing: "0.04em",
-                    userSelect: "none",
-                    ...(col.sticky ? { position: "sticky", left: 0, zIndex: 3, background: "#1c2235", boxShadow: "3px 0 6px rgba(0,0,0,0.18)" } : {}),
-                  }}>{col.label}</th>
-                ))}
+        <Table columns={visiblePurchCols.map(c => ({ ...c, align: c.key === "poInfo" || c.key === "purchaser" || c.key === "vendorInfo" || c.key === "productDesc" ? "left" : c.key === "metricTons" || c.key === "costPerKilo" || c.key === "unitCost" || c.key === "totalCost" ? "right" : "center" }))}>
+          {paged.length === 0 && (
+            <tr><td colSpan={visiblePurchCols.length} className="wis-empty" style={{ padding: "48px 20px", fontSize: 14 }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+              No results found for <strong style={{ color: "#374151" }}>"{searchQuery || "your filters"}"</strong>
+              <div style={{ fontSize: 12, marginTop: 4 }}>Try a different search term or clear your filters.</div>
+            </td></tr>
+          )}
+          {paged.map((row, idx) => {
+            const isActive = editDrawerRow?.id === row.id;
+            const st = STATUS_BADGE[row.status] || STATUS_BADGE.Pending;
+            const { totalCost, unitCost } = poComputedCosts(row);
+            const kiloDisplay = row.costPerKilo === "" || row.costPerKilo == null ? "—" : typeof row.costPerKilo === "number" ? fmtPHP(row.costPerKilo) : row.costPerKilo;
+            const rowBg = isActive ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
+            return (
+              <tr
+                key={row.id}
+                className={`wis-tr ${idx % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"}`}
+                style={{ background: rowBg, cursor: "pointer", boxShadow: isActive ? "inset 3px 0 0 #e87c27" : "none" }}
+                onClick={() => openEditDrawer(row)}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#fef6f2"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
+              >
+                {visiblePurchCols.map(col => {
+                  if (col.key === "transNo") return (
+                    <td key="transNo" title={row.transNo} className="wis-td wis-td-center wis-td-muted wis-td-bold wis-td-sticky" style={{ background: rowBg }}>{row.transNo}</td>
+                  );
+                  if (col.key === "poInfo") return (
+                    <td key="poInfo" className="wis-td wis-td-left" style={{ minWidth: 115, maxWidth: 160 }}>
+                      <div title={row.tdtPo} style={{ fontWeight: 700, color: "#e87c27", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={row.tdtPo} query={searchQuery} /></div>
+                      <div title={row.poDate} style={{ fontSize: 9, color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.poDate}</div>
+                    </td>
+                  );
+                  if (col.key === "eta") return (
+                    <td key="eta" title={row.eta} className="wis-td wis-td-center">{row.eta}</td>
+                  );
+                  if (col.key === "purchaser") return (
+                    <td key="purchaser" title={row.purchaser} className="wis-td wis-td-left"><Highlight text={row.purchaser} query={searchQuery} /></td>
+                  );
+                  if (col.key === "vendorInfo") return (
+                    <td key="vendorInfo" className="wis-td wis-td-left" style={{ minWidth: 120, maxWidth: 170 }}>
+                      <div title={row.vendor} style={{ fontWeight: 700, color: "#111827", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={row.vendor} query={searchQuery} /></div>
+                      <div style={{ fontSize: 9, color: "#9ca3af", whiteSpace: "nowrap" }}>Supplier</div>
+                    </td>
+                  );
+                  if (col.key === "productDesc") return (
+                    <td key="productDesc" title={row.productDesc} className="wis-td wis-td-left" style={{ minWidth: 140, maxWidth: 210 }}><Highlight text={row.productDesc} query={searchQuery} /></td>
+                  );
+                  if (col.key === "destination") return (
+                    <td key="destination" title={row.destination} className="wis-td wis-td-center"><Highlight text={row.destination} query={searchQuery} /></td>
+                  );
+                  if (col.key === "tradingOrStocks") return (
+                    <td key="tradingOrStocks" className="wis-td wis-td-center">{row.tradingOrStocks}</td>
+                  );
+                  if (col.key === "warehouseType") return (
+                    <td key="warehouseType" className="wis-td wis-td-center">{row.warehouseType}</td>
+                  );
+                  if (col.key === "metricTons") return (
+                    <td key="metricTons" className="wis-td wis-td-right">{row.metricTons}</td>
+                  );
+                  if (col.key === "qtyPerPo") return (
+                    <td key="qtyPerPo" className="wis-td wis-td-right wis-td-bold">{row.qtyPerPo}</td>
+                  );
+                  if (col.key === "weight") return (
+                    <td key="weight" className="wis-td wis-td-center">{row.weight}</td>
+                  );
+                  if (col.key === "retention") return (
+                    <td key="retention" className="wis-td wis-td-center">{row.retention || "—"}</td>
+                  );
+                  if (col.key === "costPerKilo") return (
+                    <td key="costPerKilo" className="wis-td wis-td-right">{kiloDisplay}</td>
+                  );
+                  if (col.key === "unitCost") return (
+                    <td key="unitCost" className="wis-td wis-td-right">{unitCost ? fmtPHP(unitCost) : "—"}</td>
+                  );
+                  if (col.key === "totalCost") return (
+                    <td key="totalCost" className="wis-td wis-td-right wis-td-bold wis-td-accent">{totalCost ? fmtPHP(totalCost) : "—"}</td>
+                  );
+                  if (col.key === "status") return (
+                    <td key="status" className="wis-td wis-td-center">
+                      <span className={`wis-badge wis-badge-${row.status === "Active" || row.status === "Completed" ? "green" : row.status === "Pending" ? "yellow" : row.status === "Cancelled" ? "gray" : "green"}`}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: st.panel, display: "inline-block", flexShrink: 0 }} />
+                        {row.status}
+                      </span>
+                    </td>
+                  );
+                  return null;
+                })}
               </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 && (
-                <tr><td colSpan={visiblePurchCols.length} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
-                  No results found for <strong style={{ color: "#374151" }}>"{searchQuery || "your filters"}"</strong>
-                  <div style={{ fontSize: 12, marginTop: 4 }}>Try a different search term or clear your filters.</div>
-                </td></tr>
-              )}
-              {paged.map((row, idx) => {
-                const isActive = editDrawerRow?.id === row.id;
-                const st = STATUS_BADGE[row.status] || STATUS_BADGE.Pending;
-                const { totalCost, unitCost } = poComputedCosts(row);
-                const kiloDisplay = row.costPerKilo === "" || row.costPerKilo == null ? "—" : typeof row.costPerKilo === "number" ? fmtPHP(row.costPerKilo) : row.costPerKilo;
-                const rowBg = isActive ? "#fff4ed" : idx % 2 === 0 ? "#fff" : "#fafafa";
-                const cell = { padding: "14px 10px", fontSize: 11, color: "#374151", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 150 };
-                return (
-                  <tr
-                    key={row.id}
-                    style={{ borderBottom: "1px solid #f5f5f6", background: rowBg, cursor: "pointer", boxShadow: isActive ? "inset 3px 0 0 #e87c27" : "none" }}
-                    onClick={() => openEditDrawer(row)}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "#fef6f2"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = rowBg; }}
-                  >
-                    {visiblePurchCols.map(col => {
-                      if (col.key === "transNo") return (
-                        <td key="transNo" title={row.transNo} style={{ ...cell, textAlign: "center", color: "#6b7280", fontWeight: 700, position: "sticky", left: 0, background: rowBg, zIndex: 1, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>{row.transNo}</td>
-                      );
-                      if (col.key === "poInfo") return (
-                        <td key="poInfo" style={{ ...cell, textAlign: "left", minWidth: 115, maxWidth: 160 }}>
-                          <div title={row.tdtPo} style={{ fontWeight: 700, color: "#e87c27", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={row.tdtPo} query={searchQuery} /></div>
-                          <div title={row.poDate} style={{ fontSize: 9, color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.poDate}</div>
-                        </td>
-                      );
-                      if (col.key === "eta") return (
-                        <td key="eta" title={row.eta} style={{ ...cell, textAlign: "center" }}>{row.eta}</td>
-                      );
-                      if (col.key === "purchaser") return (
-                        <td key="purchaser" title={row.purchaser} style={{ ...cell, textAlign: "left" }}><Highlight text={row.purchaser} query={searchQuery} /></td>
-                      );
-                      if (col.key === "vendorInfo") return (
-                        <td key="vendorInfo" style={{ ...cell, textAlign: "left", minWidth: 120, maxWidth: 170 }}>
-                          <div title={row.vendor} style={{ fontWeight: 700, color: "#111827", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Highlight text={row.vendor} query={searchQuery} /></div>
-                          <div style={{ fontSize: 9, color: "#9ca3af", whiteSpace: "nowrap" }}>Supplier</div>
-                        </td>
-                      );
-                      if (col.key === "productDesc") return (
-                        <td key="productDesc" title={row.productDesc} style={{ ...cell, textAlign: "left", minWidth: 140, maxWidth: 210 }}><Highlight text={row.productDesc} query={searchQuery} /></td>
-                      );
-                      if (col.key === "destination") return (
-                        <td key="destination" title={row.destination} style={{ ...cell, textAlign: "center" }}><Highlight text={row.destination} query={searchQuery} /></td>
-                      );
-                      if (col.key === "tradingOrStocks") return (
-                        <td key="tradingOrStocks" style={{ ...cell, textAlign: "center" }}>{row.tradingOrStocks}</td>
-                      );
-                      if (col.key === "warehouseType") return (
-                        <td key="warehouseType" style={{ ...cell, textAlign: "center" }}>{row.warehouseType}</td>
-                      );
-                      if (col.key === "metricTons") return (
-                        <td key="metricTons" style={{ ...cell, textAlign: "right" }}>{row.metricTons}</td>
-                      );
-                      if (col.key === "qtyPerPo") return (
-                        <td key="qtyPerPo" style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{row.qtyPerPo}</td>
-                      );
-                      if (col.key === "weight") return (
-                        <td key="weight" style={{ ...cell, textAlign: "center" }}>{row.weight}</td>
-                      );
-                      if (col.key === "retention") return (
-                        <td key="retention" style={{ ...cell, textAlign: "center" }}>{row.retention || "—"}</td>
-                      );
-                      if (col.key === "costPerKilo") return (
-                        <td key="costPerKilo" style={{ ...cell, textAlign: "right" }}>{kiloDisplay}</td>
-                      );
-                      if (col.key === "unitCost") return (
-                        <td key="unitCost" style={{ ...cell, textAlign: "right" }}>{unitCost ? fmtPHP(unitCost) : "—"}</td>
-                      );
-                      if (col.key === "totalCost") return (
-                        <td key="totalCost" style={{ ...cell, textAlign: "right", fontWeight: 600, color: "#e87c27" }}>{totalCost ? fmtPHP(totalCost) : "—"}</td>
-                      );
-                      if (col.key === "status") return (
-                        <td key="status" style={{ padding: "14px 10px", textAlign: "center", whiteSpace: "nowrap" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 12, background: st.bg, color: st.color }}>
-                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: st.panel, display: "inline-block", flexShrink: 0 }} />
-                            {row.status}
-                          </span>
-                        </td>
-                      );
-                      return null;
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            );
+          })}
+        </Table>
 
         {/* ── Pagination ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
@@ -1463,61 +1443,62 @@ export default function PurchasingOrderPage({
           ))}
         </div>
         {whTab === "receiving" ? (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {["TRANS NO.","ACTUAL RECEIPT","DELIVERY RECEIPT NO.","QTY RECEIVED","QTY VARIANCE","VARIANCE AMOUNT","ENCODER","RECIPIENT","CHECKER","MANAGER","REMARKS / MEMO","RECORDED TO PE?","ACTION"].map((h,i) => (
-                  <th key={h+i} style={{ padding: "12px 10px", textAlign: h==="REMARKS / MEMO"?"left":"center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.04em" }}>{h}</th>
-                ))}
+        <Table columns={[
+          { key: "transNo", label: "TRANS NO." },
+          { key: "receiptDate", label: "ACTUAL RECEIPT" },
+          { key: "supplierDrNo", label: "DELIVERY RECEIPT NO." },
+          { key: "qtyReceived", label: "QTY RECEIVED" },
+          { key: "qtyVariance", label: "QTY VARIANCE" },
+          { key: "varianceAmount", label: "VARIANCE AMOUNT" },
+          { key: "encoder", label: "ENCODER" },
+          { key: "recipient", label: "RECIPIENT" },
+          { key: "checker", label: "CHECKER" },
+          { key: "manager", label: "MANAGER" },
+          { key: "remarks", label: "REMARKS / MEMO", align: "left" },
+          { key: "recordedToPe", label: "RECORDED TO PE?" },
+          { key: "action", label: "ACTION" },
+        ]}>
+          {paged.length === 0 && <tr><td colSpan={13} className="wis-empty" style={{ padding: 48, fontSize: 14 }}>No warehouse receiving records found.</td></tr>}
+          {paged.map((row, idx) => {
+            if (editingId === row.id) {
+              return <WHInlineEditRow key={row.id} row={row} onSave={handleSaveWhEdit} onCancel={() => setEditingId(null)} />;
+            }
+            const actualQty = row.actualQtyReceived || 0;
+            return (
+              <tr key={row.id}
+                className={`wis-tr ${idx % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"}`}
+                onMouseEnter={e => e.currentTarget.style.background="#fef6f2"}
+                onMouseLeave={e => e.currentTarget.style.background=idx%2===0?"#fff":"#fafafa"}
+              >
+                <td className="wis-td wis-td-center wis-td-light">{row.transNo}</td>
+                <td className="wis-td wis-td-center wis-td-muted">{row.receiptDate || "—"}</td>
+                <td className="wis-td wis-td-center wis-td-accent wis-td-bold">{row.supplierDrNo || "—"}</td>
+                <td className="wis-td wis-td-center wis-td-bold">{actualQty.toLocaleString()}</td>
+                <td className="wis-td wis-td-center">
+                  <span className="wis-badge wis-badge-green">0</span>
+                </td>
+                <td className="wis-td wis-td-center">
+                  <span className="wis-badge wis-badge-green">—</span>
+                </td>
+                <td className="wis-td wis-td-center">{row.encoder || "—"}</td>
+                <td className="wis-td wis-td-center">{row.receiverName || "—"}</td>
+                <td className="wis-td wis-td-center">{row.checkerName || "—"}</td>
+                <td className="wis-td wis-td-center">{row.manager || "—"}</td>
+                <td className="wis-td wis-td-left wis-td-muted" style={{ maxWidth: 180 }}>{row.remarksVariance || "—"}</td>
+                <td className="wis-td wis-td-center">
+                  <span className={`wis-badge ${row.recordedToPe==="Yes"?"wis-badge-green":"wis-badge-yellow"}`}>
+                    {row.recordedToPe || "No"}
+                  </span>
+                </td>
+                <td className="wis-td wis-td-center" style={{ padding: "8px 8px" }}>
+                  <button onClick={() => setEditingId(row.id)} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <IconEdit size={12} /> Edit
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 && <tr><td colSpan={13} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No warehouse receiving records found.</td></tr>}
-              {paged.map((row, idx) => {
-                if (editingId === row.id) {
-                  return <WHInlineEditRow key={row.id} row={row} onSave={handleSaveWhEdit} onCancel={() => setEditingId(null)} />;
-                }
-                const actualQty = row.actualQtyReceived || 0;
-                return (
-                  <tr key={row.id}
-                    style={{ borderBottom: "1px solid #f5f5f6", background: idx%2===0?"#fff":"#fafafa" }}
-                    onMouseEnter={e => e.currentTarget.style.background="#fef6f2"}
-                    onMouseLeave={e => e.currentTarget.style.background=idx%2===0?"#fff":"#fafafa"}
-                  >
-                    <td style={{ padding: "14px 10px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{row.transNo}</td>
-                    <td style={{ padding: "14px 10px", color: "#6b7280", whiteSpace: "nowrap", textAlign: "center" }}>{row.receiptDate || "—"}</td>
-                    <td style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{row.supplierDrNo || "—"}</td>
-                    <td style={{ padding: "14px 10px", textAlign: "center", fontWeight: 700 }}>{actualQty.toLocaleString()}</td>
-                    <td style={{ padding: "14px 10px", textAlign: "center" }}>
-                      <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>0</span>
-                    </td>
-                    <td style={{ padding: "14px 10px", textAlign: "center" }}>
-                      <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46" }}>—</span>
-                    </td>
-                    <td style={{ padding: "14px 10px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.encoder || "—"}</td>
-                    <td style={{ padding: "14px 10px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.receiverName || "—"}</td>
-                    <td style={{ padding: "14px 10px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.checkerName || "—"}</td>
-                    <td style={{ padding: "14px 10px", color: "#374151", fontSize: 12, textAlign: "center" }}>{row.manager || "—"}</td>
-                    <td style={{ padding: "14px 10px", color: "#6b7280", fontSize: 12, maxWidth: 180, textAlign: "left" }}>{row.remarksVariance || "—"}</td>
-                    <td style={{ padding: "14px 10px", textAlign: "center" }}>
-                      <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
-                        background: row.recordedToPe==="Yes"?"#d1fae5":"#fef3c7",
-                        color: row.recordedToPe==="Yes"?"#065f46":"#d97706" }}>
-                        {row.recordedToPe || "No"}
-                      </span>
-                    </td>
-                    <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                      <button onClick={() => setEditingId(row.id)} title="Edit row" style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        <IconEdit size={12} /> Edit
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            );
+          })}
+        </Table>
         ) : (
         <div style={{ padding: "16px 20px" }}>
           {(() => {
@@ -1546,123 +1527,112 @@ export default function PurchasingOrderPage({
                     <button onClick={() => setDrSlotCount(s => Math.max(1, s - 1))} title="Remove last VDR#/QTY column pair" disabled={drSlotCount <= 1} style={{ padding: "4px 10px", border: "1px solid #ef4444", borderRadius: 5, background: "#fef2f2", cursor: drSlotCount <= 1 ? "not-allowed" : "pointer", fontSize: 13, color: "#ef4444", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4, opacity: drSlotCount <= 1 ? 0.4 : 1 }}>− Remove Pair</button>
                   </div>
                 </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: "#1c2235" }}>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>PRODUCT DESCRIPTION</th>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>SUPPLIER</th>
-                        <th colSpan={slots * 2} style={{ padding: "12px 10px", color: "#fff", fontWeight: 700, fontSize: 10, textAlign: "center", borderBottom: "1px solid #2a3450", letterSpacing: "0.04em" }}>SERIES OF ACCEPTANCE — DELIVERY RECEIPTS</th>
-                        <th rowSpan={2} style={{ padding: "12px 10px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 90, letterSpacing: "0.04em" }}>TOTAL QTY RECEIVED</th>
-                        <th rowSpan={2} style={{ padding: "12px 10px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 60, letterSpacing: "0.04em" }}>ACTION</th>
-                      </tr>
-                      <tr style={{ background: "#1c2235" }}>
-                        {Array.from({ length: slots }, (_, i) => (
-                          <React.Fragment key={i}>
-                            <th style={{ padding: "12px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450", letterSpacing: "0.04em" }}>VDR#</th>
-                            <th style={{ padding: "12px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", letterSpacing: "0.04em" }}>QTY</th>
-                          </React.Fragment>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {grouped.map((g, gi) => {
-                        const isEditing = editingSeriesProduct === g.productDesc;
-                        return (
-                          <tr key={g.productDesc}
-                            style={{ borderBottom: "1px solid #f5f5f6", background: isEditing ? "#fffbf7" : gi % 2 === 0 ? "#fff" : "#fafafa" }}
-                          >
-                            <td style={{ padding: "14px 10px", color: "#111827", fontWeight: 600, fontSize: 12, textAlign: "left", borderRight: "1px solid #f3f4f6", maxWidth: 240, minWidth: 180 }}>{g.productDesc}</td>
-                            <td style={{ padding: "14px 10px", color: "#6b7280", fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6" }}>{g.vendor}</td>
-                            {Array.from({ length: slots }, (_, slotIdx) => {
-                              const dr = g.drs[slotIdx];
-                              if (isEditing) {
-                                return (
-                                  <React.Fragment key={slotIdx}>
-                                    <td style={{ padding: "4px 6px", borderRight: "1px solid #f3f4f6" }}>
-                                      <input value={seriesDraft[`${g.productDesc}-${slotIdx}-dr`] ?? dr?.dr ?? ""} onChange={e => setSeriesDraft(d => ({ ...d, [`${g.productDesc}-${slotIdx}-dr`]: e.target.value }))} placeholder="VDR#" {...modalCellInput({ width: 90 })} />
-                                    </td>
-                                    <td style={{ padding: "4px 6px" }}>
-                                      <input type="number" min={0} value={seriesDraft[`${g.productDesc}-${slotIdx}-qty`] ?? dr?.qty ?? ""} onChange={e => setSeriesDraft(d => ({ ...d, [`${g.productDesc}-${slotIdx}-qty`]: parseFloat(e.target.value) || "" }))} placeholder="Qty" {...modalCellInput({ width: 60, textAlign: "right" })} />
-                                    </td>
-                                  </React.Fragment>
-                                );
-                              }
-                              return (
-                                <React.Fragment key={slotIdx}>
-                                  <td style={{ padding: "14px 10px", color: dr ? "#e87c27" : "#e5e7eb", fontWeight: dr ? 700 : 400, fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6", whiteSpace: "nowrap", minWidth: 100 }}>{dr ? dr.dr : "—"}</td>
-                                  <td style={{ padding: "14px 10px", color: dr ? "#111827" : "#e5e7eb", fontWeight: dr ? 700 : 400, fontSize: 12, textAlign: "center", minWidth: 60 }}>{dr ? dr.qty.toLocaleString() : "—"}</td>
-                                </React.Fragment>
-                              );
-                            })}
-                            <td style={{ padding: "14px 10px", textAlign: "center", fontWeight: 800, color: "#e87c27", fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.drs.reduce((s, d) => s + d.qty, 0).toLocaleString()}</td>
-                            <td style={{ padding: "8px 8px", textAlign: "center" }}>
-                              {isEditing ? (
-                                <div style={{ display: "flex", gap: 3, flexDirection: "column", alignItems: "center" }}>
-                                  <button onClick={() => {
-                                    const updated = { ...seriesDraft };
-                                    const newDrs = [];
-                                    for (let i = 0; i < slots; i++) {
-                                      const dr = updated[`${g.productDesc}-${i}-dr`];
-                                      const qty = updated[`${g.productDesc}-${i}-qty`];
-                                      if (dr || qty) {
-                                        newDrs.push({ dr: dr || "", qty: parseFloat(qty) || 0, orderId: g.drs[i]?.orderId });
-                                      }
+                <Table columns={[
+                  { key: "productDesc", label: "PRODUCT DESCRIPTION" },
+                  { key: "supplier", label: "SUPPLIER" },
+                  ...Array.from({ length: slots }, (_, i) => [
+                    { key: `vdr${i}`, label: "VDR#" },
+                    { key: `qty${i}`, label: "QTY" },
+                  ]).flat(),
+                  { key: "totalQty", label: "TOTAL QTY RECEIVED" },
+                  { key: "action", label: "ACTION" },
+                ]}>
+                  {grouped.map((g, gi) => {
+                    const isEditing = editingSeriesProduct === g.productDesc;
+                    return (
+                      <tr key={g.productDesc}
+                        className={`wis-tr ${gi % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"}`}
+                        style={{ background: isEditing ? "#fffbf7" : undefined }}
+                      >
+                        <td className="wis-td wis-td-left wis-td-bold" style={{ maxWidth: 240, minWidth: 180 }}>{g.productDesc}</td>
+                        <td className="wis-td wis-td-center wis-td-muted">{g.vendor}</td>
+                        {Array.from({ length: slots }, (_, slotIdx) => {
+                          const dr = g.drs[slotIdx];
+                          if (isEditing) {
+                            return (
+                              <React.Fragment key={slotIdx}>
+                                <td className="wis-td" style={{ padding: "4px 6px" }}>
+                                  <input value={seriesDraft[`${g.productDesc}-${slotIdx}-dr`] ?? dr?.dr ?? ""} onChange={e => setSeriesDraft(d => ({ ...d, [`${g.productDesc}-${slotIdx}-dr`]: e.target.value }))} placeholder="VDR#" {...modalCellInput({ width: 90 })} />
+                                </td>
+                                <td className="wis-td" style={{ padding: "4px 6px" }}>
+                                  <input type="number" min={0} value={seriesDraft[`${g.productDesc}-${slotIdx}-qty`] ?? dr?.qty ?? ""} onChange={e => setSeriesDraft(d => ({ ...d, [`${g.productDesc}-${slotIdx}-qty`]: parseFloat(e.target.value) || "" }))} placeholder="Qty" {...modalCellInput({ width: 60, textAlign: "right" })} />
+                                </td>
+                              </React.Fragment>
+                            );
+                          }
+                          return (
+                            <React.Fragment key={slotIdx}>
+                              <td className="wis-td wis-td-center" style={{ color: dr ? "#e87c27" : "#e5e7eb", fontWeight: dr ? 700 : 400, minWidth: 100 }}>{dr ? dr.dr : "—"}</td>
+                              <td className="wis-td wis-td-center" style={{ color: dr ? "#111827" : "#e5e7eb", fontWeight: dr ? 700 : 400, minWidth: 60 }}>{dr ? dr.qty.toLocaleString() : "—"}</td>
+                            </React.Fragment>
+                          );
+                        })}
+                        <td className="wis-td wis-td-center wis-td-accent wis-td-bold" style={{ background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.drs.reduce((s, d) => s + d.qty, 0).toLocaleString()}</td>
+                        <td className="wis-td wis-td-center" style={{ padding: "8px 8px" }}>
+                          {isEditing ? (
+                            <div style={{ display: "flex", gap: 3, flexDirection: "column", alignItems: "center" }}>
+                              <button onClick={() => {
+                                const updated = { ...seriesDraft };
+                                const newDrs = [];
+                                for (let i = 0; i < slots; i++) {
+                                  const dr = updated[`${g.productDesc}-${i}-dr`];
+                                  const qty = updated[`${g.productDesc}-${i}-qty`];
+                                  if (dr || qty) {
+                                    newDrs.push({ dr: dr || "", qty: parseFloat(qty) || 0, orderId: g.drs[i]?.orderId });
+                                  }
+                                }
+                                const existingIds = g.drs.map(d => d.orderId).filter(Boolean);
+                                setOrders(prev => {
+                                  const curMax = Math.max(...prev.map(o => o.id));
+                                  let next = [...prev];
+                                  newDrs.forEach((nd, ni) => {
+                                    if (nd.orderId) {
+                                      next = next.map(o => o.id === nd.orderId ? { ...o, supplierDrNo: nd.dr, actualQtyReceived: nd.qty } : o);
+                                    } else {
+                                      next.push({
+                                        id: curMax + 1 + ni,
+                                        transNo: String(curMax + 1 + ni).padStart(3, "0"),
+                                        poDate: "", eta: "", purchaser: "", tdtPo: "",
+                                        vendor: g.vendor, productDesc: g.productDesc, destination: "Marilao",
+                                        tradingOrStocks: "", warehouseType: "", metricTons: 0,
+                                        qtyPerPo: nd.qty, weight: "", status: "Active",
+                                        txnNo: `TXN-2026-${String(curMax + 1 + ni).padStart(3, "0")}`,
+                                        receiptDate: "", supplierDrNo: nd.dr, actualQtyReceived: nd.qty,
+                                        qtyVariance: 0, varianceAmount: 0, encoder: "", checkerName: "",
+                                        receiverName: "", storerName: "", manager: "", remarksVariance: "",
+                                        recordedToPe: "No", lineItems: [],
+                                      });
                                     }
-                                    const existingIds = g.drs.map(d => d.orderId).filter(Boolean);
-                                    setOrders(prev => {
-                                      const curMax = Math.max(...prev.map(o => o.id));
-                                      let next = [...prev];
-                                      newDrs.forEach((nd, ni) => {
-                                        if (nd.orderId) {
-                                          next = next.map(o => o.id === nd.orderId ? { ...o, supplierDrNo: nd.dr, actualQtyReceived: nd.qty } : o);
-                                        } else {
-                                          next.push({
-                                            id: curMax + 1 + ni,
-                                            transNo: String(curMax + 1 + ni).padStart(3, "0"),
-                                            poDate: "", eta: "", purchaser: "", tdtPo: "",
-                                            vendor: g.vendor, productDesc: g.productDesc, destination: "Marilao",
-                                            tradingOrStocks: "", warehouseType: "", metricTons: 0,
-                                            qtyPerPo: nd.qty, weight: "", status: "Active",
-                                            txnNo: `TXN-2026-${String(curMax + 1 + ni).padStart(3, "0")}`,
-                                            receiptDate: "", supplierDrNo: nd.dr, actualQtyReceived: nd.qty,
-                                            qtyVariance: 0, varianceAmount: 0, encoder: "", checkerName: "",
-                                            receiverName: "", storerName: "", manager: "", remarksVariance: "",
-                                            recordedToPe: "No", lineItems: [],
-                                          });
-                                        }
-                                      });
-                                      const removedIds = existingIds.filter(id => !newDrs.some(nd => nd.orderId === id));
-                                      removedIds.forEach(id => {
-                                        next = next.map(o => o.id === id ? { ...o, supplierDrNo: "", actualQtyReceived: 0, qtyVariance: 0, varianceAmount: 0 } : o);
-                                      });
-                                      return next;
-                                    });
-                                    setEditingSeriesProduct(null);
-                                    setSeriesDraft({});
-                                    showToast("Series of Acceptance updated.");
-                                  }} title="Save" style={{ padding: "4px 7px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={11} /></button>
-                                  <button onClick={() => { setEditingSeriesProduct(null); setSeriesDraft({}); }} title="Cancel" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={11} /></button>
-                                </div>
-                              ) : (
-                                <button onClick={() => { setEditingSeriesProduct(g.productDesc); setSeriesDraft({}); }} title="Edit" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, fontWeight: 600, fontFamily: "inherit" }}><IconEdit size={11} /> Edit</button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      <tr style={{ background: "#1c2235" }}>
-                        <td style={{ padding: "12px 14px", fontWeight: 800, color: "#fff", fontSize: 12, textAlign: "left", borderRight: "1px solid #2a3450" }}>GRAND TOTAL</td>
-                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#93a3c7", fontSize: 11, textAlign: "center", borderRight: "1px solid #2a3450" }}>{grouped.length} item(s)</td>
-                        {Array.from({ length: slots * 2 }, (_, i) => (
-                          <td key={i} style={{ padding: "10px", textAlign: "center", color: "#93a3c7", fontSize: 11, borderRight: i < slots * 2 - 1 ? "1px solid #2a3450" : "none" }}></td>
-                        ))}
-                        <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#fca5a5", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotal.toLocaleString()}</td>
-                        <td style={{ padding: "12px 14px", borderLeft: "1px solid #2a3450" }}></td>
+                                  });
+                                  const removedIds = existingIds.filter(id => !newDrs.some(nd => nd.orderId === id));
+                                  removedIds.forEach(id => {
+                                    next = next.map(o => o.id === id ? { ...o, supplierDrNo: "", actualQtyReceived: 0, qtyVariance: 0, varianceAmount: 0 } : o);
+                                  });
+                                  return next;
+                                });
+                                setEditingSeriesProduct(null);
+                                setSeriesDraft({});
+                                showToast("Series of Acceptance updated.");
+                              }} title="Save" style={{ padding: "4px 7px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center" }}><IconSave size={11} /></button>
+                              <button onClick={() => { setEditingSeriesProduct(null); setSeriesDraft({}); }} title="Cancel" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "flex", alignItems: "center" }}><IconX size={11} /></button>
+                            </div>
+                          ) : (
+                            <button onClick={() => { setEditingSeriesProduct(g.productDesc); setSeriesDraft({}); }} title="Edit" style={{ padding: "4px 7px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 4, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 2, fontSize: 10, fontWeight: 600, fontFamily: "inherit" }}><IconEdit size={11} /> Edit</button>
+                          )}
+                        </td>
                       </tr>
-                    </tbody>
-                  </table>
-                </div>
+                    );
+                  })}
+                  <tr style={{ background: "#1c2235" }}>
+                    <td className="wis-td" style={{ padding: "12px 14px", fontWeight: 800, color: "#fff", fontSize: 12, textAlign: "left" }}>GRAND TOTAL</td>
+                    <td className="wis-td" style={{ padding: "12px 14px", fontWeight: 700, color: "#93a3c7", fontSize: 11, textAlign: "center" }}>{grouped.length} item(s)</td>
+                    {Array.from({ length: slots * 2 }, (_, i) => (
+                      <td key={i} className="wis-td" style={{ padding: "10px", textAlign: "center", color: "#93a3c7", fontSize: 11 }}></td>
+                    ))}
+                    <td className="wis-td" style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#fca5a5", fontSize: 14, background: "#2a3450" }}>{overallTotal.toLocaleString()}</td>
+                    <td className="wis-td" style={{ padding: "12px 14px" }}></td>
+                  </tr>
+                </Table>
               </div>
             );
           })()}

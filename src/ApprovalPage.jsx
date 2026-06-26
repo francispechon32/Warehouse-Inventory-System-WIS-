@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Table from "./Table";
 
 /* ─── ICONS ───────────────────────────────────────────────── */
 function IconCheck({ size = 16 }) {
@@ -77,20 +78,23 @@ function StatCard({ label, value, icon, accent, sub }) {
 
 /* ─── STATUS BADGE ────────────────────────────────────────── */
 function StatusBadge({ status }) {
-  const map = {
-    Pending:  { bg: "#fef3c7", color: "#d97706", dot: "#f59e0b" },
-    Active:   { bg: "#dcfce7", color: "#15803d", dot: "#22c55e" },
-    Rejected: { bg: "#fee2e2", color: "#dc2626", dot: "#ef4444" },
-    Closed:   { bg: "#f1f5f9", color: "#475569", dot: "#94a3b8" },
+  const classMap = {
+    Pending:  "wis-badge wis-badge-yellow",
+    Active:   "wis-badge wis-badge-green",
+    Rejected: "wis-badge wis-badge-red",
+    Closed:   "wis-badge wis-badge-gray",
   };
-  const s = map[status] || map.Pending;
+  const dotMap = {
+    Pending:  "#f59e0b",
+    Active:   "#22c55e",
+    Rejected: "#ef4444",
+    Closed:   "#94a3b8",
+  };
+  const cls = classMap[status] || "wis-badge wis-badge-yellow";
+  const dotColor = dotMap[status] || "#f59e0b";
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
-      background: s.bg, color: s.color, whiteSpace: "nowrap",
-    }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
+    <span className={cls}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
       {status}
     </span>
   );
@@ -504,139 +508,115 @@ export default function ApprovalPage({ items = [], onApprove, onReject }) {
           </div>
         ) : (
           <>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                <colgroup>
-                  {COLS.map(c => <col key={c.key} style={{ width: c.width === "auto" ? undefined : c.width }} />)}
-                </colgroup>
+            <Table
+              columns={COLS.map(c => ({ ...c, label: c.label }))}
+            >
+              {paged.map((item) => (
+                <tr key={item.id} onClick={() => setSelected(item)}
+                  className="wis-tr wis-tr-even"
+                  style={{ cursor: "pointer" }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = "#fffbf7";
+                    e.currentTarget.style.boxShadow = "inset 3px 0 0 #F95B02";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = "#fff";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  {/* Trans # */}
+                  <td className="wis-td wis-td-left">
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#F95B02", fontFamily: "monospace" }}>
+                      #{item.transNo}
+                    </span>
+                  </td>
 
-                <thead>
-                  <tr style={{ background: "#f9fafb" }}>
-                    {COLS.map(c => (
-                      <th key={c.key} style={{
-                        padding: "12px 10px",
-                        textAlign: c.align,
-                        fontSize: 10, fontWeight: 700, color: "#64748b",
-                        textTransform: "uppercase", letterSpacing: "0.04em",
-                        borderBottom: "2px solid #e5e7eb",
-                        whiteSpace: "nowrap",
-                      }}>
-                        {c.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+                  {/* Date */}
+                  <td className="wis-td wis-td-left">
+                    <span className="wis-td-muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                      {fmt(item.resDate)}
+                    </span>
+                  </td>
 
-                <tbody>
-                  {paged.map((item) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => setSelected(item)}
-                      style={{ cursor: "pointer", borderBottom: "1px solid #f5f5f6", background: "#fff", transition: "background 0.1s" }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background = "#fffbf7";
-                        e.currentTarget.style.boxShadow = "inset 3px 0 0 #F95B02";
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background = "#fff";
-                        e.currentTarget.style.boxShadow = "none";
-                      }}
-                    >
-                      {/* Trans # */}
-                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "#F95B02", fontFamily: "monospace" }}>
-                          #{item.transNo}
-                        </span>
-                      </td>
+                  {/* Customer */}
+                  <td className="wis-td wis-td-left">
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>
+                      {item.customer}
+                    </div>
+                    {item.place && (
+                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, display: "flex", alignItems: "center", gap: 3 }}>
+                        <IconMapPin size={10} /> {item.place}
+                      </div>
+                    )}
+                  </td>
 
-                      {/* Date */}
-                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
-                        <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>
-                          {fmt(item.resDate)}
-                        </span>
-                      </td>
+                  {/* Product / SKU */}
+                  <td className="wis-td wis-td-left">
+                    <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.summaryItem || item.sku || "—"}
+                    </div>
+                    {(item.summarySku || item.sku) && (
+                      <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, marginTop: 2, fontFamily: "monospace" }}>
+                        {item.summarySku || item.sku}
+                      </div>
+                    )}
+                  </td>
 
-                      {/* Customer */}
-                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {item.customer}
-                        </div>
-                        {item.place && (
-                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, display: "flex", alignItems: "center", gap: 3 }}>
-                            <IconMapPin size={10} /> {item.place}
-                          </div>
-                        )}
-                      </td>
+                  {/* Qty */}
+                  <td className="wis-td wis-td-right">
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>
+                      {Number(item.reservedQty || 0).toLocaleString()}
+                    </span>
+                  </td>
 
-                      {/* Product / SKU */}
-                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {item.summaryItem || item.sku || "—"}
-                        </div>
-                        {(item.summarySku || item.sku) && (
-                          <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, marginTop: 2, fontFamily: "monospace" }}>
-                            {item.summarySku || item.sku}
-                          </div>
-                        )}
-                      </td>
+                  {/* Location */}
+                  <td className="wis-td wis-td-left">
+                    <span style={{ fontSize: 12 }}>{item.place || "—"}</span>
+                  </td>
 
-                      {/* Qty */}
-                      <td style={{ padding: "14px 10px", textAlign: "right" }}>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>
-                          {Number(item.reservedQty || 0).toLocaleString()}
-                        </span>
-                      </td>
+                  {/* Status — own column, no overlap */}
+                  <td className="wis-td wis-td-center">
+                    <StatusBadge status={item.status || "Pending"} />
+                  </td>
 
-                      {/* Location */}
-                      <td style={{ padding: "14px 10px", textAlign: "left" }}>
-                        <span style={{ fontSize: 12, color: "#374151" }}>{item.place || "—"}</span>
-                      </td>
-
-                      {/* Status — own column, no overlap */}
-                      <td style={{ padding: "14px 10px", textAlign: "center" }}>
-                        <StatusBadge status={item.status || "Pending"} />
-                      </td>
-
-                      {/* Actions — own column */}
-                      <td style={{ padding: "10px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
-                          <button
-                            onClick={e => openConfirmFromRow(e, item, "reject")}
-                            style={{
-                              padding: "5px 11px", border: "1.5px solid #fca5a5",
-                              borderRadius: 7, background: "#fff", cursor: "pointer",
-                              color: "#dc2626", display: "inline-flex", alignItems: "center",
-                              gap: 4, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
-                              transition: "all 0.12s",
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = "#fee2e2"; e.currentTarget.style.borderColor = "#ef4444"; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#fca5a5"; }}
-                          >
-                            <IconX size={11} /> Reject
-                          </button>
-                          <button
-                            onClick={e => openConfirmFromRow(e, item, "approve")}
-                            style={{
-                              padding: "5px 11px", border: "none",
-                              borderRadius: 7, background: "#16a34a",
-                              cursor: "pointer", color: "#fff",
-                              display: "inline-flex", alignItems: "center",
-                              gap: 4, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
-                              boxShadow: "0 1px 4px rgba(22,163,74,0.3)",
-                              transition: "all 0.12s",
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = "#15803d"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = "#16a34a"; e.currentTarget.style.transform = "translateY(0)"; }}
-                          >
-                            <IconCheck size={11} /> Approve
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  {/* Actions — own column */}
+                  <td className="wis-td wis-td-right" onClick={e => e.stopPropagation()}>
+                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
+                      <button
+                        onClick={e => openConfirmFromRow(e, item, "reject")}
+                        style={{
+                          padding: "5px 11px", border: "1.5px solid #fca5a5",
+                          borderRadius: 7, background: "#fff", cursor: "pointer",
+                          color: "#dc2626", display: "inline-flex", alignItems: "center",
+                          gap: 4, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+                          transition: "all 0.12s",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "#fee2e2"; e.currentTarget.style.borderColor = "#ef4444"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#fca5a5"; }}
+                      >
+                        <IconX size={11} /> Reject
+                      </button>
+                      <button
+                        onClick={e => openConfirmFromRow(e, item, "approve")}
+                        style={{
+                          padding: "5px 11px", border: "none",
+                          borderRadius: 7, background: "#16a34a",
+                          cursor: "pointer", color: "#fff",
+                          display: "inline-flex", alignItems: "center",
+                          gap: 4, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+                          boxShadow: "0 1px 4px rgba(22,163,74,0.3)",
+                          transition: "all 0.12s",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "#15803d"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "#16a34a"; e.currentTarget.style.transform = "translateY(0)"; }}
+                      >
+                        <IconCheck size={11} /> Approve
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </Table>
 
             {/* Pagination */}
             {totalPages > 1 && (

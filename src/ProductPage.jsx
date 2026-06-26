@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import Table from "./Table";
 import {
   cellStr,
   cellNum,
@@ -599,115 +600,108 @@ export default function ProductPage({ products: propProducts, setProducts: propS
             )}
           </div>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
+        <Table
+          columns={visibleProdCols.map(c => ({
+            ...c,
+            label: c.key === "beginning" ? (periodPrefix ? `BEGIN (${selectedPeriod})` : "BEGINNING")
+                 : c.key === "stockIn"   ? (periodPrefix ? `IN (${selectedPeriod})` : "STOCK IN")
+                 : c.key === "stockOut"  ? (periodPrefix ? `OUT (${selectedPeriod})` : "STOCK OUT")
+                 : c.label,
+            align: c.key === "description" ? "left" : (c.key === "avgCost" || c.key === "totalValue") ? "right" : "center",
+          }))}
+          emptyIcon={false}
+        >
+          {paginatedItems.length === 0 ? (
+            <tr>
+              <td colSpan={visibleProdCols.length} className="wis-empty">
+                <svg className="wis-empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+                <p className="wis-empty-title">
+                  {searchQuery ? `No products matching "${searchQuery}"` : statusFilter !== "All Status" ? `No ${statusFilter.toLowerCase()} items found` : "No items found"}
+                </p>
+                <p className="wis-empty-sub">
+                  {searchQuery ? "Try a different search term or clear the filters" : "Adjust your filters or import a product list"}
+                </p>
+                {searchQuery && (
+                  <button className="wis-empty-btn" onClick={() => { setSearchQuery(""); setCurrentPage(1); }}>
+                    Clear search
+                  </button>
+                )}
+              </td>
+            </tr>
+          ) : paginatedItems.map((product, idx) => {
+            const low = isLowStock(product);
+            const displayStatus = deriveProductStatus(product.stock);
+            const isEven = idx % 2 === 0;
+            const rowBg = low ? (isEven ? "#fffdf5" : "#fffbeb") : (isEven ? "#fff" : "#fafbfc");
+            return (
+              <tr key={product.id}
+                className={`wis-tr ${isEven ? "wis-tr-even" : "wis-tr-odd"}`}
+                style={{ background: rowBg }}
+                onMouseEnter={(e) => e.currentTarget.style.background = low ? "#fff8e1" : "#f5f9ff"}
+                onMouseLeave={(e) => e.currentTarget.style.background = rowBg}
+              >
                 {visibleProdCols.map(c => {
-                  let label = c.label;
-                  if (c.key === "beginning") label = periodPrefix ? `BEGIN (${selectedPeriod})` : "BEGINNING";
-                  if (c.key === "stockIn")   label = periodPrefix ? `IN (${selectedPeriod})` : "STOCK IN";
-                  if (c.key === "stockOut")  label = periodPrefix ? `OUT (${selectedPeriod})` : "STOCK OUT";
-                  const isRight = c.key === "avgCost" || c.key === "totalValue";
-                  return (
-                    <th key={c.key} style={{
-                      padding: "12px 10px", whiteSpace: "nowrap",
-                      textAlign: c.key === "description" ? "left" : isRight ? "right" : "center",
-                      color: "#fff", fontWeight: 700, fontSize: 10, letterSpacing: "0.04em",
-                      ...(c.sticky ? { position: "sticky", left: 0, zIndex: 3, background: "#1c2235", boxShadow: "3px 0 5px rgba(0,0,0,0.07)" } : {}),
-                    }}>{label}</th>
+                  if (c.key === "sku") return (
+                    <td key="sku" title={product.sku}
+                      className="wis-td wis-td-center wis-td-bold wis-td-sticky"
+                      style={{ background: rowBg }}>
+                      <HighlightText text={product.sku} query={searchQuery} />
+                    </td>
                   );
+                  if (c.key === "description") return (
+                    <td key="description" title={product.description}
+                      className="wis-td wis-td-left"
+                      style={{ maxWidth: 220 }}>
+                      <HighlightText text={product.description} query={searchQuery} />
+                    </td>
+                  );
+                  if (c.key === "category") return (
+                    <td key="category" title={product.category}
+                      className="wis-td wis-td-center wis-td-muted"
+                      style={{ maxWidth: 120 }}>
+                      <HighlightText text={product.category} query={searchQuery} />
+                    </td>
+                  );
+                  if (c.key === "unit") return (
+                    <td key="unit" className="wis-td wis-td-center">{product.unit}</td>
+                  );
+                  if (c.key === "beginning") return (
+                    <td key="beginning" className="wis-td wis-td-center">{(product.beginningDisplay ?? product.beginningInventory) || 0}</td>
+                  );
+                  if (c.key === "stockIn") return (
+                    <td key="stockIn" className="wis-td wis-td-center">{product.stockIn?.toLocaleString() || 0}</td>
+                  );
+                  if (c.key === "stockOut") return (
+                    <td key="stockOut" className="wis-td wis-td-center">{product.stockOut?.toLocaleString() || 0}</td>
+                  );
+                  if (c.key === "stock") return (
+                    <td key="stock" className={`wis-td wis-td-center${low ? " wis-td-bold" : ""}`}
+                      style={{ color: low ? "#d97706" : undefined }}>
+                      {product.stock.toLocaleString()}
+                      {low && <span style={{ marginLeft: 4, color: "#d97706" }}><IconWarning size={11} /></span>}
+                    </td>
+                  );
+                  if (c.key === "avgCost") return (
+                    <td key="avgCost" className="wis-td wis-td-right">₱{product.avgCost.toFixed(2)}</td>
+                  );
+                  if (c.key === "totalValue") return (
+                    <td key="totalValue" className="wis-td wis-td-right">₱{product.totalValue.toFixed(2)}</td>
+                  );
+                  if (c.key === "status") return (
+                    <td key="status" className="wis-td wis-td-center">
+                      <span className={`wis-badge ${displayStatus === "Active" ? "wis-badge-green" : "wis-badge-yellow"}`}>
+                        {displayStatus}
+                      </span>
+                    </td>
+                  );
+                  return null;
                 })}
               </tr>
-            </thead>
-            <tbody>
-              {paginatedItems.length === 0 ? (
-                <tr>
-                  <td colSpan={visibleProdCols.length} style={{ padding: "60px 20px", textAlign: "center" }}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-                      <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                      </svg>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#374151", margin: 0 }}>
-                        {searchQuery ? `No products matching "${searchQuery}"` : statusFilter !== "All Status" ? `No ${statusFilter.toLowerCase()} items found` : "No items found"}
-                      </p>
-                      <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>
-                        {searchQuery ? "Try a different search term or clear the filters" : "Adjust your filters or import a product list"}
-                      </p>
-                      {searchQuery && (
-                        <button onClick={() => { setSearchQuery(""); setCurrentPage(1); }} style={{ marginTop: 4, fontSize: 12, color: "#e87c27", background: "none", border: "1px solid #e87c27", borderRadius: 6, padding: "5px 14px", cursor: "pointer", fontWeight: 600 }}>
-                          Clear search
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : paginatedItems.map((product, idx) => {
-                const low = isLowStock(product);
-                const displayStatus = deriveProductStatus(product.stock);
-                const rowBg = low ? (idx % 2 === 0 ? "#fffdf5" : "#fffbeb") : (idx % 2 === 0 ? "#fff" : "#fafafa");
-                return (
-                  <tr key={product.id}
-                    style={{ borderBottom: "1px solid #f5f5f6", background: rowBg }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "#f5f9ff"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = rowBg}
-                  >
-                    {visibleProdCols.map(c => {
-                      const base = { padding: "14px 10px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-                      if (c.key === "sku") return (
-                        <td key="sku" title={product.sku} style={{ ...base, color: "#374151", fontWeight: 600, textAlign: "center", position: "sticky", left: 0, zIndex: 1, background: rowBg, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>
-                          <HighlightText text={product.sku} query={searchQuery} />
-                        </td>
-                      );
-                      if (c.key === "description") return (
-                        <td key="description" title={product.description} style={{ ...base, color: "#374151", textAlign: "left", maxWidth: 220 }}>
-                          <HighlightText text={product.description} query={searchQuery} />
-                        </td>
-                      );
-                      if (c.key === "category") return (
-                        <td key="category" title={product.category} style={{ ...base, color: "#6b7280", textAlign: "center", maxWidth: 120 }}>
-                          <HighlightText text={product.category} query={searchQuery} />
-                        </td>
-                      );
-                      if (c.key === "unit") return (
-                        <td key="unit" style={{ ...base, color: "#374151", textAlign: "center" }}>{product.unit}</td>
-                      );
-                      if (c.key === "beginning") return (
-                        <td key="beginning" style={{ ...base, textAlign: "center", color: "#374151" }}>{(product.beginningDisplay ?? product.beginningInventory) || 0}</td>
-                      );
-                      if (c.key === "stockIn") return (
-                        <td key="stockIn" style={{ ...base, textAlign: "center", color: "#374151" }}>{product.stockIn?.toLocaleString() || 0}</td>
-                      );
-                      if (c.key === "stockOut") return (
-                        <td key="stockOut" style={{ ...base, textAlign: "center", color: "#374151" }}>{product.stockOut?.toLocaleString() || 0}</td>
-                      );
-                      if (c.key === "stock") return (
-                        <td key="stock" style={{ ...base, textAlign: "center", color: low ? "#d97706" : "#374151", fontWeight: low ? 700 : 400 }}>
-                          {product.stock.toLocaleString()}
-                          {low && <span style={{ marginLeft: 4, color: "#d97706" }}><IconWarning size={11} /></span>}
-                        </td>
-                      );
-                      if (c.key === "avgCost") return (
-                        <td key="avgCost" style={{ ...base, textAlign: "right" }}>₱{product.avgCost.toFixed(2)}</td>
-                      );
-                      if (c.key === "totalValue") return (
-                        <td key="totalValue" style={{ ...base, textAlign: "right" }}>₱{product.totalValue.toFixed(2)}</td>
-                      );
-                      if (c.key === "status") return (
-                        <td key="status" style={{ ...base, textAlign: "center" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap", padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: displayStatus === "Active" ? "#dcfce7" : "#fef3c7", color: displayStatus === "Active" ? "#16a34a" : "#d97706" }}>
-                            {displayStatus}
-                          </span>
-                        </td>
-                      );
-                      return null;
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            );
+          })}
+        </Table>
 
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",

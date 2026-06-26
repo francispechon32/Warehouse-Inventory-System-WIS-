@@ -27,6 +27,7 @@ import {
   rowHasData,
   readWorkbookSheet,
 } from "./excelImportUtils";
+import Table from "./Table";
 
 function Highlight({ text, query }) {
   if (!query || !text) return <>{String(text)}</>;
@@ -802,22 +803,15 @@ export default function ReturnPage() {
             )}
           </div>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {visibleRTNCols.map(c => (
-                  <th key={c.key} style={{
-                    padding: "12px 10px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.04em",
-                    ...(c.sticky ? { position: "sticky", left: 0, zIndex: 2, background: "#1c2235", boxShadow: "3px 0 5px rgba(0,0,0,0.15)" } : {}),
-                  }}>{c.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
+        <Table columns={visibleRTNCols.map(c => ({
+          key: c.key,
+          label: c.label,
+          align: "center",
+          sticky: c.sticky,
+        }))}>
               {paged.length === 0 && (
-                <tr><td colSpan={visibleRTNCols.length} style={{ textAlign: "center", padding: "48px 20px", color: "#9ca3af" }}>
-                  No results found for <strong style={{ color: "#374151" }}>"{searchQuery || "your filters"}"</strong>
+                <tr><td colSpan={visibleRTNCols.length} className="wis-td wis-td-center wis-td-light" style={{ padding: "48px 20px" }}>
+                  No results found for <strong className="wis-td-bold" style={{ color: "#374151" }}>"{searchQuery || "your filters"}"</strong>
                 </td></tr>
               )}
               {paged.map((row, idx) => {
@@ -828,47 +822,47 @@ export default function ReturnPage() {
                   <tr
                     key={row.id}
                     onClick={() => openEditDrawer(row)}
-                    style={{ borderBottom: "1px solid #f5f5f6", background: rowBg, cursor: "pointer", boxShadow: selectedId === row.id ? "inset 3px 0 0 #e87c27" : "none" }}
+                    className={`wis-tr ${idx % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"} ${selectedId === row.id ? "wis-tr-selected" : ""}`}
                     onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
                     onMouseLeave={e => e.currentTarget.style.background = rowBg}
                   >
                     {visibleRTNCols.map(c => {
                       if (c.key === "transNo") return (
-                        <td key="transNo" style={{ padding: "14px 10px", color: "#6b7280", fontWeight: 600, textAlign: "center", position: "sticky", left: 0, zIndex: 1, background: rowBg, boxShadow: "3px 0 5px rgba(0,0,0,0.07)" }}>{row.transNo}</td>
+                        <td key="transNo" className="wis-td wis-td-center wis-td-bold wis-td-muted wis-td-sticky" style={{ background: rowBg }}>{row.transNo}</td>
                       );
                       if (c.key === "returnDate") return (
-                        <td key="returnDate" style={{ padding: "14px 10px", color: "#374151", whiteSpace: "nowrap", textAlign: "center" }}>{formatReturnExportDate(row.returnDate)}</td>
+                        <td key="returnDate" className="wis-td wis-td-center">{formatReturnExportDate(row.returnDate)}</td>
                       );
                       if (c.key === "drNo") return (
-                        <td key="drNo" style={{ padding: "14px 10px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}><Highlight text={row.drNo} query={searchQuery} /></td>
+                        <td key="drNo" className="wis-td wis-td-center wis-td-bold wis-td-accent"><Highlight text={row.drNo} query={searchQuery} /></td>
                       );
                       if (c.key === "sku") return (
-                        <td key="sku" style={{ padding: "14px 10px", color: "#374151", fontWeight: 600, textAlign: "center" }}><Highlight text={row.sku} query={searchQuery} /></td>
+                        <td key="sku" className="wis-td wis-td-center wis-td-bold"><Highlight text={row.sku} query={searchQuery} /></td>
                       );
                       if (c.key === "item") return (
-                        <td key="item" title={row.item} style={{ padding: "14px 10px", color: "#111827", maxWidth: 180, minWidth: 130, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><Highlight text={row.item} query={searchQuery} /></td>
+                        <td key="item" title={row.item} className="wis-td wis-td-left" style={{ maxWidth: 180, minWidth: 130 }}><Highlight text={row.item} query={searchQuery} /></td>
                       );
                       if (c.key === "qtyReturned") return (
-                        <td key="qtyReturned" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 700 }}>{row.qtyReturned}</td>
+                        <td key="qtyReturned" className="wis-td wis-td-center wis-td-bold">{row.qtyReturned}</td>
                       );
                       if (c.key === "unitCost") return (
-                        <td key="unitCost" style={{ padding: "14px 10px", textAlign: "center" }}>{fmtPHP(row.unitCost)}</td>
+                        <td key="unitCost" className="wis-td wis-td-center">{fmtPHP(row.unitCost)}</td>
                       );
                       if (c.key === "totalCost") return (
-                        <td key="totalCost" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 600 }}>{fmtPHP(row.totalCost)}</td>
+                        <td key="totalCost" className="wis-td wis-td-center wis-td-bold">{fmtPHP(row.totalCost)}</td>
                       );
                       if (c.key === "customer") return (
-                        <td key="customer" title={row.customer} style={{ padding: "14px 10px", color: "#374151", maxWidth: 140, minWidth: 100, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><Highlight text={row.customer} query={searchQuery} /></td>
+                        <td key="customer" title={row.customer} className="wis-td wis-td-left" style={{ maxWidth: 140, minWidth: 100 }}><Highlight text={row.customer} query={searchQuery} /></td>
                       );
                       if (c.key === "reason") return (
-                        <td key="reason" style={{ padding: "14px 10px", color: "#6b7280", fontSize: 10, textAlign: "center", whiteSpace: "nowrap" }}>{row.reason}</td>
+                        <td key="reason" className="wis-td wis-td-center wis-td-muted" style={{ fontSize: 11 }}>{row.reason}</td>
                       );
                       if (c.key === "totalQtyOut") return (
-                        <td key="totalQtyOut" style={{ padding: "14px 10px", textAlign: "center", fontWeight: 700, color: rtnQtyOut > 0 ? "#dc2626" : "#9ca3af" }}>{rtnQtyOut}</td>
+                        <td key="totalQtyOut" className={`wis-td wis-td-center wis-td-bold ${rtnQtyOut > 0 ? "" : "wis-td-light"}`} style={{ color: rtnQtyOut > 0 ? "#dc2626" : undefined }}>{rtnQtyOut}</td>
                       );
                       if (c.key === "qtyBalance") return (
-                        <td key="qtyBalance" style={{ padding: "14px 10px", textAlign: "center" }}>
-                          <span style={{ padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: qtyBal > 0 ? "#fef3c7" : "#d1fae5", color: qtyBal > 0 ? "#d97706" : "#065f46" }}>{qtyBal}</span>
+                        <td key="qtyBalance" className="wis-td wis-td-center">
+                          <span className={`wis-badge ${qtyBal > 0 ? "wis-badge-yellow" : "wis-badge-green"}`}>{qtyBal}</span>
                         </td>
                       );
                       return null;
@@ -876,9 +870,7 @@ export default function ReturnPage() {
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+        </Table>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
             Showing {sorted.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)} of {sorted.length} entries
@@ -916,41 +908,42 @@ export default function ReturnPage() {
                     <button onClick={() => setRtnQtyOutSlotCount(s => Math.max(1, s - 1))} title="Remove last QTY-OUT/DATE column pair" disabled={rtnQtyOutSlotCount <= 1} style={{ padding: "4px 10px", border: "1px solid #ef4444", borderRadius: 5, background: "#fef2f2", cursor: rtnQtyOutSlotCount <= 1 ? "not-allowed" : "pointer", fontSize: 13, color: "#ef4444", fontWeight: 700, fontFamily: "inherit", lineHeight: 1, display: "flex", alignItems: "center", gap: 4, opacity: rtnQtyOutSlotCount <= 1 ? 0.4 : 1 }}>− Remove Pair</button>
                   </div>
                 </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: "#1c2235" }}>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>ITEM</th>
-                        <th colSpan={slots * 2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, textAlign: "center", borderBottom: "1px solid #2a3450" }}>QTY-OUT / DATE RECORDS</th>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 90 }}>TOTAL QTY OUT</th>
-                        <th rowSpan={2} style={{ padding: "12px 14px", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", textAlign: "center", borderLeft: "1px solid #2a3450", minWidth: 60 }}>ACTION</th>
+                <div className="wis-table-scroll">
+                  <table className="wis-table">
+                    <thead className="wis-thead">
+                      <tr className="wis-tr">
+                        <th rowSpan={2} className="wis-th wis-th-left" style={{ borderRight: "1px solid #2a3450" }}>ITEM</th>
+                        <th colSpan={slots * 2} className="wis-th" style={{ borderBottom: "1px solid #2a3450" }}>QTY-OUT / DATE RECORDS</th>
+                        <th rowSpan={2} className="wis-th" style={{ borderLeft: "1px solid #2a3450", minWidth: 90 }}>TOTAL QTY OUT</th>
+                        <th rowSpan={2} className="wis-th" style={{ borderLeft: "1px solid #2a3450", minWidth: 60 }}>ACTION</th>
                       </tr>
-                      <tr style={{ background: "#1c2235" }}>
+                      <tr className="wis-tr">
                         {Array.from({ length: slots }, (_, i) => (
                           <Fragment key={i}>
-                            <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center", borderRight: "1px solid #2a3450" }}>QTY-OUT</th>
-                            <th style={{ padding: "10px 10px", color: "#93a3c7", fontWeight: 600, fontSize: 9, whiteSpace: "nowrap", textAlign: "center" }}>DATE</th>
+                            <th className="wis-th" style={{ fontSize: 10, color: "#93a3c7", borderRight: "1px solid #2a3450" }}>QTY-OUT</th>
+                            <th className="wis-th" style={{ fontSize: 10, color: "#93a3c7" }}>DATE</th>
                           </Fragment>
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="wis-tbody">
                       {itemEntries.map((g, gi) => {
                         const isEditing = editingRtnQtyOutItem === g.item.id;
                         return (
                           <tr key={g.item.id}
-                            style={{ borderBottom: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : gi % 2 === 0 ? "#fff" : "#fafafa" }}
+                            className={`wis-tr ${gi % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"}${isEditing ? " is-editing" : ""}`}
+                            style={{ background: isEditing ? "#fffbf7" : undefined }}
                           >
-                            <td style={{ padding: "10px 14px", color: "#111827", fontWeight: 600, fontSize: 12, textAlign: "left", borderRight: "1px solid #f3f4f6", maxWidth: 240, minWidth: 180 }}>{g.item.item}</td>
+                            <td className="wis-td wis-td-left wis-td-bold" style={{ maxWidth: 240, minWidth: 180, borderRight: "1px solid #f3f4f6" }}>{g.item.item}</td>
                             {Array.from({ length: slots }, (_, slotIdx) => {
                               const entry = g.entries[slotIdx];
                               if (isEditing) {
                                 return (
                                   <Fragment key={slotIdx}>
-                                    <td style={{ padding: "4px 6px", borderRight: "1px solid #f3f4f6" }}>
+                                    <td className="wis-td" style={{ padding: "4px 6px", borderRight: "1px solid #f3f4f6" }}>
                                       <input type="number" min={0} value={rtnQtyOutDraft[`${g.item.id}-${slotIdx}-qty`] ?? entry?.qty ?? ""} onChange={e => setRtnQtyOutDraft(d => ({ ...d, [`${g.item.id}-${slotIdx}-qty`]: parseFloat(e.target.value) || "" }))} placeholder="Qty" {...modalCellInput({ width: 65, textAlign: "right" })} />
                                     </td>
-                                    <td style={{ padding: "4px 6px" }}>
+                                    <td className="wis-td" style={{ padding: "4px 6px" }}>
                                       <input type="date" value={rtnQtyOutDraft[`${g.item.id}-${slotIdx}-date`] ?? entry?.date ?? ""} onChange={e => setRtnQtyOutDraft(d => ({ ...d, [`${g.item.id}-${slotIdx}-date`]: e.target.value }))} {...modalCellInput({ width: 120 })} />
                                     </td>
                                   </Fragment>
@@ -958,13 +951,13 @@ export default function ReturnPage() {
                               }
                               return (
                                 <Fragment key={slotIdx}>
-                                  <td style={{ padding: "10px 10px", color: entry ? "#e87c27" : "#e5e7eb", fontWeight: entry ? 700 : 400, fontSize: 11, textAlign: "center", borderRight: "1px solid #f3f4f6", whiteSpace: "nowrap", minWidth: 100 }}>{entry ? entry.qty.toLocaleString() : "—"}</td>
-                                  <td style={{ padding: "10px 10px", color: entry ? "#111827" : "#e5e7eb", fontWeight: entry ? 700 : 400, fontSize: 12, textAlign: "center", minWidth: 60 }}>{entry ? formatReturnExportDate(entry.date) : "—"}</td>
+                                  <td className={`wis-td wis-td-center${entry ? " wis-td-bold wis-td-accent" : ""}`} style={{ color: entry ? undefined : "#e5e7eb", borderRight: "1px solid #f3f4f6", minWidth: 100 }}>{entry ? entry.qty.toLocaleString() : "—"}</td>
+                                  <td className={`wis-td wis-td-center${entry ? " wis-td-bold" : ""}`} style={{ color: entry ? "#111827" : "#e5e7eb", minWidth: 60 }}>{entry ? formatReturnExportDate(entry.date) : "—"}</td>
                                 </Fragment>
                               );
                             })}
-                            <td style={{ padding: "10px 14px", textAlign: "center", fontWeight: 800, color: "#e87c27", fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.entries.reduce((s, e) => s + e.qty, 0).toLocaleString()}</td>
-                            <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                            <td className="wis-td wis-td-center wis-td-bold wis-td-accent" style={{ fontSize: 13, borderLeft: "1px solid #f3f4f6", background: isEditing ? "#fffbf7" : "#fff4ed" }}>{g.entries.reduce((s, e) => s + e.qty, 0).toLocaleString()}</td>
+                            <td className="wis-td wis-td-center" style={{ padding: "8px 8px" }}>
                               {isEditing ? (
                                 <div style={{ display: "flex", gap: 3, flexDirection: "column", alignItems: "center" }}>
                                   <button onClick={() => {
@@ -1001,13 +994,13 @@ export default function ReturnPage() {
                         );
                       })}
                       <tr style={{ background: "#1c2235" }}>
-                        <td style={{ padding: "12px 14px", fontWeight: 800, color: "#fff", fontSize: 12, textAlign: "left", borderRight: "1px solid #2a3450" }}>GRAND TOTAL</td>
-                        <td style={{ padding: "12px 14px", fontWeight: 700, color: "#93a3c7", fontSize: 11, textAlign: "center", borderRight: "1px solid #2a3450" }}>{itemEntries.length} item(s)</td>
+                        <td className="wis-td wis-td-left wis-td-bold" style={{ padding: "12px 14px", color: "#fff", fontSize: 12, borderRight: "1px solid #2a3450" }}>GRAND TOTAL</td>
+                        <td className="wis-td wis-td-center wis-td-bold" style={{ padding: "12px 14px", color: "#93a3c7", fontSize: 11, borderRight: "1px solid #2a3450" }}>{itemEntries.length} item(s)</td>
                         {Array.from({ length: slots * 2 }, (_, ci) => (
-                          <td key={ci} style={{ padding: "10px", textAlign: "center", color: "#93a3c7", fontSize: 11, borderRight: ci < slots * 2 - 1 ? "1px solid #2a3450" : "none" }}></td>
+                          <td key={ci} className="wis-td wis-td-center" style={{ padding: "10px", color: "#93a3c7", fontSize: 11, borderRight: ci < slots * 2 - 1 ? "1px solid #2a3450" : "none" }}></td>
                         ))}
-                        <td style={{ padding: "12px 14px", textAlign: "center", fontWeight: 800, color: "#fca5a5", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotalQtyOut.toLocaleString()}</td>
-                        <td style={{ padding: "12px 14px", borderLeft: "1px solid #2a3450" }}></td>
+                        <td className="wis-td wis-td-center wis-td-bold" style={{ padding: "12px 14px", color: "#fca5a5", fontSize: 14, borderLeft: "1px solid #2a3450", background: "#2a3450" }}>{overallTotalQtyOut.toLocaleString()}</td>
+                        <td className="wis-td" style={{ padding: "12px 14px", borderLeft: "1px solid #2a3450" }}></td>
                       </tr>
                     </tbody>
                   </table>
@@ -1093,28 +1086,23 @@ export default function ReturnPage() {
                 {editDrawerRow.lineItems?.length > 0 && (
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", letterSpacing: "0.06em", marginBottom: 8 }}>RETURNED ITEMS</div>
-                    <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e5e7eb" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-                        <thead>
-                          <tr style={{ background: "#f3f4f6" }}>
-                            {["Code", "Description", "Qty", "Cost", "Value"].map(h => (
-                              <th key={h} style={{ padding: "7px 8px", textAlign: ["Qty","Cost","Value"].includes(h) ? "right" : "left", fontWeight: 700, color: "#374151", fontSize: 10 }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {editDrawerRow.lineItems.map((it, i) => (
-                            <tr key={i} style={{ borderTop: "1px solid #e5e7eb", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                              <td style={{ padding: "7px 8px", fontWeight: 600, color: "#111827" }}>{it.code}</td>
-                              <td style={{ padding: "7px 8px", color: "#374151" }}>{it.desc}</td>
-                              <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{it.qty}</td>
-                              <td style={{ padding: "7px 8px", textAlign: "right" }}>{fmtPHP(it.unit)}</td>
-                              <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600, color: "#e87c27" }}>{fmtPHP(it.val)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <Table columns={[
+                      { key: "code", label: "Code", align: "left" },
+                      { key: "desc", label: "Description", align: "left" },
+                      { key: "qty", label: "Qty", align: "right" },
+                      { key: "cost", label: "Cost", align: "right" },
+                      { key: "val", label: "Value", align: "right" },
+                    ]}>
+                      {editDrawerRow.lineItems.map((it, i) => (
+                        <tr key={i} className={`wis-tr ${i % 2 === 0 ? "wis-tr-even" : "wis-tr-odd"}`}>
+                          <td className="wis-td wis-td-bold">{it.code}</td>
+                          <td className="wis-td">{it.desc}</td>
+                          <td className="wis-td wis-td-right wis-td-bold">{it.qty}</td>
+                          <td className="wis-td wis-td-right">{fmtPHP(it.unit)}</td>
+                          <td className="wis-td wis-td-right wis-td-bold wis-td-accent">{fmtPHP(it.val)}</td>
+                        </tr>
+                      ))}
+                    </Table>
                     <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between" }}>
                       <span style={{ fontSize: 12, color: "#6b7280" }}>Total Return Value</span>
                       <span style={{ fontSize: 13, fontWeight: 800, color: "#e87c27" }}>{fmtPHP(lineValSum(editDrawerRow.lineItems))}</span>
