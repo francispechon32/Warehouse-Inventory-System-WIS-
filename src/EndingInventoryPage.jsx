@@ -1,5 +1,9 @@
-import { useState, useRef, useMemo, useEffect } from "react";
+﻿import { useState, useRef, useMemo, useEffect } from "react";
+import XLSX from "xlsx-js-style";
 import PageToolbar from "./PageToolbar";
+import useApi from "./hooks/useApi";
+import { ENDPOINTS } from "./api/apiConfig";
+import useSort from "./useSort";
 import {
   cellStr,
   cellNum,
@@ -12,7 +16,13 @@ import {
 import {
   buildInitialEndingInventory,
   sumEndingInventoryValue,
+  formatCompactPHP,
 } from "./inventoryUtils";
+import MetricCard from "./MetricCard";
+import Table from "./Table";
+import { fmtPHP } from "./formatUtils";
+import Highlight from "./Highlight";
+import { IconBox, IconStock, IconWarning, IconBarChart } from "./metricIcons";
 import {
   modalOverlayStyle,
   modalPanelStyle,
@@ -24,18 +34,11 @@ import {
   modalBtnSecondary,
   modalBtnPrimary,
   modalCellInput,
+  modalInput,
 } from "./modalFormStyles";
 
 function useSheetJS() {
-  const [ready, setReady] = useState(!!window.XLSX);
-  useEffect(() => {
-    if (window.XLSX) { setReady(true); return; }
-    const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload = () => setReady(true);
-    document.head.appendChild(s);
-  }, []);
-  return ready;
+  return true; // XLSX is imported as a module, always available
 }
 
 export const INITIAL_ENDING_INVENTORY = [
@@ -73,11 +76,6 @@ export const INITIAL_ENDING_INVENTORY = [
 
 const PAGE_SIZE = 8;
 
-function fmtPHP(n) {
-  if (!n && n !== 0) return "—";
-  return "₱" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 async function importEndingInventory(file, onDone, onError) {
   try {
     const { raw } = await readWorkbookSheet(file, ["ENDING"]);
@@ -90,8 +88,12 @@ async function importEndingInventory(file, onDone, onError) {
       const r = raw[i];
       if (!rowHasData(r)) continue;
 
+      // Column order matches exportToWis (wisHdrs) exactly:
+      // 0=NO., 1=PRODUCT DESCRIPTION, 2=SKU NUMBER, 3=LAST ACCEPTANCE DATE,
+      // 4=QUANTITY AS PER WIS, 5=TOTAL UNIT COST, 6=AVERAGE UNIT COST,
+      // 7=QUANTITY AS PER COUNTING, 8=VARIANCE (QUANTITY), 9=VARIANCE (AMOUNT), 10=REMARKS
       const productDescription = cellStr(pickCol(r, headers, ["PRODUCT DESCRIPTION", "PRODUCT"], 1));
-      const sku = cellStr(pickCol(r, headers, ["SKU"], 2));
+      const sku = cellStr(pickCol(r, headers, ["SKU NUMBER", "SKU"], 2));
       const noRaw = cellStr(pickCol(r, headers, ["NO."], 0));
       let no = cellNum(noRaw);
       if (!no && noRaw) {
@@ -101,24 +103,26 @@ async function importEndingInventory(file, onDone, onError) {
 
       if (!sku && !productDescription) continue;
 
-      const qtyAsPerWis = cellNum(pickCol(r, headers, ["QUANTITY AS PER WIS", "WIS"], 4));
-      const avgUnitCost = cellNum(pickCol(r, headers, ["AVERAGE UNIT COST", "AVG"], 6));
-      const totalUnitCost = cellNum(pickCol(r, headers, ["TOTAL UNIT COST", "TOTAL"], 5)) || qtyAsPerWis * avgUnitCost;
-      const qtyAsPerCounting = cellNum(pickCol(r, headers, ["QUANTITY AS PER COUNTING", "COUNTING"], 7));
+      const qtyAsPerWis = cellNum(pickCol(r, headers, ["QUANTITY AS PER WIS", "QUANTITY\nAS PER WIS"], 4));
+      const totalUnitCost = cellNum(pickCol(r, headers, ["TOTAL\nUNIT COST", "TOTAL UNIT COST"], 5));
+      const avgUnitCost = cellNum(pickCol(r, headers, ["AVERAGE\nUNIT COST", "AVERAGE UNIT COST"], 6));
+      const qtyAsPerCounting = cellNum(pickCol(r, headers, ["QUANTITY AS\nPER COUNTING", "QUANTITY AS PER COUNTING"], 7));
 
       parsed.push({
         id: no || parsed.length + 1,
         no: no || parsed.length + 1,
         productDescription,
         sku: sku || `SKU-${no || parsed.length + 1}`,
-        lastAcceptanceDate: formatExcelDate(pickCol(r, headers, ["LAST ACCEPTANCE", "DATE"], 3)),
+        lastAcceptanceDate: formatExcelDate(pickCol(r, headers, ["LAST ACCEPTANCE\nDATE", "LAST ACCEPTANCE DATE", "LAST ACCEPTANCE"], 3)),
         qtyAsPerWis,
-        totalUnitCost,
+        totalUnitCost: totalUnitCost || qtyAsPerWis * avgUnitCost,
         avgUnitCost,
         qtyAsPerCounting,
-        varianceQty: cellNum(pickCol(r, headers, ["VARIANCE (QUANTITY)", "VARIANCE"], 8)) || qtyAsPerCounting - qtyAsPerWis,
-        varianceAmount: cellNum(pickCol(r, headers, ["VARIANCE (AMOUNT)"], 9)),
+        varianceQty: cellNum(pickCol(r, headers, ["VARIANCE\n(QUANTITY)", "VARIANCE (QUANTITY)"], 8)),
+        varianceAmount: cellNum(pickCol(r, headers, ["VARIANCE\n(AMOUNT)", "VARIANCE (AMOUNT)"], 9)),
         remarks: cellStr(pickCol(r, headers, ["REMARKS"], 10)),
+        cogsQty: cellNum(pickCol(r, headers, ["QUANTITY SOLD\nAS PER WIS", "QUANTITY SOLD AS PER WIS"], 15)),
+        cogsAvgUnitCost: cellNum(pickCol(r, headers, ["AVERAGE UNIT COST\nOF GOODS SOLD", "AVERAGE UNIT COST OF GOODS SOLD"], 16)),
       });
     }
 
@@ -129,21 +133,257 @@ async function importEndingInventory(file, onDone, onError) {
   }
 }
 
+// ─── EXPORT FUNCTION ────────────────────────────────────────────────────────
+function formatExportDateTime(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatExportDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function exportCurrencyVal(n) {
+  const v = Number(n);
+  if (!v) return { v: "-", t: "s" };
+  return { v, t: "n" };
+}
+
 function exportToWis(rows) {
-  if (!window.XLSX) { alert("SheetJS not loaded yet."); return; }
-  const XLSX = window.XLSX;
   const wb = XLSX.utils.book_new();
-  const headers = [
-    ["TDT WAREHOUSE INVENTORY SHEET (TDT WIS)"],
-    ["Ending Inventory as per WIS"],
-    ["LOCATION:", "MARILAO WAREHOUSE"],
-    ["AS OF", new Date().toLocaleString()],
-    [],
-    ["NO.","PRODUCT DESCRIPTION","SKU NUMBER","LAST ACCEPTANCE DATE","QUANTITY AS PER WIS","TOTAL UNIT COST","AVERAGE UNIT COST","QUANTITY AS PER COUNTING","VARIANCE (QUANTITY)","VARIANCE (AMOUNT)","REMARKS"],
+  const now = formatExportDateTime();
+
+  const peachFill = { patternType: "solid", fgColor: { rgb: "FCE4D6" } };
+  const hdrFill = { patternType: "solid", fgColor: { rgb: "F4B084" } };
+  const yellowFill = { patternType: "solid", fgColor: { rgb: "FFEB9C" } };
+  const blueFill = { patternType: "solid", fgColor: { rgb: "BDD7EE" } };
+
+  const dashBorder = {
+    top: { style: "dashed", color: { rgb: "C00000" } },
+    bottom: { style: "dashed", color: { rgb: "C00000" } },
+    left: { style: "dashed", color: { rgb: "C00000" } },
+    right: { style: "dashed", color: { rgb: "C00000" } },
+  };
+  const hdrBorder = {
+    top: { style: "thin", color: { rgb: "C00000" } },
+    bottom: { style: "thin", color: { rgb: "C00000" } },
+    left: { style: "thin", color: { rgb: "C00000" } },
+    right: { style: "thin", color: { rgb: "C00000" } },
+  };
+  const bottomBorder = { bottom: { style: "thin", color: { rgb: "000000" } } };
+
+  const f = {
+    title: (color = "C00000") => ({ name: "Arial", sz: 14, bold: true, color: { rgb: color } }),
+    sub: () => ({ name: "Arial", sz: 11, bold: false, color: { rgb: "000000" } }),
+    label: () => ({ name: "Arial", sz: 10, bold: true, color: { rgb: "000000" } }),
+    meta: (color = "C00000") => ({ name: "Arial", sz: 10, bold: true, color: { rgb: color } }),
+    hdr: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "000000" } }),
+    body: (color = "000000", bold = false) => ({ name: "Arial", sz: 9, bold, color: { rgb: color } }),
+    sku: () => ({ name: "Arial", sz: 9, bold: true, color: { rgb: "0563C1" }, underline: true }),
+  };
+  const a = {
+    ctr: (wrap = false) => ({ horizontal: "center", vertical: "center", wrapText: wrap }),
+    left: (wrap = false) => ({ horizontal: "left", vertical: "center", wrapText: wrap }),
+    right: () => ({ horizontal: "right", vertical: "center" }),
+  };
+
+  const phpFmt = '"₱"#,##0.00';
+  const qtyFmt = "#,##0";
+  const COGS_START = 12;
+  const LAST_COL = 17;
+
+  const ws = {};
+  const C = (r, c) => XLSX.utils.encode_cell({ r, c });
+
+  const put = (r, c, v, t, style) => {
+    ws[C(r, c)] = { v: v ?? "", t: t || (typeof v === "number" ? "n" : "s"), s: style };
+  };
+
+  const fillForCol = (ci) => {
+    if (ci === 7) return yellowFill;
+    if (ci === 8 || ci === 9) return blueFill;
+    return peachFill;
+  };
+
+  const hdrFillForCol = (ci) => {
+    if (ci === 7) return yellowFill;
+    if (ci === 8 || ci === 9) return blueFill;
+    return hdrFill;
+  };
+
+  const totalValue = rows.reduce((s, r) => s + (r.totalUnitCost || 0), 0);
+  const cogsTotal = rows.reduce((s, r) => s + (r.qtyAsPerWis > 0 ? (r.totalUnitCost || 0) : 0), 0);
+
+  const titleStyle = { font: f.title(), alignment: a.left(), fill: peachFill };
+  const subStyle = { font: f.sub(), alignment: a.left(), fill: peachFill };
+  const labelStyle = { font: f.label(), alignment: a.left(), fill: peachFill };
+
+  // Row 0: titles
+  put(0, 0, "TDT WAREHOUSE INVENTORY SHEET (TDT WIS)", "s", titleStyle);
+  put(0, COGS_START, "TDT WAREHOUSE INVENTORY SHEET (TDT WIS)", "s", titleStyle);
+
+  // Row 1: subtitles
+  put(1, 0, "Ending Inventory as per WIS", "s", subStyle);
+  put(1, COGS_START, "Cost of Goods Sold as per WIS", "s", subStyle);
+
+  // Row 2: location + metrics (WIS)
+  put(2, 0, "LOCATION:", "s", labelStyle);
+  put(2, 1, "MARILAO WAREHOUSE", "s", { font: f.body(), alignment: a.ctr(), fill: peachFill, border: bottomBorder });
+  put(2, 7, "INVENTORY AGE", "s", { font: f.meta(), alignment: a.right(), fill: peachFill });
+  put(2, 8, 386, "n", { font: { name: "Arial", sz: 22, bold: true, color: { rgb: "C00000" } }, alignment: a.ctr(), fill: peachFill });
+  put(2, 9, "AVERAGE INVENTORY →", "s", { font: f.meta("E87C27"), alignment: a.right(), fill: peachFill });
+  put(2, 10, totalValue, "n", { font: f.meta(), alignment: a.right(), fill: peachFill, numFmt: phpFmt });
+  put(2, COGS_START, "LOCATION:", "s", labelStyle);
+  put(2, COGS_START + 1, "MARILAO WAREHOUSE", "s", { font: f.body(), alignment: a.ctr(), fill: peachFill, border: bottomBorder });
+
+  // Row 3: AS OF + COGS summary (WIS)
+  put(3, 0, "AS OF", "s", labelStyle);
+  put(3, 1, now, "s", { font: f.body(), alignment: a.ctr(), fill: peachFill, border: bottomBorder });
+  put(3, 9, "COST OF GOODS SOLD →", "s", { font: f.meta("E87C27"), alignment: a.right(), fill: peachFill });
+  put(3, 10, cogsTotal, "n", { font: f.meta(), alignment: a.right(), fill: peachFill, numFmt: phpFmt });
+  put(3, COGS_START, "AS OF", "s", labelStyle);
+  put(3, COGS_START + 1, now, "s", { font: f.body(), alignment: a.ctr(), fill: peachFill, border: bottomBorder });
+
+  // Row 5: column headers
+  const wisHdrs = [
+    "NO.", "PRODUCT DESCRIPTION", "SKU NUMBER", "LAST ACCEPTANCE\nDATE",
+    "QUANTITY\nAS PER WIS", "TOTAL\nUNIT COST", "AVERAGE\nUNIT COST",
+    "QUANTITY AS\nPER COUNTING", "VARIANCE\n(QUANTITY)", "VARIANCE\n(AMOUNT)", "REMARKS",
   ];
-  const dataRows = rows.map(r => [r.no, r.productDescription, r.sku, r.lastAcceptanceDate||"", r.qtyAsPerWis, r.totalUnitCost, r.avgUnitCost, r.qtyAsPerCounting, r.varianceQty, r.varianceAmount, r.remarks]);
-  const ws = XLSX.utils.aoa_to_sheet([...headers, ...dataRows]);
-  ws["!cols"] = [{wch:5},{wch:65},{wch:10},{wch:20},{wch:18},{wch:18},{wch:18},{wch:22},{wch:18},{wch:18},{wch:22}];
+  const cogsHdrs = [
+    "NO.", "PRODUCT DESCRIPTION", "SKU NUMBER",
+    "QUANTITY SOLD\nAS PER WIS", "AVERAGE UNIT COST\nOF GOODS SOLD", "TOTAL COST\nOF GOODS SOLD",
+  ];
+
+  wisHdrs.forEach((h, ci) => {
+    put(5, ci, h, "s", {
+      font: f.hdr(),
+      fill: hdrFillForCol(ci),
+      alignment: a.ctr(true),
+      border: hdrBorder,
+    });
+  });
+  cogsHdrs.forEach((h, i) => {
+    put(5, COGS_START + i, h, "s", {
+      font: f.hdr(),
+      fill: hdrFill,
+      alignment: a.ctr(true),
+      border: hdrBorder,
+    });
+  });
+
+  // Data rows
+  rows.forEach((r, i) => {
+    const ri = 6 + i;
+    const totalCost = exportCurrencyVal(r.totalUnitCost);
+    const avgCost = exportCurrencyVal(r.avgUnitCost);
+    const varAmt = exportCurrencyVal(r.varianceAmount);
+
+    const wisCells = [
+      { ...{ v: r.no, t: "n" }, al: a.ctr(), fmt: null, fnt: f.body("7F7F7F"), ci: 0 },
+      { v: r.productDescription, t: "s", al: a.left(true), fmt: null, fnt: f.body(), ci: 1 },
+      { v: r.sku, t: "s", al: a.ctr(), fmt: null, fnt: f.sku(), ci: 2 },
+      { v: formatExportDate(r.lastAcceptanceDate), t: "s", al: a.ctr(), fmt: null, fnt: f.body("7F7F7F"), ci: 3 },
+      { v: r.qtyAsPerWis ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body("000000", true), ci: 4 },
+      { ...totalCost, al: a.right(), fmt: phpFmt, fnt: f.body(), ci: 5 },
+      { ...avgCost, al: a.right(), fmt: phpFmt, fnt: f.body(), ci: 6 },
+      { v: r.qtyAsPerCounting ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body("000000", true), ci: 7 },
+      { v: r.varianceQty ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body(r.varianceQty === 0 ? "000000" : "C00000", true), ci: 8 },
+      { ...varAmt, al: a.right(), fmt: phpFmt, fnt: f.body(r.varianceAmount === 0 ? "000000" : "C00000", true), ci: 9 },
+      { v: r.remarks || "", t: "s", al: a.left(true), fmt: null, fnt: f.body("7F7F7F"), ci: 10 },
+    ];
+
+    wisCells.forEach((cell) => {
+      put(ri, cell.ci, cell.v, cell.t, {
+        font: cell.fnt,
+        fill: fillForCol(cell.ci),
+        alignment: cell.al,
+        border: dashBorder,
+        ...(cell.fmt ? { numFmt: cell.fmt } : {}),
+      });
+    });
+
+    const cogsRowTotal = (r.cogsQty ?? 0) * (r.cogsAvgUnitCost ?? 0);
+    const cogsTotalCell = exportCurrencyVal(cogsRowTotal);
+    const cogsAvgCell = exportCurrencyVal(r.cogsAvgUnitCost);
+    const cogsCells = [
+      { v: r.no, t: "n", al: a.ctr(), fmt: null, fnt: f.body("7F7F7F"), off: 0 },
+      { v: r.productDescription, t: "s", al: a.left(true), fmt: null, fnt: f.body(), off: 1 },
+      { v: r.sku, t: "s", al: a.ctr(), fmt: null, fnt: f.body("E87C27", true), off: 2 },
+      { v: r.cogsQty ?? 0, t: "n", al: a.ctr(), fmt: qtyFmt, fnt: f.body("000000", true), off: 3 },
+      { ...cogsAvgCell, al: a.right(), fmt: phpFmt, fnt: f.body(), off: 4 },
+      { ...cogsTotalCell, al: a.right(), fmt: phpFmt, fnt: f.body(cogsRowTotal > 0 ? "000000" : "7F7F7F", true), off: 5 },
+    ];
+
+    cogsCells.forEach((cell) => {
+      const col = COGS_START + cell.off;
+      put(ri, col, cell.v, cell.t, {
+        font: cell.fnt,
+        fill: peachFill,
+        alignment: cell.al,
+        border: dashBorder,
+        ...(cell.fmt ? { numFmt: cell.fmt } : {}),
+      });
+    });
+  });
+
+  // Fill gaps in header/meta rows 0–4 with peachFill so background is consistent
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c <= LAST_COL; c++) {
+      if (!ws[C(r, c)]) put(r, c, "", "s", { fill: peachFill });
+    }
+  }
+
+  const lastRow = Math.max(6 + rows.length - 1, 5);
+  ws["!ref"] = XLSX.utils.encode_range({ r: 0, c: 0 }, { r: lastRow, c: LAST_COL });
+
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 10 } },
+    { s: { r: 2, c: 1 }, e: { r: 2, c: 3 } },
+    { s: { r: 3, c: 1 }, e: { r: 3, c: 3 } },
+    { s: { r: 2, c: 8 }, e: { r: 3, c: 8 } },
+    { s: { r: 0, c: COGS_START }, e: { r: 0, c: LAST_COL } },
+    { s: { r: 1, c: COGS_START }, e: { r: 1, c: LAST_COL } },
+    { s: { r: 2, c: COGS_START + 1 }, e: { r: 2, c: COGS_START + 3 } },
+    { s: { r: 3, c: COGS_START + 1 }, e: { r: 3, c: COGS_START + 3 } },
+  ];
+
+  ws["!cols"] = [
+    { wch: 12 },  // NO. / "LOCATION:" & "AS OF" labels
+    { wch: 38 },  // PRODUCT DESCRIPTION
+    { wch: 13 },  // SKU NUMBER
+    { wch: 16 },  // LAST ACCEPTANCE DATE
+    { wch: 14 },  // QUANTITY AS PER WIS
+    { wch: 18 },  // TOTAL UNIT COST
+    { wch: 18 },  // AVERAGE UNIT COST
+    { wch: 16 },  // QUANTITY AS PER COUNTING
+    { wch: 14 },  // VARIANCE (QUANTITY)
+    { wch: 24 },  // VARIANCE (AMOUNT) / "COST OF GOODS SOLD →" label (22 chars)
+    { wch: 24 },  // REMARKS
+    { wch: 2 },   // spacer
+    { wch: 12 },  // COGS NO. / "LOCATION:" & "AS OF" labels
+    { wch: 38 },  // COGS PRODUCT DESCRIPTION
+    { wch: 13 },  // COGS SKU NUMBER
+    { wch: 16 },  // QUANTITY SOLD AS PER WIS
+    { wch: 24 },  // AVERAGE UNIT COST OF GOODS SOLD
+    { wch: 22 },  // TOTAL COST OF GOODS SOLD
+  ];
+
+  ws["!rows"] = [
+    { hpt: 22 },
+    { hpt: 18 },
+    { hpt: 20 },
+    { hpt: 20 },
+    { hpt: 6 },
+    { hpt: 44 },
+    ...rows.map(() => ({ hpt: 32 })),
+  ];
+
   XLSX.utils.book_append_sheet(wb, ws, "ENDING INVENTORY");
   XLSX.writeFile(wb, "TDT_WIS_Ending_Inventory_Export.xlsx");
 }
@@ -151,6 +391,29 @@ function exportToWis(rows) {
 /* ─── ICONS ── */
 function IconSearch({ size=16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>; }
 function IconChevronDown({ size=14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M19 9l-7 7-7-7"/></svg>; }
+function IconGear({ size=14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>; }
+
+const EI_WIS_COLDEFS = [
+  { key: "no",               label: "#",                   sticky: true, alwaysVisible: true },
+  { key: "productDescription", label: "PRODUCT DESC",      alwaysVisible: true },
+  { key: "sku",              label: "SKU",                 alwaysVisible: true },
+  { key: "lastAcceptanceDate", label: "LAST ACCEPT. DATE", hideable: true },
+  { key: "qtyAsPerWis",     label: "QTY (WIS)",           alwaysVisible: true },
+  { key: "totalUnitCost",   label: "TOTAL COST",          hideable: true },
+  { key: "avgUnitCost",     label: "AVG UNIT COST",       hideable: true },
+  { key: "qtyAsPerCounting", label: "QTY (COUNTING)",     hideable: true },
+  { key: "varianceQty",     label: "VAR (QTY)",           hideable: true },
+  { key: "varianceAmount",  label: "VAR (AMT)",           hideable: true },
+  { key: "remarks",         label: "REMARKS",             hideable: true },
+];
+const EI_COGS_COLDEFS = [
+  { key: "no",               label: "#",                   sticky: true, alwaysVisible: true },
+  { key: "productDescription", label: "PRODUCT DESC",      alwaysVisible: true },
+  { key: "sku",              label: "SKU",                 alwaysVisible: true },
+  { key: "cogsQty",         label: "QTY SOLD (WIS)",      alwaysVisible: true },
+  { key: "cogsAvgUnitCost", label: "AVG UNIT COST",       hideable: true },
+  { key: "cogsTotal",       label: "TOTAL COGS",          alwaysVisible: true },
+];
 function IconDownload({ size=16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>; }
 function IconUpload({ size=16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>; }
 function IconPlus({ size=16 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>; }
@@ -160,109 +423,81 @@ function IconSave({ size=14 }) { return <svg width={size} height={size} viewBox=
 function IconX({ size=14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>; }
 function IconEdit({ size=14 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>; }
 
-/* ─── START ENDING INVENTORY MODAL ── */
-function StartInventoryModal({ data, onClose, onSave }) {
-  const [edits, setEdits] = useState(
-    data.reduce((acc, r) => {
-      acc[r.no] = {
-        lastAcceptanceDate: r.lastAcceptanceDate || "",
-        avgUnitCost: r.avgUnitCost,
-        qtyAsPerCounting: r.qtyAsPerCounting,
-        remarks: r.remarks || "",
-      };
-      return acc;
-    }, {})
-  );
-
-  const setField = (no, field, val) => setEdits(e => ({ ...e, [no]: { ...e[no], [field]: val } }));
+/* ─── ADD ITEM MODAL ── */
+function AddEndingInventoryModal({ onClose, onSave, nextNo }) {
+  const [form, setForm] = useState({ sku: "", productDescription: "", lastAcceptanceDate: "", qtyAsPerWis: 0, avgUnitCost: 0, qtyAsPerCounting: 0, remarks: "", cogsQty: 0, cogsAvgUnitCost: 0 });
+  const [validationError, setValidationError] = useState("");
 
   const handleSave = () => {
-    onSave(edits);
+    if (!form.sku.trim() || !form.productDescription.trim()) {
+      setValidationError("SKU Number and Product Description are required.");
+      return;
+    }
+    setValidationError("");
+    const qtyWis = parseFloat(form.qtyAsPerWis) || 0;
+    const avg = parseFloat(form.avgUnitCost) || 0;
+    const qtyCounting = parseFloat(form.qtyAsPerCounting) || 0;
+    const varQty = qtyCounting - qtyWis;
+    onSave({
+      id: Date.now(),
+      no: nextNo,
+      sku: form.sku.trim(),
+      productDescription: form.productDescription.trim(),
+      lastAcceptanceDate: form.lastAcceptanceDate || "",
+      qtyAsPerWis: qtyWis,
+      avgUnitCost: avg,
+      totalUnitCost: qtyWis * avg,
+      qtyAsPerCounting: qtyCounting,
+      varianceQty: varQty,
+      varianceAmount: varQty * avg,
+      remarks: form.remarks || "",
+      cogsQty: parseFloat(form.cogsQty) || 0,
+      cogsAvgUnitCost: parseFloat(form.cogsAvgUnitCost) || 0,
+    });
     onClose();
   };
 
-  const numCols = ["QTY AS PER WIS", "TOTAL COST (AUTO)", "AVG UNIT COST", "QTY AS PER COUNTING", "VARIANCE (QTY)", "VARIANCE (AMT)"];
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
     <div style={modalOverlayStyle}>
-      <div style={{ ...modalPanelStyle, maxWidth: 1140, width: "min(96vw, 1140px)" }}>
+      <div style={{ ...modalPanelStyle, maxWidth: 520, width: "min(94vw, 520px)" }}>
         <div style={modalHeaderStyle}>
-          <div>
-            <h2 style={modalTitleStyle}>Start Ending Inventory</h2>
-            <p style={modalSubtitleStyle}>Enter counting quantities and costs below. Qty as per WIS comes from your WIS import and cannot be edited here.</p>
-          </div>
-          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close"><IconX size={18} /></button>
+          <h2 style={modalTitleStyle}>Add New Inventory Item</h2>
+          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close" onMouseEnter={(e) => { e.currentTarget.style.background = "#e5e7eb"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "#f3f4f6"; }}><IconX size={18} /></button>
         </div>
-
-
-
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0, padding: "0 16px 16px" }}>
-          <div style={{ flex: 1, overflow: "auto", border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 1050 }}>
-            <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
-              <tr style={{ background: "#1c2235" }}>
-                {["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS"].map(h => (
-                  <th key={h} style={{ padding: "11px 10px", textAlign: numCols.includes(h) ? "right" : "left", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap", letterSpacing: "0.03em" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((row, idx) => {
-                const ed = edits[row.no] || {};
-                const qty = parseFloat(row.qtyAsPerWis) || 0;
-                const avg = parseFloat(ed.avgUnitCost) || 0;
-                const totalCost = qty * avg;
-                const counting = parseFloat(ed.qtyAsPerCounting) || 0;
-                const varQty = counting - qty;
-                const varAmt = varQty * avg;
-                return (
-                  <tr key={row.no} style={{ borderBottom: "1px solid #f3f4f6", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
-                    <td style={{ padding: "8px 10px", color: "#9ca3af", fontSize: 11 }}>{row.no}</td>
-                    <td style={{ padding: "8px 10px", color: "#374151", maxWidth: 240, fontSize: 11 }}>{row.productDescription}</td>
-                    <td style={{ padding: "8px 10px", color: "#e87c27", fontWeight: 700 }}>{row.sku}</td>
-                    {/* EDITABLE: Last Acceptance Date */}
-                    <td style={{ padding: "6px 8px" }}>
-                      <input type="date" value={ed.lastAcceptanceDate||""} onChange={e => setField(row.no, "lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
-                    </td>
-                    {/* READ-ONLY: Qty as per WIS (from WIS import) */}
-                    <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 700, fontSize: 11 }}>
-                      {qty.toLocaleString()}
-                    </td>
-                    {/* AUTO: Total Cost */}
-                    <td style={{ padding: "8px 10px", textAlign: "right", color: "#374151", fontWeight: 600, fontSize: 11 }}>{totalCost > 0 ? fmtPHP(totalCost) : "—"}</td>
-                    {/* EDITABLE: Avg Unit Cost */}
-                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      <input type="number" min={0} step="0.01" value={ed.avgUnitCost ?? ""} onChange={e => setField(row.no, "avgUnitCost", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
-                    </td>
-                    {/* EDITABLE: Qty as per Counting */}
-                    <td style={{ padding: "6px 8px", textAlign: "right" }}>
-                      <input type="number" min={0} value={ed.qtyAsPerCounting ?? ""} onChange={e => setField(row.no, "qtyAsPerCounting", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
-                    </td>
-                    {/* AUTO: Variance Qty */}
-                    <td style={{ padding: "8px 10px", textAlign: "right" }}>
-                      <span style={{ padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: varQty===0?"#d1fae5":varQty>0?"#dcfce7":"#fee2e2", color: varQty===0?"#065f46":varQty>0?"#16a34a":"#991b1b" }}>{varQty}</span>
-                    </td>
-                    {/* AUTO: Variance Amount */}
-                    <td style={{ padding: "8px 10px", textAlign: "right" }}>
-                      <span style={{ padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700, background: varAmt===0?"#d1fae5":"#fee2e2", color: varAmt===0?"#065f46":"#991b1b" }}>{varAmt===0?"—":fmtPHP(varAmt)}</span>
-                    </td>
-                    {/* EDITABLE: Remarks */}
-                    <td style={{ padding: "6px 8px" }}>
-                      <input value={ed.remarks||""} onChange={e => setField(row.no, "remarks", e.target.value)} placeholder="Notes..." {...modalCellInput({ width: 150 })} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 14, flex: 1, overflow: "auto" }}>
+          {[{ label: "SKU Number", key: "sku", w: "100%" }, { label: "Product Description", key: "productDescription", w: "100%" }].map(f => (
+            <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
+              <input value={form[f.key]} onChange={e => set(f.key, e.target.value)} {...modalInput()} />
+            </div>
+          ))}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {[{ label: "Last Acceptance Date", key: "lastAcceptanceDate", type: "date" },
+              { label: "Qty as per WIS", key: "qtyAsPerWis", type: "number" },
+              { label: "Avg Unit Cost", key: "avgUnitCost", type: "number" },
+              { label: "Qty as per Counting", key: "qtyAsPerCounting", type: "number" },
+              { label: "COGS Qty", key: "cogsQty", type: "number" },
+              { label: "COGS Avg Unit Cost", key: "cogsAvgUnitCost", type: "number" },
+            ].map(f => (
+              <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
+                <input type={f.type || "text"} value={form[f.key]} onChange={e => set(f.key, f.type === "number" ? (parseFloat(e.target.value) || 0) : e.target.value)} min={0} step="0.01" {...modalInput()} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em" }}>Remarks</label>
+            <input value={form.remarks} onChange={e => set("remarks", e.target.value)} {...modalInput()} />
           </div>
         </div>
-
+        {validationError && (
+          <div style={{ padding: "0 24px 12px", color: "#dc2626", fontSize: 12, fontWeight: 600 }}>{validationError}</div>
+        )}
         <div style={modalFooterStyle}>
           <button type="button" onClick={onClose} style={modalBtnSecondary}>Cancel</button>
-          <button type="button" onClick={handleSave} style={modalBtnPrimary}>
-            <IconSave size={14} /> Save Inventory Count
-          </button>
+          <button type="button" onClick={handleSave} style={modalBtnPrimary}><IconPlus size={14} /> Add Item</button>
         </div>
       </div>
     </div>
@@ -285,36 +520,58 @@ function InlineEditRow({ item, onSave, onCancel, idx }) {
       <td style={{ padding: "8px 16px", color: "#9ca3af", fontSize: 11 }}>{item.no}</td>
       <td style={{ padding: "8px 16px", color: "#374151", fontSize: 11, maxWidth: 240 }}>{item.productDescription}</td>
       <td style={{ padding: "8px 16px", color: "#e87c27", fontWeight: 700 }}>{item.sku}</td>
-      {/* EDITABLE: Last Acceptance Date */}
       <td style={{ padding: "6px 10px" }}>
         <input type="date" value={draft.lastAcceptanceDate||""} onChange={e => set("lastAcceptanceDate", e.target.value)} {...modalCellInput({ width: 136 })} />
       </td>
-      {/* READ-ONLY: Qty as per WIS */}
       <td style={{ padding: "8px 16px", textAlign: "right", fontWeight: 700, color: "#374151", fontSize: 11 }}>
         {(parseFloat(draft.qtyAsPerWis) || 0).toLocaleString()}
       </td>
-      {/* AUTO: Total Unit Cost */}
       <td style={{ padding: "8px 16px", textAlign: "right", color: "#374151", fontSize: 11 }}>{fmtPHP(draft.totalUnitCost)}</td>
-      {/* EDITABLE: Avg Unit Cost */}
       <td style={{ padding: "6px 10px", textAlign: "right" }}>
         <input type="number" min={0} step="0.01" value={draft.avgUnitCost ?? ""} onChange={e => set("avgUnitCost", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
       </td>
-      {/* EDITABLE: Qty as per Counting */}
       <td style={{ padding: "6px 10px", textAlign: "right" }}>
         <input type="number" min={0} value={draft.qtyAsPerCounting ?? ""} onChange={e => set("qtyAsPerCounting", parseFloat(e.target.value)||0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
       </td>
-      {/* AUTO: Variance Qty */}
       <td style={{ padding: "8px 16px", textAlign: "right" }}>
         <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: draft.varianceQty===0?"#d1fae5":"#fee2e2", color: draft.varianceQty===0?"#065f46":"#991b1b" }}>{draft.varianceQty}</span>
       </td>
-      {/* AUTO: Variance Amount */}
       <td style={{ padding: "8px 16px", textAlign: "right" }}>
         <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: draft.varianceAmount===0?"#d1fae5":"#fee2e2", color: draft.varianceAmount===0?"#065f46":"#991b1b" }}>{draft.varianceAmount===0?"—":fmtPHP(draft.varianceAmount)}</span>
       </td>
-      {/* EDITABLE: Remarks */}
       <td style={{ padding: "6px 10px" }}>
         <input value={draft.remarks||""} onChange={e => set("remarks", e.target.value)} placeholder="Notes..." {...modalCellInput({ width: 150 })} />
       </td>
+      <td style={{ padding: "8px 10px" }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={() => onSave(draft)} style={{ padding: "5px 10px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700 }}>
+            <IconSave size={12} /> Save
+          </button>
+          <button onClick={onCancel} style={{ padding: "5px 8px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, cursor: "pointer" }}><IconX size={12} /></button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/* ─── COGS INLINE EDIT ROW ── */
+function CogsInlineEditRow({ item, onSave, onCancel, idx }) {
+  const [draft, setDraft] = useState({ ...item });
+  const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+  const cogsTotal = (parseFloat(draft.cogsQty) || 0) * (parseFloat(draft.cogsAvgUnitCost) || 0);
+
+  return (
+    <tr style={{ background: "#fffbf7", borderBottom: "1px solid #fed7aa" }}>
+      <td style={{ padding: "8px 16px", color: "#9ca3af", fontSize: 11, textAlign: "center" }}>{item.no}</td>
+      <td style={{ padding: "8px 16px", color: "#374151", fontSize: 11, maxWidth: 280, textAlign: "left" }}>{item.productDescription}</td>
+      <td style={{ padding: "8px 16px", color: "#e87c27", fontWeight: 700, textAlign: "center" }}>{item.sku}</td>
+      <td style={{ padding: "6px 10px", textAlign: "center" }}>
+        <input type="number" min={0} value={draft.cogsQty ?? ""} onChange={e => set("cogsQty", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 88, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "6px 10px", textAlign: "right" }}>
+        <input type="number" min={0} step="0.01" value={draft.cogsAvgUnitCost ?? ""} onChange={e => set("cogsAvgUnitCost", parseFloat(e.target.value) || 0)} {...modalCellInput({ width: 100, textAlign: "right" })} />
+      </td>
+      <td style={{ padding: "8px 16px", textAlign: "center", fontWeight: 700, color: cogsTotal > 0 ? "#065f46" : "#9ca3af" }}>{cogsTotal > 0 ? fmtPHP(cogsTotal) : "—"}</td>
       <td style={{ padding: "8px 10px" }}>
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={() => onSave(draft)} style={{ padding: "5px 10px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700 }}>
@@ -333,52 +590,112 @@ export default function EndingInventoryPage({
   setInventoryData: propSetInventoryData,
 }) {
   const xlsxReady = useSheetJS();
-  const [localInventoryData, setLocalInventoryData] = useState(() =>
-    buildInitialEndingInventory(INITIAL_ENDING_INVENTORY),
-  );
-  const inventoryData = propInventoryData ?? localInventoryData;
-  const setInventoryData = propSetInventoryData ?? setLocalInventoryData;
+  const api = useApi(ENDPOINTS.endingInventory, buildInitialEndingInventory(INITIAL_ENDING_INVENTORY));
+
+  // Local state for immediate UI updates — does not wait for parent re-render cycle
+  const [items, setItems] = useState(() => propInventoryData ?? api.data);
+  const inventoryData = items;
+
+  // Sync whenever parent passes new data (e.g. after Excel import from parent)
+  useEffect(() => {
+    if (propInventoryData) setItems(propInventoryData);
+    else api.getAll().then(d => setItems(d));
+  }, [propInventoryData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const syncUp = (updated) => {
+    if (propSetInventoryData) propSetInventoryData(_ => updated);
+  };
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status");
+const [statusFilter, setStatusFilter] = useState("All Remarks");
   const [activeTab, setActiveTab] = useState("wis");
   const [currentPage, setCurrentPage] = useState(1);
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState(null);
   const [editingNo, setEditingNo] = useState(null);
-  const [showStartModal, setShowStartModal] = useState(false);
+  const [editingCogsNo, setEditingCogsNo] = useState(null);
+
+  /* ── column visibility ── */
+  const [hiddenCols, setHiddenCols] = useState(new Set());
+  const [colVisOpen, setColVisOpen] = useState(false);
+  const colVisRef = useRef(null);
+  useEffect(() => {
+    if (!colVisOpen) return;
+    const handler = (e) => { if (colVisRef.current && !colVisRef.current.contains(e.target)) setColVisOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [colVisOpen]);
+  const toggleCol = (key) => setHiddenCols(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+
+  /* ── edit drawer ── */
+  const [editDrawerRow, setEditDrawerRow] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  const openEditDrawer = (row) => { setEditDrawerRow(row); setEditDraft({ ...row }); };
+  const closeEditDrawer = () => { setEditDrawerRow(null); setEditDraft(null); };
+  const handleSaveDrawer = async () => {
+    if (!editDraft) return;
+    await handleSaveEdit(editDraft, true);
+    await handleSaveCogsEdit(editDraft, true);
+    closeEditDrawer();
+    showToast("Row saved successfully.");
+  };
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [lastAddedId, setLastAddedId] = useState(null);
   const fileInputRef = useRef(null);
+  const { sortBy, setSortBy, applySort } = useSort("lastAcceptanceDate", "productDescription");
+  const [sortOpen, setSortOpen] = useState(false);
 
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
 
   const filtered = useMemo(() => {
     let d = inventoryData;
-    if (searchQuery.trim()) { const q = searchQuery.toLowerCase(); d = d.filter(r => r.sku.toLowerCase().includes(q) || r.productDescription.toLowerCase().includes(q)); }
-    if (statusFilter === "Total Stock")     d = d.filter(r => r.qtyAsPerWis > 0);
-    if (statusFilter === "Out of Stock") d = d.filter(r => r.qtyAsPerWis === 0);
-    if (statusFilter === "Variance")     d = d.filter(r => r.varianceQty !== 0);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      d = d.filter(
+        (r) =>
+          (r.sku || "").toLowerCase().includes(q) ||
+          (r.productDescription || "").toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter === "Goods")                 d = d.filter(r => (r.remarks || "").toLowerCase().includes("good"));
+    else if (statusFilter === "Damaged")          d = d.filter(r => (r.remarks || "").toLowerCase().includes("damage"));
+    else if (statusFilter === "Under Inspection") d = d.filter(r => (r.remarks || "").toLowerCase().includes("inspection"));
+    if (dateRange.start) d = d.filter((r) => (r.lastAcceptanceDate || "") >= dateRange.start);
+    if (dateRange.end)   d = d.filter((r) => (r.lastAcceptanceDate || "") <= dateRange.end);
     return d;
-  }, [inventoryData, searchQuery, statusFilter]);
+  }, [inventoryData, searchQuery, statusFilter, dateRange]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const sorted = useMemo(() => {
+    const base = applySort(filtered);
+    if (!lastAddedId) return base;
+    const idx = base.findIndex(r => r.id === lastAddedId);
+    if (idx <= 0) return base;
+    return [base[idx], ...base.slice(0, idx), ...base.slice(idx + 1)];
+  }, [filtered, sortBy, lastAddedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const startIdx = (currentPage-1)*PAGE_SIZE;
-  const paged = filtered.slice(startIdx, startIdx+PAGE_SIZE);
+  const paged = sorted.slice(startIdx, startIdx+PAGE_SIZE);
 
   const handleImportWis = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setImporting(true);
-    importEndingInventory(file, (parsed) => {
-      setImporting(false);
-      setInventoryData(
-        parsed.map((p) => ({
-          ...p,
-          totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost,
-        }))
-      );
-      setCurrentPage(1);
-      setEditingNo(null);
-      showToast(`Imported ${parsed.length} SKUs successfully.`);
-      e.target.value = "";
+    importEndingInventory(file, async (parsed) => {
+      const normalized = parsed.map((p) => ({ ...p, totalUnitCost: p.totalUnitCost || p.qtyAsPerWis * p.avgUnitCost }));
+      try {
+        setItems(normalized);
+        syncUp(normalized);
+        if (!propSetInventoryData) await api.bulkReplace(normalized);
+        setCurrentPage(1);
+        setEditingNo(null);
+        showToast(`Imported ${parsed.length} SKUs successfully.`);
+      } catch {
+        showToast("Import succeeded but failed to save.", "error");
+      } finally {
+        setImporting(false);
+        e.target.value = "";
+      }
     }, (err) => {
       setImporting(false);
       showToast(`❌ Import failed: ${err}`, "error");
@@ -386,32 +703,41 @@ export default function EndingInventoryPage({
     });
   };
 
-  const handleSaveEdit = (updated) => {
-    setInventoryData(d => d.map(r => r.no === updated.no ? { ...updated } : r));
-    setEditingNo(null);
-    showToast("Row updated successfully.");
+  const handleSaveEdit = async (updated, silent = false) => {
+    try {
+      const next = items.map(r => r.no === updated.no ? { ...updated } : r);
+      setItems(next);
+      syncUp(next);
+      if (!propSetInventoryData) await api.update(updated.id ?? updated.no, updated);
+      setEditingNo(null);
+      if (!silent) showToast("Row updated successfully.");
+    } catch {
+      if (!silent) showToast("Failed to save changes.", "error");
+    }
   };
 
-  const handleStartInventorySave = (edits) => {
-    setInventoryData(d => d.map(r => {
-      const ed = edits[r.no];
-      if (!ed) return r;
-      const qtyWis = parseFloat(r.qtyAsPerWis) || 0;
-      const avg = parseFloat(ed.avgUnitCost) || 0;
-      const qtyCounting = parseFloat(ed.qtyAsPerCounting) || 0;
-      return {
-        ...r,
-        lastAcceptanceDate: ed.lastAcceptanceDate || r.lastAcceptanceDate,
-        qtyAsPerWis: qtyWis,
-        avgUnitCost: avg,
-        totalUnitCost: qtyWis * avg,
-        qtyAsPerCounting: qtyCounting,
-        varianceQty: qtyCounting - qtyWis,
-        varianceAmount: (qtyCounting - qtyWis) * avg,
-        remarks: ed.remarks !== undefined ? ed.remarks : r.remarks,
-      };
-    }));
-    showToast("✓ Ending inventory count saved.");
+  const handleSaveCogsEdit = async (updated, silent = false) => {
+    try {
+      const next = items.map(r => r.no === updated.no ? { ...r, cogsQty: updated.cogsQty, cogsAvgUnitCost: updated.cogsAvgUnitCost } : r);
+      setItems(next);
+      syncUp(next);
+      if (!propSetInventoryData) await api.update(updated.id ?? updated.no, updated);
+      setEditingCogsNo(null);
+      if (!silent) showToast("COGS row updated successfully.");
+    } catch {
+      if (!silent) showToast("Failed to save changes.", "error");
+    }
+  };
+
+  const handleAddItem = (newItem) => {
+    const next = [...items, newItem];
+    setItems(next);
+    syncUp(next);
+    setLastAddedId(newItem.id);
+    setSearchQuery("");
+    setStatusFilter("All Remarks");
+    setCurrentPage(1);
+    showToast(`"${newItem.sku}" added successfully.`);
   };
 
   const totalValue = sumEndingInventoryValue(inventoryData);
@@ -421,45 +747,24 @@ export default function EndingInventoryPage({
   return (
     <div style={{ background: "#f0f2f5", padding: "28px 32px 40px", display: "flex", flexDirection: "column", gap: 18 }}>
 
-      {/* Summary Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
-        {[
-          { label: "Total SKUs",            value: inventoryData.length, color: "#3b82f6" },
-          { label: "Total Stock",           value: inStockCount,          color: "#16a34a" },
-          { label: "Variance Items",        value: varianceCount,         color: varianceCount > 0 ? "#dc2626" : "#6b7280" },
-          { label: "Total Inventory Value", value: fmtPHP(totalValue),    color: "#e87c27" },
-        ].map(c => (
-          <div key={c.label} style={{
-            background: "#fff",
-            borderRadius: 16,
-            padding: "22px 24px",
-            minHeight: 118,
-            border: "1px solid #e5e7eb",
-            boxShadow: "0px 10px 21px rgba(0,0,0,0.07), 0px 2px 6px rgba(0,0,0,0.05)",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-          }}>
-            <p style={{ margin: 0, fontSize: 15, color: "#6b7280", fontWeight: 700, lineHeight: 1.35 }}>{c.label}</p>
-            <p style={{
-              margin: "12px 0 0",
-              fontSize: typeof c.value === "number" ? 40 : 32,
-              fontWeight: 800,
-              color: c.color,
-              letterSpacing: "-0.5px",
-              lineHeight: 1.1,
-            }}>{c.value}</p>
-          </div>
-        ))}
+        <MetricCard icon={<IconBox size={34} />} label="Total SKUs" value={String(inventoryData.length)} badge={{ text: "All ending inventory rows", color: "#16a34a", bg: "#dcfce7" }} />
+        <MetricCard icon={<IconStock size={30} />} label="Total Stock" value={String(inStockCount)} badge={{ text: "SKUs with WIS qty > 0", color: "#16a34a", bg: "#dcfce7" }} />
+        <MetricCard icon={<IconWarning size={22} />} label="Variance Items" value={String(varianceCount)} badge={{ text: varianceCount > 0 ? "Needs physical count review" : "No variances", color: varianceCount > 0 ? "#dc2626" : "#6b7280", bg: varianceCount > 0 ? "#fee2e2" : "transparent", icon: varianceCount > 0 ? <IconWarning size={12} /> : undefined }} />
+        <MetricCard icon={<IconBarChart size={30} />} label="Total Inventory Value" value={formatCompactPHP(totalValue)} badge={{ text: fmtPHP(totalValue), color: "#16a34a", bg: "#dcfce7" }} />
       </div>
 
       <PageToolbar
         searchValue={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setCurrentPage(1); }}
         filters={[
-          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options: ["All Status", "Total Stock", "Out of Stock", "Variance"], minWidth: 150 },
+          { key: "status", value: statusFilter, onChange: (v) => { setStatusFilter(v); setCurrentPage(1); }, options:["All Remarks", "Goods", "Damaged", "Under Inspection"], minWidth: 185
+ },
         ]}
-        primaryAction={{ label: "Start Ending Inventory", onClick: () => setShowStartModal(true) }}
+        primaryAction={{ label: "Add Item", onClick: () => setShowAddModal(true) }}
+        showDateRange={true}
+        dateRange={dateRange}
+        onDateRangeChange={(r) => { setDateRange(r); setCurrentPage(1); }}
         importExport={{
           fileInputRef,
           onFileChange: handleImportWis,
@@ -470,82 +775,168 @@ export default function EndingInventoryPage({
         }}
       />
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: "0 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)" }}>
-        {[["wis","Ending Inventory as per WIS"],["cogs","Cost of Goods Sold"]].map(([key,label]) => (
-          <button key={key} onClick={() => setActiveTab(key)} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab===key?"3px solid #e87c27":"3px solid transparent", color: activeTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, marginBottom: -2 }}>{label}</button>
-        ))}
+ {/* Tabs + Sort */}
+<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "2px solid #e5e7eb", background: "#fff", borderRadius: "12px 12px 0 0", padding: "0 16px 0 0", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", zIndex: 1 }}>
+  <div style={{ display: "flex" }}>
+    {[["wis","Ending Inventory as per WIS"],["cogs","Cost of Goods Sold"]].map(([key,label]) => (
+      <button key={key} onClick={() => setActiveTab(key)} style={{ padding: "14px 20px", background: "none", border: "none", cursor: "pointer", borderBottom: activeTab===key?"3px solid #e87c27":"3px solid transparent", color: activeTab===key?"#e87c27":"#9ca3af", fontSize: 14, fontWeight: 700, marginBottom: -2 }}>{label}</button>
+    ))}
+  </div>
+  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setSortOpen(o => !o)} style={{ padding: "6px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "inherit", color: "#374151", fontWeight: 600 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 5h10"/><path d="M11 9h7"/><path d="M11 13h4"/>
+            </svg>
+          </button>
+          {sortOpen && (
+            <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 170, overflow: "hidden" }}>
+              {[["newest","↓","Newest"],["oldest","↑","Oldest"],["az","","A–Z"],["za","","Z–A"]].map(([val,arrow,text]) => (
+                <div key={val} onClick={() => { setSortBy(val); setCurrentPage(1); setSortOpen(false); }}
+                  style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: sortBy === val ? 700 : 400, color: sortBy === val ? "#e87c27" : "#374151", background: sortBy === val ? "#fff4ed" : "#fff", display: "flex", alignItems: "center", gap: 8, borderBottom: val !== "za" ? "1px solid #f3f4f6" : "none" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                  onMouseLeave={e => e.currentTarget.style.background = sortBy === val ? "#fff4ed" : "#fff"}
+                >
+                  <span style={{ fontSize: 16, width: 20, textAlign: "center" }}>{arrow}</span>
+                  <span>{text}</span>
+                  {sortBy === val && <span style={{ marginLeft: "auto", color: "#e87c27", fontSize: 13 }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>Sort:</span>
+        <span style={{ fontSize: 12, color: "#9ca3af" }}>
+          {sortBy === "newest" ? "↓ Newest" : sortBy === "oldest" ? "↑ Oldest" : sortBy === "az" ? "A–Z" : "Z–A"}
+        </span>
       </div>
 
+</div>
       {/* Table */}
-      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", overflow: "hidden", marginTop: -2 }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#1c2235" }}>
-                {(activeTab === "wis"
-                  ? ["#","PRODUCT DESCRIPTION","SKU","LAST ACCEPTANCE DATE","QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","REMARKS"]
-                  : ["#","PRODUCT DESCRIPTION","SKU","QTY AS PER WIS","AVG UNIT COST","TOTAL COST OF GOODS SOLD"]
-                ).map((h,i) => (
-                  <th key={h+i} style={{ padding: "14px 16px", textAlign: ["QTY AS PER WIS","TOTAL COST (AUTO)","AVG UNIT COST","QTY AS PER COUNTING","VARIANCE (QTY)","VARIANCE (AMT)","QTY AS PER WIS","AVG UNIT COST","TOTAL COST OF GOODS SOLD"].includes(h)?"right":"left", color: "#fff", fontWeight: 700, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+      <div style={{ background: "#fff", borderRadius: "0 0 14px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", position: "relative", marginTop: 0 }}>
+        {/* Toolbar row */}
+        <div className="wis-toolbar-row">
+          <div ref={colVisRef} style={{ position: "relative", marginLeft: "auto" }}>
+            <button onClick={() => setColVisOpen(o => !o)}
+              className={`wis-colvis-btn ${colVisOpen ? "wis-colvis-btn-active" : ""}`}>
+              <IconGear size={13} /> Columns
+            </button>
+            {colVisOpen && (
+              <div className="wis-colvis-dropdown">
+                {(activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.hideable).map(c => (
+                  <label key={c.key} className="wis-colvis-option">
+                    <input type="checkbox" checked={!hiddenCols.has(c.key)} onChange={() => toggleCol(c.key)} />
+                    {c.label}
+                  </label>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paged.length === 0 && <tr><td colSpan={12} style={{ textAlign: "center", padding: 48, color: "#9ca3af", fontSize: 14 }}>No items found.</td></tr>}
-              {paged.map((item, idx) => {
-                if (activeTab === "wis" && editingNo === item.no) {
-                  return <InlineEditRow key={item.id} item={item} idx={idx} onSave={handleSaveEdit} onCancel={() => setEditingNo(null)} />;
-                }
-                return (
-                  <tr key={item.id ?? item.sku}
-                    style={{ borderBottom: "1px solid #f3f4f6", background: idx%2===0?"#fff":"#fafafa" }}
-                    onMouseEnter={e => e.currentTarget.style.background="#fef6f2"}
-                    onMouseLeave={e => e.currentTarget.style.background=idx%2===0?"#fff":"#fafafa"}
-                  >
-                    {activeTab === "wis" ? (
-                      <>
-                        <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11 }}>{item.no}</td>
-                        <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280 }}>{item.productDescription}</td>
-                        <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700 }}>{item.sku}</td>
-                        <td style={{ padding: "12px 16px", color: "#6b7280", whiteSpace: "nowrap" }}>{item.lastAcceptanceDate || "—"}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>{fmtPHP(item.totalUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>{fmtPHP(item.avgUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700 }}>{item.qtyAsPerCounting.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                          <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceQty===0?"#d1fae5":"#fee2e2", color: item.varianceQty===0?"#065f46":"#991b1b" }}>{item.varianceQty}</span>
-                        </td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                          <span style={{ padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: item.varianceAmount===0?"#d1fae5":"#fee2e2", color: item.varianceAmount===0?"#065f46":"#991b1b" }}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
-                        </td>
-                         <td style={{ padding: "12px 16px", color: "#6b7280", fontSize: 12, maxWidth: 150 }}>{item.remarks || "—"}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td style={{ padding: "12px 16px", color: "#9ca3af", fontSize: 11 }}>{item.no}</td>
-                        <td style={{ padding: "12px 16px", color: "#374151", fontSize: 12, maxWidth: 280 }}>{item.productDescription}</td>
-                        <td style={{ padding: "12px 16px", color: "#e87c27", fontWeight: 700 }}>{item.sku}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700 }}>{item.qtyAsPerWis.toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>{fmtPHP(item.avgUnitCost)}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700, color: item.totalUnitCost>0?"#065f46":"#9ca3af" }}>{item.totalUnitCost>0?fmtPHP(item.totalUnitCost):"—"}</td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              </div>
+            )}
+          </div>
         </div>
+        <Table
+          columns={(() => {
+            const coldefs = (activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
+            return coldefs.map(c => ({
+              ...c,
+              align: c.key === "productDescription" ? "left" : ["totalUnitCost","avgUnitCost","varianceAmount","cogsAvgUnitCost","cogsTotal"].includes(c.key) ? "right" : "center",
+            }));
+          })()}
+        >
+          {(() => {
+            const coldefs = (activeTab === "wis" ? EI_WIS_COLDEFS : EI_COGS_COLDEFS).filter(c => c.alwaysVisible || !hiddenCols.has(c.key));
+            return paged.length === 0 ? (
+              <tr><td colSpan={coldefs.length} className="wis-empty" style={{ padding: 48, fontSize: 14 }}>No items found.</td></tr>
+            ) : paged.map((item, idx) => {
+              const cogsTotal = (item.cogsQty ?? 0) * (item.cogsAvgUnitCost ?? 0);
+              const isEven = idx % 2 === 0;
+              const rowBg = isEven ? "#fff" : "#fafbfc";
+              return (
+                <tr key={item.id ?? item.sku}
+                  className={`wis-tr ${isEven ? "wis-tr-even" : "wis-tr-odd"}`}
+                  style={{ background: rowBg, cursor: "pointer" }}
+                  onClick={() => openEditDrawer(item)}
+                  onMouseEnter={e => e.currentTarget.style.background = "#fef6f2"}
+                  onMouseLeave={e => e.currentTarget.style.background = rowBg}
+                >
+                  {coldefs.map(c => {
+                    if (c.key === "no") return (
+                      <td key="no"
+                        className="wis-td wis-td-center wis-td-light wis-td-sticky"
+                        style={{ background: rowBg }}>{item.no}</td>
+                    );
+                    if (c.key === "productDescription") return (
+                      <td key="productDescription" title={item.productDescription}
+                        className="wis-td wis-td-left"
+                        style={{ maxWidth: 240 }}><Highlight text={item.productDescription} query={searchQuery} /></td>
+                    );
+                    if (c.key === "sku") return (
+                      <td key="sku"
+                        className="wis-td wis-td-center wis-td-accent wis-td-bold"><Highlight text={item.sku} query={searchQuery} /></td>
+                    );
+                    if (c.key === "lastAcceptanceDate") return (
+                      <td key="lastAcceptanceDate"
+                        className="wis-td wis-td-center wis-td-muted">{item.lastAcceptanceDate || "—"}</td>
+                    );
+                    if (c.key === "qtyAsPerWis") return (
+                      <td key="qtyAsPerWis"
+                        className="wis-td wis-td-center wis-td-bold">{item.qtyAsPerWis.toLocaleString()}</td>
+                    );
+                    if (c.key === "totalUnitCost") return (
+                      <td key="totalUnitCost"
+                        className="wis-td wis-td-right">{fmtPHP(item.totalUnitCost)}</td>
+                    );
+                    if (c.key === "avgUnitCost") return (
+                      <td key="avgUnitCost"
+                        className="wis-td wis-td-right">{fmtPHP(item.avgUnitCost)}</td>
+                    );
+                    if (c.key === "qtyAsPerCounting") return (
+                      <td key="qtyAsPerCounting"
+                        className="wis-td wis-td-center wis-td-bold">{item.qtyAsPerCounting.toLocaleString()}</td>
+                    );
+                    if (c.key === "varianceQty") return (
+                      <td key="varianceQty" className="wis-td wis-td-center">
+                        <span className={`wis-badge ${item.varianceQty===0?"wis-badge-green":"wis-badge-red"}`}>{item.varianceQty}</span>
+                      </td>
+                    );
+                    if (c.key === "varianceAmount") return (
+                      <td key="varianceAmount" className="wis-td wis-td-right">
+                        <span className={`wis-badge ${item.varianceAmount===0?"wis-badge-green":"wis-badge-red"}`}>{item.varianceAmount===0?"—":fmtPHP(item.varianceAmount)}</span>
+                      </td>
+                    );
+                    if (c.key === "remarks") return (
+                      <td key="remarks" title={item.remarks || ""}
+                        className="wis-td wis-td-center wis-td-muted"
+                        style={{ maxWidth: 140 }}>{item.remarks || "—"}</td>
+                    );
+                    if (c.key === "cogsQty") return (
+                      <td key="cogsQty"
+                        className="wis-td wis-td-center wis-td-bold">{(item.cogsQty ?? 0).toLocaleString()}</td>
+                    );
+                    if (c.key === "cogsAvgUnitCost") return (
+                      <td key="cogsAvgUnitCost"
+                        className="wis-td wis-td-right">{item.cogsAvgUnitCost > 0 ? fmtPHP(item.cogsAvgUnitCost) : "—"}</td>
+                    );
+                    if (c.key === "cogsTotal") return (
+                      <td key="cogsTotal"
+                        className="wis-td wis-td-right wis-td-bold"
+                        style={{ color: cogsTotal > 0 ? "#065f46" : "#9ca3af" }}>{cogsTotal > 0 ? fmtPHP(cogsTotal) : "—"}</td>
+                    );
+                    return null;
+                  })}
+                </tr>
+              );
+            });
+          })()}
+        </Table>
 
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #f3f4f6", background: "#fafafa", flexWrap: "wrap", gap: 10 }}>
           <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Showing {filtered.length===0?0:startIdx+1}–{Math.min(startIdx+PAGE_SIZE,filtered.length)} of {filtered.length} SKUs
+            Showing {sorted.length===0?0:startIdx+1}–{Math.min(startIdx+PAGE_SIZE,sorted.length)} of {sorted.length} SKUs
           </span>
           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             <button onClick={() => setCurrentPage(p => Math.max(1,p-1))} disabled={currentPage===1}
-              style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===1?"not-allowed":"pointer", opacity: currentPage===1?0.4:1 }}>
+              style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage===1?"not-allowed":"pointer", opacity: currentPage===1?0.4:1 }}>
               <IconChevronLeft size={14} />
             </button>
             {Array.from({length: totalPages}, (_,i) => i+1).slice(0,10).map(n => (
@@ -556,18 +947,88 @@ export default function EndingInventoryPage({
             ))}
             {totalPages > 10 && <span style={{ fontSize: 12, color: "#9ca3af" }}>…{totalPages}</span>}
             <button onClick={() => setCurrentPage(p => Math.min(totalPages,p+1))} disabled={currentPage===totalPages}
-              style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.4:1 }}>
+              style={{ padding: "6px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", color: "#374151", cursor: currentPage===totalPages?"not-allowed":"pointer", opacity: currentPage===totalPages?0.4:1 }}>
               <IconChevronRight size={14} />
             </button>
           </div>
         </div>
       </div>
 
-      {showStartModal && (
-        <StartInventoryModal
-          data={inventoryData}
-          onClose={() => setShowStartModal(false)}
-          onSave={handleStartInventorySave}
+      {/* ── Edit Drawer ── */}
+      {editDrawerRow && editDraft && (
+        <>
+          <button type="button" onClick={closeEditDrawer} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 1040, border: "none", cursor: "pointer" }} />
+          <aside style={{ position: "fixed", top: 0, right: 0, width: "min(480px, 100vw)", height: "100vh", background: "#fff", zIndex: 1050, boxShadow: "-8px 0 40px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ padding: "18px 22px 14px", background: "#1c2235", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#fff" }}>Edit Inventory Item</h2>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9ca3af" }}>SKU: {editDraft.sku} · #{editDraft.no}</p>
+              </div>
+              <button onClick={closeEditDrawer} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 8, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff" }}>
+                <IconX size={16} />
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "18px 22px 24px" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.08em", margin: "0 0 10px" }}>PRODUCT</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: "0 0 18px", lineHeight: 1.4 }}>{editDraft.productDescription}</p>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.08em", margin: "0 0 10px" }}>WIS FIELDS</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }}>
+                {[
+                  { label: "Last Acceptance Date", key: "lastAcceptanceDate", type: "date" },
+                  { label: "Qty as per WIS", key: "qtyAsPerWis", type: "number" },
+                  { label: "Avg Unit Cost (₱)", key: "avgUnitCost", type: "number" },
+                  { label: "Qty as per Counting", key: "qtyAsPerCounting", type: "number" },
+                ].map(f => (
+                  <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
+                    <input type={f.type || "text"} value={editDraft[f.key] ?? ""} onChange={e => setEditDraft(d => {
+                      const next = { ...d, [f.key]: f.type === "number" ? parseFloat(e.target.value)||0 : e.target.value };
+                      next.varianceQty = (parseFloat(next.qtyAsPerCounting)||0) - (parseFloat(next.qtyAsPerWis)||0);
+                      next.varianceAmount = next.varianceQty * (parseFloat(next.avgUnitCost)||0);
+                      next.totalUnitCost = (parseFloat(next.qtyAsPerWis)||0) * (parseFloat(next.avgUnitCost)||0);
+                      return next;
+                    })} min={0} step="0.01"
+                    style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                    onFocus={e => e.target.style.borderColor="#e87c27"} onBlur={e => e.target.style.borderColor="#e5e7eb"} />
+                  </div>
+                ))}
+                <div style={{ gridColumn: "1/-1", display: "flex", flexDirection: "column", gap: 4 }}>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>Remarks</label>
+                  <input value={editDraft.remarks || ""} onChange={e => setEditDraft(d => ({ ...d, remarks: e.target.value }))}
+                    style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                    onFocus={e => e.target.style.borderColor="#e87c27"} onBlur={e => e.target.style.borderColor="#e5e7eb"} />
+                </div>
+              </div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.08em", margin: "0 0 10px" }}>COGS FIELDS</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {[
+                  { label: "COGS Qty Sold", key: "cogsQty", type: "number" },
+                  { label: "COGS Avg Unit Cost (₱)", key: "cogsAvgUnitCost", type: "number" },
+                ].map(f => (
+                  <div key={f.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <label style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>{f.label}</label>
+                    <input type="number" value={editDraft[f.key] ?? ""} onChange={e => setEditDraft(d => ({ ...d, [f.key]: parseFloat(e.target.value)||0 }))} min={0} step="0.01"
+                    style={{ padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                    onFocus={e => e.target.style.borderColor="#e87c27"} onBlur={e => e.target.style.borderColor="#e5e7eb"} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding: "14px 22px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#fafafa", flexShrink: 0 }}>
+              <button onClick={closeEditDrawer} style={{ padding: "9px 18px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#374151", fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={handleSaveDrawer} style={{ padding: "9px 18px", background: "#e87c27", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}>
+                <IconSave size={14} /> Save Changes
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
+
+      {showAddModal && (
+        <AddEndingInventoryModal
+          onClose={() => setShowAddModal(false)}
+          onSave={handleAddItem}
+          nextNo={Math.max(...inventoryData.map(r => r.no), 0) + 1}
         />
       )}
 

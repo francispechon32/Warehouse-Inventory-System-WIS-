@@ -13,6 +13,8 @@ export function normalizeEndingRow(row, idFallback) {
     qtyAsPerWis,
     avgUnitCost,
     totalUnitCost,
+    cogsQty: Number(row.cogsQty) || 0,
+    cogsAvgUnitCost: Number(row.cogsAvgUnitCost) || 0,
   };
 }
 

@@ -68,31 +68,37 @@ function LowStockItem({ item, onClick }) {
   );
 }
 
-function ActivityItem({ item }) {
+function ActivityItem({ item, onClick }) {
   const isIn = item.type === "in";
   return (
-    <div className="notif-item-static">
+    <button type="button" onClick={onClick} className="notif-item-btn">
       <div style={{
-        width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-        background: isIn ? "#22c55e" : "#ef4444",
-      }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: isIn ? "#dcfce7" : "#fee2e2",
+      }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: isIn ? "#22c55e" : "#ef4444",
+        }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         <p style={{
-          fontSize: 12, color: "#374151", fontWeight: 500,
+          fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 2,
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>
           {item.text}
         </p>
-        <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 2 }}>{item.time}</p>
+        <p style={{ fontSize: 11, color: "#9ca3af" }}>{item.time}</p>
       </div>
       <span style={{
-        fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6, flexShrink: 0,
+        fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6, flexShrink: 0,
         background: isIn ? "#dcfce7" : "#fee2e2",
         color: isIn ? "#16a34a" : "#dc2626",
       }}>
-        {isIn ? "IN" : "OUT"}
+        {isIn ? "Stock In" : "Stock Out"}
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -251,7 +257,7 @@ export default function NotificationPanel({
             <>
               {tab === "all" && <SectionLabel count={activityCount}>Recent activity</SectionLabel>}
               {recentActivity.map((item, i) => (
-                <ActivityItem key={`${item.time}-${i}`} item={item} />
+                <ActivityItem key={`${item.time}-${i}`} item={item} onClick={handleStockSheets} />
               ))}
             </>
           )}
@@ -261,17 +267,10 @@ export default function NotificationPanel({
           padding: "12px 14px", borderTop: "1px solid #f3f4f6",
           display: "flex", gap: 8, background: "#fafafa", borderRadius: "0 0 14px 14px",
         }}>
-          {stockCount > 0 && (
-            <button type="button" onClick={handleLowStock} className="notif-footer-btn notif-footer-primary">
-              View low stock <IconArrowRight size={12} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleStockSheets}
-            className={`notif-footer-btn ${stockCount > 0 ? "notif-footer-secondary" : "notif-footer-primary"}`}
-            style={{ flex: stockCount > 0 ? undefined : 1 }}
-          >
+          <button type="button" onClick={handleLowStock} className="notif-footer-btn notif-footer-secondary">
+            View low stock <IconArrowRight size={12} />
+          </button>
+          <button type="button" onClick={handleStockSheets} className="notif-footer-btn notif-footer-secondary">
             Stock sheets <IconArrowRight size={12} />
           </button>
         </div>
